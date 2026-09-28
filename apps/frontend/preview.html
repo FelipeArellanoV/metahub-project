@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetaHub — Login & Performance Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg-main: #0B0F19;
+      --bg-card: rgba(19, 26, 42, 0.75);
+      --bg-card-hover: rgba(27, 37, 59, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(59, 130, 246, 0.5);
+      --accent-blue: #3B82F6;
+      --accent-cyan: #06B6D4;
+      --accent-green: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-red: #EF4444;
+      --text-main: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --text-dim: #6B7280;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 45%);
+    }
+
+    /* Screen Manager */
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+    /* Login Screen */
+    .login-container {
+      min-height: 100vh;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .login-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      position: relative;
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .login-brand-icon {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+    }
+
+    .login-header h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .login-header p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-wrapper i {
+      position: absolute;
+      left: 1rem;
+      color: var(--text-dim);
+    }
+
+    .input-wrapper input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.85rem 1rem 0.85rem 2.8rem;
+      color: white;
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .input-wrapper input:focus {
+      border-color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.05);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+    }
+
+    .submit-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent-blue), #2563EB);
+      color: white;
+      border: none;
+      padding: 0.9rem;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+      transition: all 0.2s ease;
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+    }
+
+    .toggle-auth {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .toggle-auth a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .error-box {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: var(--accent-red);
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    /* Main App Shell */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: rgba(13, 18, 30, 0.85);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 1.75rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 1.5rem;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+    }
+
+    .sidebar-section-title {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex: 1;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.8rem 1rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .sidebar-link:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.05) 100%);
+      color: white;
+      border-left: 3px solid var(--accent-blue);
+    }
+
+    .sidebar-profile {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      justify-content: space-between;
+    }
+
+    .profile-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .profile-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4F46E5, #06B6D4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .logout-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 0.4rem;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      color: var(--accent-red);
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .main-content {
+      margin-left: 260px;
+      flex: 1;
+      padding: 2rem 2.5rem;
+      max-width: 1200px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 2rem;
+    }
+
+    .eyebrow {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+
+    .primary-button {
+      background: linear-gradient(135deg, var(--accent-blue), #2563EB);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.4rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.35rem;
+      display: flex;
+      align-items: center;
+      gap: 1.1rem;
+    }
+
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--accent-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-label { font-size: 0.8rem; color: var(--text-dim); display: block; }
+    .stat-value { font-size: 1.6rem; font-weight: 700; display: block; }
+    .stat-detail { font-size: 0.75rem; color: var(--accent-cyan); }
+
+    .athletes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .athlete-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.4rem;
+    }
+
+    .athlete-top { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .athlete-avatar {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: white;
+    }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    }
+    .status-badge.success { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+    .status-badge.warning { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .view-tab { display: none; }
+    .view-tab.active { display: block; }
+
+    .search-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.65rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      max-width: 400px;
+    }
+    .search-box input { background: transparent; border: none; color: white; outline: none; width: 100%; }
+
+    .api-status-widget {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: rgba(13, 18, 30, 0.9); border: 1px solid var(--border-active);
+      border-radius: 14px; padding: 0.85rem 1.25rem; display: flex; align-items: center; gap: 0.85rem;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5); z-index: 100;
+    }
+    .indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+  </style>
+</head>
+<body>
+
+  <!-- 1. PANTALLA DE LOGIN / REGISTRO -->
+  <div id="screen-login" class="screen login-container active">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-brand-icon">
+          <i data-lucide="activity"></i>
+        </div>
+        <h2 id="authTitle">Iniciar Sesión</h2>
+        <p id="authSubtitle">Ingresa con tus credenciales de Entrenador MetaHub</p>
+      </div>
+
+      <div id="errorBox" class="error-box"></div>
+
+      <form id="authForm" onsubmit="handleAuthSubmit(event)">
+        <div class="form-group" id="nameGroup" style="display: none;">
+          <label>Nombre Completo</label>
+          <div class="input-wrapper">
+            <i data-lucide="user"></i>
+            <input type="text" id="inputName" placeholder="Felipe Arellano">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Correo Electrónico</label>
+          <div class="input-wrapper">
+            <i data-lucide="mail"></i>
+            <input type="email" id="inputEmail" placeholder="felipe@uct.cl" value="felipe@uct.cl" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Contraseña</label>
+          <div class="input-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="inputPassword" placeholder="••••••••" value="password123" required>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn">
+          <span>Ingresar a MetaHub</span>
+          <i data-lucide="arrow-right"></i>
+        </button>
+      </form>
+
+      <div class="toggle-auth">
+        <span id="toggleText">¿No tienes cuenta de entrenador?</span>
+        <a onclick="toggleAuthMode()" id="toggleLink"> Registrarse</a>
+      </div>
+
+      <div style="margin-top: 1.5rem; background: rgba(59, 130, 246, 0.08); padding: 0.75rem; border-radius: 10px; font-size: 0.78rem; color: var(--text-muted); text-align: center;">
+        🔑 <strong>Credencial de prueba:</strong> felipe@uct.cl / password123
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. PANTALLA PRINCIPAL DEL SISTEMA (APP SHELL) -->
+  <div id="screen-app" class="screen app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon"><i data-lucide="activity"></i></div>
+        <div>
+          <strong style="font-size: 1.1rem; display: block;">MetaHub</strong>
+          <span style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 600;">PERFORMANCE LAB</span>
+        </div>
+      </div>
+
+      <span class="sidebar-section-title">PLATAFORMA</span>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link active" onclick="switchTab(event, 'dashboard')"><i data-lucide="layout-dashboard"></i> Inicio</a>
+        <a class="sidebar-link" onclick="switchTab(event, 'athletes')"><i data-lucide="users"></i> Mis Atletas</a>
+        <a class="sidebar-link" onclick="switchTab(event, 'sessions')"><i data-lucide="video"></i> Sesiones</a>
+        <a class="sidebar-link" onclick="switchTab(event, 'settings')"><i data-lucide="settings"></i> Ajustes</a>
+      </nav>
+
+      <div class="sidebar-profile">
+        <div class="profile-info">
+          <div class="profile-avatar" id="userAvatar">FA</div>
+          <div>
+            <strong id="userNameDisplay" style="font-size: 0.85rem; display: block;">Felipe Arellano</strong>
+            <span id="userRoleDisplay" style="font-size: 0.75rem; color: var(--text-dim);">Entrenador</span>
+          </div>
+        </div>
+        <button class="logout-btn" onclick="logout()" title="Cerrar sesión">
+          <i data-lucide="log-out"></i>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <!-- DASHBOARD -->
+      <div id="tab-dashboard" class="view-tab active">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">PANEL DE ENTRENADOR</span>
+            <h1 id="welcomeTitle">Hola, Felipe 👋</h1>
+            <p>Conectado al Backend JWT (`http://localhost:4000/api`).</p>
+          </div>
+          <button class="primary-button" onclick="switchTab(null, 'athletes')">
+            <i data-lucide="user-plus"></i> Gestionar Atletas
+          </button>
+        </header>
+
+        <section class="stats-grid">
+          <article class="stat-card">
+            <div class="stat-icon"><i data-lucide="users"></i></div>
+            <div>
+              <span class="stat-label">Atletas bajo tu perfil</span>
+              <strong class="stat-value" id="trainerAthletesCount">0</strong>
+              <span class="stat-detail">Aislamiento H-04 Activo</span>
+            </div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-icon"><i data-lucide="shield-check"></i></div>
+            <div>
+              <span class="stat-label">Estado JWT</span>
+              <strong class="stat-value" style="font-size: 1.1rem; color: var(--accent-green);">VÁLIDO</strong>
+              <span class="stat-detail">Token HMAC-SHA256</span>
+            </div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-icon"><i data-lucide="activity"></i></div>
+            <div>
+              <span class="stat-label">Análisis Biomecánicos</span>
+              <strong class="stat-value">12</strong>
+              <span class="stat-detail">Completados</span>
+            </div>
+          </article>
+        </section>
+
+        <section>
+          <h2 style="font-size: 1.3rem; margin-bottom: 1rem;">Atletas Registrados en tu Cuenta</h2>
+          <div class="athletes-grid" id="dashboardAthletesGrid"></div>
+        </section>
+      </div>
+
+      <!-- ATHLETES -->
+      <div id="tab-athletes" class="view-tab">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">GESTIÓN DE ATLETAS</span>
+            <h1>Mis Atletas</h1>
+            <p>Atletas asociados exclusivamente a tu perfil de entrenador.</p>
+          </div>
+        </header>
+        <div class="search-box">
+          <i data-lucide="search"></i>
+          <input type="text" id="athleteSearch" placeholder="Buscar atleta..." oninput="filterAthletes()">
+        </div>
+        <div class="athletes-grid" id="athletesList"></div>
+      </div>
+
+      <!-- SESSIONS -->
+      <div id="tab-sessions" class="view-tab">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">SESIONES</span>
+            <h1>Análisis de Carrera</h1>
+          </div>
+        </header>
+      </div>
+
+      <!-- SETTINGS -->
+      <div id="tab-settings" class="view-tab">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">AJUSTES</span>
+            <h1>Perfil de Entrenador</h1>
+          </div>
+        </header>
+      </div>
+    </main>
+  </div>
+
+  <div class="api-status-widget">
+    <span class="indicator"></span>
+    <div>
+      <strong style="font-size: 0.85rem; display: block;">API Backend T-04 Online</strong>
+      <span style="font-size: 0.75rem; color: var(--text-dim);">http://localhost:4000/api</span>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:4000/api';
+    let isRegistering = false;
+    let currentAthletes = [];
+
+    lucide.createIcons();
+
+    function toggleAuthMode() {
+      isRegistering = !isRegistering;
+      document.getElementById('nameGroup').style.display = isRegistering ? 'block' : 'none';
+      document.getElementById('authTitle').innerText = isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión';
+      document.getElementById('authSubtitle').innerText = isRegistering ? 'Regístrate como Entrenador en MetaHub' : 'Ingresa con tus credenciales de Entrenador';
+      document.getElementById('submitBtn').querySelector('span').innerText = isRegistering ? 'Registrarse' : 'Ingresar a MetaHub';
+      document.getElementById('toggleText').innerText = isRegistering ? '¿Ya tienes cuenta?' : '¿No tienes cuenta de entrenador?';
+      document.getElementById('toggleLink').innerText = isRegistering ? ' Iniciar Sesión' : ' Registrarse';
+      document.getElementById('errorBox').style.display = 'none';
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('inputEmail').value;
+      const password = document.getElementById('inputPassword').value;
+      const name = document.getElementById('inputName').value;
+      const errorBox = document.getElementById('errorBox');
+      errorBox.style.display = 'none';
+
+      const endpoint = isRegistering ? '/auth/register' : '/auth/login';
+      const body = isRegistering ? { name, email, password, role: 'entrenador' } : { email, password };
+
+      try {
+        const response = await fetch(API_URL + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al autenticar');
+        }
+
+        // Guardar token JWT y datos de usuario
+        localStorage.setItem('metahub_token', data.token);
+        localStorage.setItem('metahub_user', JSON.stringify(data.user));
+
+        // Inicializar datos en la plataforma
+        initApp(data.user, data.token);
+      } catch (err) {
+        errorBox.innerText = err.message;
+        errorBox.style.display = 'block';
+      }
+    }
+
+    async function initApp(user, token) {
+      document.getElementById('screen-login').classList.remove('active');
+      document.getElementById('screen-app').classList.add('active');
+
+      document.getElementById('userNameDisplay').innerText = user.name;
+      document.getElementById('welcomeTitle').innerText = `Hola, ${user.name.split(' ')[0]} 👋`;
+      document.getElementById('userAvatar').innerText = user.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+
+      // Cargar atletas aislados del entrenador desde el Backend REST
+      await fetchAthletes(token);
+    }
+
+    async function fetchAthletes(token) {
+      try {
+        const response = await fetch(API_URL + '/athletes', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          currentAthletes = data.athletes || [];
+          document.getElementById('trainerAthletesCount').innerText = currentAthletes.length;
+          renderAthletes(currentAthletes);
+        }
+      } catch (e) {
+        console.error('Error cargando atletas:', e);
+      }
+    }
+
+    function renderAthletes(list) {
+      const grids = [document.getElementById('dashboardAthletesGrid'), document.getElementById('athletesList')];
+      
+      const html = list.length === 0 ? `
+        <div style="background: var(--bg-card); padding: 1.5rem; border-radius: 14px; text-align: center; color: var(--text-muted); grid-column: 1/-1;">
+          No tienes atletas registrados aún en tu perfil.
+        </div>
+      ` : list.map(a => `
+        <article class="athlete-card">
+          <div class="athlete-top">
+            <div class="athlete-avatar">${a.name.split(' ').map(n=>n[0]).join('')}</div>
+            <div>
+              <strong>${a.name}</strong>
+              <span style="font-size: 0.8rem; color: var(--text-dim); display: block;">${a.age} años</span>
+            </div>
+          </div>
+          <span class="status-badge ${a.consent ? 'success' : 'warning'}">
+            <span class="dot"></span> ${a.consent ? 'Consentimiento Vigente' : 'Consentimiento Pendiente'}
+          </span>
+        </article>
+      `).join('');
+
+      grids.forEach(g => { if(g) g.innerHTML = html; });
+    }
+
+    function filterAthletes() {
+      const q = document.getElementById('athleteSearch').value.toLowerCase();
+      const filtered = currentAthletes.filter(a => a.name.toLowerCase().includes(q));
+      renderAthletes(filtered);
+    }
+
+    function switchTab(e, tabId) {
+      if (e) {
+        document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+      }
+      document.querySelectorAll('.view-tab').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    function logout() {
+      localStorage.removeItem('metahub_token');
+      localStorage.removeItem('metahub_user');
+      document.getElementById('screen-app').classList.remove('active');
+      document.getElementById('screen-login').classList.add('active');
+    }
+
+    // Verificar si hay sesión activa al ingresar
+    const savedToken = localStorage.getItem('metahub_token');
+    const savedUser = localStorage.getItem('metahub_user');
+    if (savedToken && savedUser) {
+      initApp(JSON.parse(savedUser), savedToken);
+    }
+  </script>
+</body>
+</html>
