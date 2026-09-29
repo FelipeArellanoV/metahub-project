@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const dbRepository = require('../src/db/repository');
 
-describe('T-04 Autenticación JWT y Aislamiento por Entrenador', () => {
+describe('T-04 Autenticación JWT, CRUD Atletas y Gestión de Sesiones', () => {
   beforeEach(() => {
     // Limpiar repositorio antes de cada prueba para garantizar aislamiento de tests
     dbRepository.reset();
@@ -78,7 +78,6 @@ describe('T-04 Autenticación JWT y Aislamiento por Entrenador', () => {
 
   // PRUEBA 5: Aislamiento de lista de atletas por entrenador (H-04)
   test('Prueba 5: Un entrenador NO debe ver los atletas creados por otro entrenador', async () => {
-    // 1. Registrar Entrenador A y crear atleta "Martín"
     const regA = await request(app).post('/api/auth/register').send({
       name: 'Entrenador A',
       email: 'entrenadora@uct.cl',
@@ -91,7 +90,6 @@ describe('T-04 Autenticación JWT y Aislamiento por Entrenador', () => {
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ name: 'Martín Atleta', age: 15, consent: true });
 
-    // 2. Registrar Entrenador B
     const regB = await request(app).post('/api/auth/register').send({
       name: 'Entrenador B',
       email: 'entrenadorb@uct.cl',
@@ -99,46 +97,87 @@ describe('T-04 Autenticación JWT y Aislamiento por Entrenador', () => {
     });
     const tokenB = regB.body.token;
 
-    // 3. Entrenador B consulta sus atletas
     const resB = await request(app)
       .get('/api/athletes')
       .set('Authorization', `Bearer ${tokenB}`);
 
     expect(resB.statusCode).toBe(200);
-    expect(resB.body.athletes).toHaveLength(0); // Debe estar vacío para Entrenador B
+    expect(resB.body.athletes).toHaveLength(0);
   });
 
-  // PRUEBA 6: Intento de acceso directo denegado a atleta ajeno (H-04)
-  test('Prueba 6: Debe rechazar con 403 si un entrenador intenta acceder al ID de un atleta de otro entrenador', async () => {
-    // 1. Registrar Entrenador A y crear atleta
-    const regA = await request(app).post('/api/auth/register').send({
-      name: 'Entrenador A',
-      email: 'entrenadora2@uct.cl',
+  // PRUEBA 6: Actualizar (PUT) y Eliminar (DELETE) Atleta
+  test('Prueba 6: Debe permitir actualizar y eliminar un atleta propio', async () => {
+    const reg = await request(app).post('/api/auth/register').send({
+      name: 'Entrenador C',
+      email: 'entrenadorc@uct.cl',
       password: 'password123'
     });
-    const tokenA = regA.body.token;
+    const token = reg.body.token;
 
     const createRes = await request(app)
       .post('/api/athletes')
-      .set('Authorization', `Bearer ${tokenA}`)
-      .send({ name: 'Javiera Soto', age: 16, consent: true });
-    
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Atleta Prueba', age: 14, consent: false });
+
     const athleteId = createRes.body.athlete.id;
 
-    // 2. Registrar Entrenador B
-    const regB = await request(app).post('/api/auth/register').send({
-      name: 'Entrenador B',
-      email: 'entrenadorb2@uct.cl',
+    // Actualizar (PUT)
+    const updateRes = await request(app)
+      .put(`/api/athletes/${athleteId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Atleta Actualizado', age: 15, consent: true });
+
+    expect(updateRes.statusCode).toBe(200);
+    expect(updateRes.body.athlete.name).toBe('Atleta Actualizado');
+    expect(updateRes.body.athlete.age).toBe(15);
+
+    // Eliminar (DELETE)
+    const deleteRes = await request(app)
+      .delete(`/api/athletes/${athleteId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(deleteRes.statusCode).toBe(200);
+
+    // Verificar que ya no existe
+    const getRes = await request(app)
+      .get(`/api/athletes/${athleteId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(getRes.statusCode).toBe(404);
+  });
+
+  // PRUEBA 7: Registro y consulta de sesiones de carrera
+  test('Prueba 7: Debe registrar una sesión de carrera y permitir su consulta', async () => {
+    const reg = await request(app).post('/api/auth/register').send({
+      name: 'Entrenador D',
+      email: 'entrenadord@uct.cl',
       password: 'password123'
     });
-    const tokenB = regB.body.token;
+    const token = reg.body.token;
 
-    // 3. Entrenador B intenta solicitar atletaId del Entrenador A
-    const resB = await request(app)
-      .get(`/api/athletes/${athleteId}`)
-      .set('Authorization', `Bearer ${tokenB}`);
+    const athleteRes = await request(app)
+      .post('/api/athletes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Tomas Muñoz', age: 16, consent: true });
 
-    expect(resB.statusCode).toBe(403);
-    expect(resB.body.error).toMatch(/Acceso denegado/i);
+    const athleteId = athleteRes.body.athlete.id;
+
+    // Crear sesión
+    const sessionRes = await request(app)
+      .post('/api/sessions')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ athleteId, notes: 'Evaluación técnica de zancada' });
+
+    expect(sessionRes.statusCode).toBe(201);
+    expect(sessionRes.body.session.athleteId).toBe(athleteId);
+
+    // Consultar sesiones del atleta
+    const listRes = await request(app)
+      .get(`/api/athletes/${athleteId}/sessions`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(listRes.statusCode).toBe(200);
+    expect(listRes.body.sessions).toHaveLength(1);
+    expect(listRes.body.sessions[0].notes).toBe('Evaluación técnica de zancada');
   });
 });

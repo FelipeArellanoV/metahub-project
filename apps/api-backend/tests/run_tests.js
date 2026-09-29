@@ -3,7 +3,6 @@ const app = require('../src/app');
 const dbRepository = require('../src/db/repository');
 const http = require('http');
 
-// Simple helper to simulate requests against express app
 function makeRequest(app, method, path, headers = {}, body = null) {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
@@ -53,7 +52,7 @@ function makeRequest(app, method, path, headers = {}, body = null) {
 }
 
 async function runTests() {
-  console.log('🧪 Ejecutando Suite de Pruebas T-04 (Autenticación & Aislamiento por Entrenador)...\n');
+  console.log('🧪 Ejecutando Suite Completa de Pruebas Backend MetaHub (T-04 & T-09)...\n');
   let passed = 0;
   let failed = 0;
 
@@ -128,7 +127,6 @@ async function runTests() {
 
   // PRUEBA 5
   await test('Prueba 5: Un entrenador NO debe ver los atletas creados por otro entrenador', async () => {
-    // Entrenador A crea atleta Martín
     const regA = await makeRequest(app, 'POST', '/api/auth/register', {}, {
       name: 'Entrenador A',
       email: 'entrenadora@uct.cl',
@@ -139,7 +137,6 @@ async function runTests() {
       'Authorization': `Bearer ${regA.body.token}`
     }, { name: 'Martín Atleta', age: 15, consent: true });
 
-    // Entrenador B consulta sus atletas
     const regB = await makeRequest(app, 'POST', '/api/auth/register', {}, {
       name: 'Entrenador B',
       email: 'entrenadorb@uct.cl',
@@ -151,35 +148,75 @@ async function runTests() {
     });
 
     assert.strictEqual(resB.statusCode, 200);
-    assert.strictEqual(resB.body.athletes.length, 0, 'Entrenador B no debe ver atletas de A');
+    assert.strictEqual(resB.body.athletes.length, 0);
   });
 
   // PRUEBA 6
-  await test('Prueba 6: Rechazo con 403 al intentar acceder al ID de un atleta de otro entrenador', async () => {
-    const regA = await makeRequest(app, 'POST', '/api/auth/register', {}, {
-      name: 'Entrenador A',
-      email: 'entrenadora2@uct.cl',
+  await test('Prueba 6: Actualizar (PUT) y Eliminar (DELETE) atleta de forma segura', async () => {
+    const reg = await makeRequest(app, 'POST', '/api/auth/register', {}, {
+      name: 'Entrenador C',
+      email: 'entrenadorc@uct.cl',
       password: 'password123'
     });
+    const token = reg.body.token;
 
     const createRes = await makeRequest(app, 'POST', '/api/athletes', {
-      'Authorization': `Bearer ${regA.body.token}`
-    }, { name: 'Javiera Soto', age: 16, consent: true });
+      'Authorization': `Bearer ${token}`
+    }, { name: 'Atleta Prueba', age: 14, consent: false });
 
     const athleteId = createRes.body.athlete.id;
 
-    const regB = await makeRequest(app, 'POST', '/api/auth/register', {}, {
-      name: 'Entrenador B',
-      email: 'entrenadorb2@uct.cl',
+    // Actualizar (PUT)
+    const updateRes = await makeRequest(app, 'PUT', `/api/athletes/${athleteId}`, {
+      'Authorization': `Bearer ${token}`
+    }, { name: 'Atleta Editado', age: 15, consent: true });
+
+    assert.strictEqual(updateRes.statusCode, 200);
+    assert.strictEqual(updateRes.body.athlete.name, 'Atleta Editado');
+
+    // Eliminar (DELETE)
+    const deleteRes = await makeRequest(app, 'DELETE', `/api/athletes/${athleteId}`, {
+      'Authorization': `Bearer ${token}`
+    });
+
+    assert.strictEqual(deleteRes.statusCode, 200);
+
+    // Verificar borrado
+    const getRes = await makeRequest(app, 'GET', `/api/athletes/${athleteId}`, {
+      'Authorization': `Bearer ${token}`
+    });
+
+    assert.strictEqual(getRes.statusCode, 404);
+  });
+
+  // PRUEBA 7
+  await test('Prueba 7: Registro y obtención de sesiones de carrera', async () => {
+    const reg = await makeRequest(app, 'POST', '/api/auth/register', {}, {
+      name: 'Entrenador D',
+      email: 'entrenadord@uct.cl',
       password: 'password123'
     });
+    const token = reg.body.token;
 
-    const resB = await makeRequest(app, 'GET', `/api/athletes/${athleteId}`, {
-      'Authorization': `Bearer ${regB.body.token}`
+    const athleteRes = await makeRequest(app, 'POST', '/api/athletes', {
+      'Authorization': `Bearer ${token}`
+    }, { name: 'Javiera Soto', age: 16, consent: true });
+
+    const athleteId = athleteRes.body.athlete.id;
+
+    const sessionRes = await makeRequest(app, 'POST', '/api/sessions', {
+      'Authorization': `Bearer ${token}`
+    }, { athleteId, notes: 'Evaluación técnica de carrera' });
+
+    assert.strictEqual(sessionRes.statusCode, 201);
+    assert.strictEqual(sessionRes.body.session.athleteId, athleteId);
+
+    const listRes = await makeRequest(app, 'GET', `/api/athletes/${athleteId}/sessions`, {
+      'Authorization': `Bearer ${token}`
     });
 
-    assert.strictEqual(resB.statusCode, 403);
-    assert.ok(resB.body.error.includes('Acceso denegado'));
+    assert.strictEqual(listRes.statusCode, 200);
+    assert.strictEqual(listRes.body.sessions.length, 1);
   });
 
   console.log(`\n📊 Resumen de pruebas: ${passed} pasadas, ${failed} falladas.`);

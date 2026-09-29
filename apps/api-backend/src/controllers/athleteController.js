@@ -55,8 +55,54 @@ async function createAthlete(req, res) {
   }
 }
 
+async function updateAthlete(req, res) {
+  try {
+    const athleteId = req.params.id;
+    const trainerId = req.user.id;
+    const { name, age, consent } = req.body;
+
+    const updated = await dbRepository.updateAthlete({
+      athleteId,
+      trainerId,
+      name,
+      age,
+      consent
+    });
+
+    return res.json({
+      message: 'Atleta actualizado exitosamente.',
+      athlete: updated
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ error: err.message });
+  }
+}
+
+async function deleteAthlete(req, res) {
+  try {
+    const athleteId = req.params.id;
+    const trainerId = req.user.id;
+
+    await dbRepository.deleteAthlete({
+      athleteId,
+      trainerId
+    });
+
+    return res.json({
+      message: 'Atleta eliminado exitosamente.',
+      id: Number(athleteId)
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ error: err.message });
+  }
+}
+
 module.exports = {
   getAthletes,
   getAthleteById,
-  createAthlete
+  createAthlete,
+  updateAthlete,
+  deleteAthlete
 };

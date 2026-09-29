@@ -1,5 +1,6 @@
 const authController = require('./controllers/authController');
 const athleteController = require('./controllers/athleteController');
+const sessionController = require('./controllers/sessionController');
 const { verifyToken, requireRole } = require('./middleware/authMiddleware');
 
 function parseJsonBody(req) {
@@ -55,13 +56,14 @@ async function app(req, res) {
     return res.json({
       name: 'MetaHub API Backend',
       version: '1.0.0',
-      description: 'API REST para gestión de atletas y autenticación JWT en MetaHub',
+      description: 'API REST para gestión de atletas, sesiones y autenticación JWT en MetaHub',
       endpoints: {
         health: '/api/health',
         register: 'POST /api/auth/register',
         login: 'POST /api/auth/login',
         profile: 'GET /api/auth/me (Requiere JWT)',
-        athletes: 'GET, POST /api/athletes (Requiere JWT)'
+        athletes: 'GET, POST, PUT /:id, DELETE /:id /api/athletes (Requiere JWT)',
+        sessions: 'POST /api/sessions, GET /api/athletes/:id/sessions (Requiere JWT)'
       }
     });
   }
@@ -85,6 +87,13 @@ async function app(req, res) {
     return verifyToken(req, res, () => authController.getProfile(req, res));
   }
 
+  // Rutas protegidas - /api/sessions
+  if (method === 'POST' && url === '/api/sessions') {
+    return verifyToken(req, res, () => {
+      return requireRole(['entrenador', 'admin'])(req, res, () => sessionController.createSession(req, res));
+    });
+  }
+
   // Rutas protegidas - /api/athletes
   if (url === '/api/athletes' || url.startsWith('/api/athletes/')) {
     return verifyToken(req, res, () => {
@@ -97,10 +106,26 @@ async function app(req, res) {
           return athleteController.createAthlete(req, res);
         }
 
-        const match = url.match(/^\/api\/athletes\/(\d+)$/);
-        if (method === 'GET' && match) {
-          req.params = { id: match[1] };
-          return athleteController.getAthleteById(req, res);
+        // GET /api/athletes/:id/sessions
+        const sessionsMatch = url.match(/^\/api\/athletes\/(\d+)\/sessions$/);
+        if (method === 'GET' && sessionsMatch) {
+          req.params = { athleteId: sessionsMatch[1] };
+          return sessionController.getAthleteSessions(req, res);
+        }
+
+        // GET / PUT / DELETE /api/athletes/:id
+        const idMatch = url.match(/^\/api\/athletes\/(\d+)$/);
+        if (idMatch) {
+          req.params = { id: idMatch[1] };
+          if (method === 'GET') {
+            return athleteController.getAthleteById(req, res);
+          }
+          if (method === 'PUT') {
+            return athleteController.updateAthlete(req, res);
+          }
+          if (method === 'DELETE') {
+            return athleteController.deleteAthlete(req, res);
+          }
         }
 
         res.statusCode = 404;
