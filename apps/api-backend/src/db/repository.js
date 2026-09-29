@@ -1,17 +1,16 @@
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const { getPool } = require('./pgClient');
 
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+// Costo de hashing bcrypt configurado a 12 según requerimientos de seguridad e informe
+const BCRYPT_SALT_ROUNDS = 12;
+
+async function hashPassword(password) {
+  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 }
 
-function verifyPassword(password, storedHash) {
-  if (!storedHash || !storedHash.includes(':')) return false;
-  const [salt, originalHash] = storedHash.split(':');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return hash === originalHash;
+async function verifyPassword(password, storedHash) {
+  if (!storedHash) return false;
+  return bcrypt.compare(password, storedHash);
 }
 
 class Repository {
@@ -28,7 +27,6 @@ class Repository {
     this.sessionIdCounter = 1;
   }
 
-  // Helper para verificar si PostgreSQL está disponible
   isPgActive() {
     try {
       return Boolean(getPool());
@@ -39,6 +37,10 @@ class Repository {
 
   // --- Métodos de Usuarios ---
   async createUser({ name, email, password, role = 'entrenador' }) {
+    // Forzar rol seguro: el registro público siempre es 'entrenador'
+    const safeRole = role === 'admin' ? 'entrenador' : (role || 'entrenador');
+    const passwordHash = await hashPassword(password);
+
     if (this.isPgActive()) {
       const pool = getPool();
       const existing = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
@@ -47,10 +49,9 @@ class Repository {
         error.statusCode = 400;
         throw error;
       }
-      const passwordHash = hashPassword(password);
       const res = await pool.query(
         'INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at as "createdAt"',
-        [name, email.toLowerCase(), passwordHash, role]
+        [name, email.toLowerCase(), passwordHash, safeRole]
       );
       return res.rows[0];
     }
@@ -62,13 +63,12 @@ class Repository {
       throw error;
     }
 
-    const passwordHash = hashPassword(password);
     const newUser = {
       id: this.userIdCounter++,
       name,
       email: email.toLowerCase(),
       passwordHash,
-      role,
+      role: safeRole,
       createdAt: new Date().toISOString()
     };
 

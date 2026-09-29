@@ -1,52 +1,46 @@
 const assert = require('assert');
+const { EventEmitter } = require('events');
 const app = require('../src/app');
 const dbRepository = require('../src/db/repository');
-const http = require('http');
 
-function makeRequest(app, method, path, headers = {}, body = null) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer(app);
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      const payload = body ? JSON.stringify(body) : '';
-      
-      const reqHeaders = {
-        'Content-Type': 'application/json',
-        ...headers
-      };
-      if (body) {
-        reqHeaders['Content-Length'] = Buffer.byteLength(payload);
+function makeRequest(app, method, url, headers = {}, body = null) {
+  return new Promise((resolve) => {
+    const req = new EventEmitter();
+    req.method = method;
+    req.url = url;
+    req.headers = {};
+    for (const [k, v] of Object.entries(headers)) {
+      req.headers[k.toLowerCase()] = v;
+    }
+
+    const res = new EventEmitter();
+    res.statusCode = 200;
+    res._headers = {};
+    res.setHeader = function(k, v) { res._headers[k.toLowerCase()] = v; };
+    res.getHeader = function(k) { return res._headers[k.toLowerCase()]; };
+
+    let responseText = '';
+    res.end = function(chunk) {
+      if (chunk) responseText += chunk.toString();
+      let parsed = responseText;
+      try {
+        parsed = responseText ? JSON.parse(responseText) : {};
+      } catch (e) {
+        parsed = responseText;
       }
+      resolve({ statusCode: res.statusCode, body: parsed });
+    };
 
-      const req = http.request({
-        hostname: '127.0.0.1',
-        port,
-        path,
-        method,
-        headers: reqHeaders
-      }, (res) => {
-        let responseData = '';
-        res.on('data', chunk => responseData += chunk);
-        res.on('end', () => {
-          server.close();
-          try {
-            const parsed = responseData ? JSON.parse(responseData) : {};
-            resolve({ statusCode: res.statusCode, body: parsed });
-          } catch (e) {
-            resolve({ statusCode: res.statusCode, body: responseData });
-          }
-        });
-      });
+    // Ejecutar app handler
+    app(req, res);
 
-      req.on('error', (err) => {
-        server.close();
-        reject(err);
-      });
-
-      if (body) {
-        req.write(payload);
+    // Emitir eventos data y end en el siguiente tick para dar tiempo a registrar los listeners
+    process.nextTick(() => {
+      if (body && (method === 'POST' || method === 'PUT')) {
+        const payload = typeof body === 'string' ? body : JSON.stringify(body);
+        req.emit('data', Buffer.from(payload));
       }
-      req.end();
+      req.emit('end');
     });
   });
 }
@@ -134,7 +128,7 @@ async function runTests() {
     });
 
     await makeRequest(app, 'POST', '/api/athletes', {
-      'Authorization': `Bearer ${regA.body.token}`
+      'authorization': `Bearer ${regA.body.token}`
     }, { name: 'Martín Atleta', age: 15, consent: true });
 
     const regB = await makeRequest(app, 'POST', '/api/auth/register', {}, {
@@ -144,7 +138,7 @@ async function runTests() {
     });
 
     const resB = await makeRequest(app, 'GET', '/api/athletes', {
-      'Authorization': `Bearer ${regB.body.token}`
+      'authorization': `Bearer ${regB.body.token}`
     });
 
     assert.strictEqual(resB.statusCode, 200);
@@ -161,14 +155,14 @@ async function runTests() {
     const token = reg.body.token;
 
     const createRes = await makeRequest(app, 'POST', '/api/athletes', {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     }, { name: 'Atleta Prueba', age: 14, consent: false });
 
     const athleteId = createRes.body.athlete.id;
 
     // Actualizar (PUT)
     const updateRes = await makeRequest(app, 'PUT', `/api/athletes/${athleteId}`, {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     }, { name: 'Atleta Editado', age: 15, consent: true });
 
     assert.strictEqual(updateRes.statusCode, 200);
@@ -176,14 +170,14 @@ async function runTests() {
 
     // Eliminar (DELETE)
     const deleteRes = await makeRequest(app, 'DELETE', `/api/athletes/${athleteId}`, {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     });
 
     assert.strictEqual(deleteRes.statusCode, 200);
 
     // Verificar borrado
     const getRes = await makeRequest(app, 'GET', `/api/athletes/${athleteId}`, {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     });
 
     assert.strictEqual(getRes.statusCode, 404);
@@ -199,20 +193,20 @@ async function runTests() {
     const token = reg.body.token;
 
     const athleteRes = await makeRequest(app, 'POST', '/api/athletes', {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     }, { name: 'Javiera Soto', age: 16, consent: true });
 
     const athleteId = athleteRes.body.athlete.id;
 
     const sessionRes = await makeRequest(app, 'POST', '/api/sessions', {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     }, { athleteId, notes: 'Evaluación técnica de carrera' });
 
     assert.strictEqual(sessionRes.statusCode, 201);
     assert.strictEqual(sessionRes.body.session.athleteId, athleteId);
 
     const listRes = await makeRequest(app, 'GET', `/api/athletes/${athleteId}/sessions`, {
-      'Authorization': `Bearer ${token}`
+      'authorization': `Bearer ${token}`
     });
 
     assert.strictEqual(listRes.statusCode, 200);

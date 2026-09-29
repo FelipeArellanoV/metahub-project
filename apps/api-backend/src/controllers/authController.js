@@ -3,7 +3,7 @@ const { sign } = require('../config/jwt');
 
 async function register(req, res) {
   try {
-    const { name, email, password, role } = req.body || {};
+    const { name, email, password } = req.body || {};
 
     if (!name || !email || !password) {
       res.statusCode = 400;
@@ -19,7 +19,8 @@ async function register(req, res) {
       });
     }
 
-    const user = await dbRepository.createUser({ name, email, password, role });
+    // Por RNF03 y seguridad, el registro público asigna estrictamente el rol 'entrenador'
+    const user = await dbRepository.createUser({ name, email, password, role: 'entrenador' });
     const token = sign({ id: user.id, email: user.email, role: user.role, name: user.name });
 
     res.statusCode = 201;

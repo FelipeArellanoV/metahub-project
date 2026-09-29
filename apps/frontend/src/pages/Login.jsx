@@ -5,8 +5,8 @@ import { useNavigate } from 'react-router-dom';
 export default function Login({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('felipe@uct.cl');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -14,13 +14,14 @@ export default function Login({ onLoginSuccess }) {
     e.preventDefault();
     setError('');
 
+    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     const body = isRegister 
       ? { name, email, password, role: 'entrenador' } 
       : { email, password };
 
     try {
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -78,7 +79,7 @@ export default function Login({ onLoginSuccess }) {
               <Mail size={18} />
               <input
                 type="email"
-                placeholder="felipe@uct.cl"
+                placeholder="entrenador@uct.cl"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
