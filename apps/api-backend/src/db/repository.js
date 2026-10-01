@@ -1,16 +1,46 @@
-const bcrypt = require('bcryptjs');
-const { getPool } = require('./pgClient');
+const crypto = require('crypto');
+let bcrypt;
+try {
+  bcrypt = require('bcryptjs');
+} catch (e) {
+  bcrypt = null;
+}
 
-// Costo de hashing bcrypt configurado a 12 según requerimientos de seguridad e informe
+const { getPool } = require('./pgClient');
 const BCRYPT_SALT_ROUNDS = 12;
 
+function pbkdf2Hash(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function pbkdf2Verify(password, storedHash) {
+  if (!storedHash || !storedHash.includes(':')) return false;
+  const [salt, originalHash] = storedHash.split(':');
+  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  return hash === originalHash;
+}
+
 async function hashPassword(password) {
-  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+  if (bcrypt) {
+    return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+  }
+  return pbkdf2Hash(password);
 }
 
 async function verifyPassword(password, storedHash) {
   if (!storedHash) return false;
-  return bcrypt.compare(password, storedHash);
+  if (bcrypt && !storedHash.includes(':')) {
+    return bcrypt.compare(password, storedHash);
+  }
+  if (storedHash.includes(':')) {
+    return pbkdf2Verify(password, storedHash);
+  }
+  if (bcrypt) {
+    return bcrypt.compare(password, storedHash);
+  }
+  return false;
 }
 
 class Repository {
@@ -37,7 +67,6 @@ class Repository {
 
   // --- Métodos de Usuarios ---
   async createUser({ name, email, password, role = 'entrenador' }) {
-    // Forzar rol seguro: el registro público siempre es 'entrenador'
     const safeRole = role === 'admin' ? 'entrenador' : (role || 'entrenador');
     const passwordHash = await hashPassword(password);
 

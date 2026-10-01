@@ -10,7 +10,7 @@ import {
   Video
 } from 'lucide-react';
 
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 const menuItems = [
   {
@@ -40,6 +40,32 @@ const menuItems = [
 ];
 
 export function Layout({ children }) {
+  const navigate = useNavigate();
+
+  let user = null;
+  try {
+    const raw = localStorage.getItem('metahub_user');
+    if (raw) user = JSON.parse(raw);
+  } catch (e) {
+    // Ignore parse error
+  }
+
+  const userName = user?.name || 'Felipe Arellano';
+  const userInitials = userName
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'FA';
+  const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Entrenador';
+
+  const handleLogout = () => {
+    localStorage.removeItem('metahub_token');
+    localStorage.removeItem('metahub_user');
+    navigate('/login');
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -94,23 +120,19 @@ export function Layout({ children }) {
         <div className="sidebar-profile">
 
           <div className="profile-avatar">
-            FA
+            {userInitials}
           </div>
 
           <div className="profile-data">
-            <strong>Felipe Arellano</strong>
-            <span>Entrenador</span>
+            <strong>{userName}</strong>
+            <span>{userRole}</span>
           </div>
 
           <button
             type="button"
             className="logout-button"
             aria-label="Cerrar sesión"
-            onClick={() =>
-              alert(
-                'El cierre de sesión se conectará al backend en el siguiente avance.'
-              )
-            }
+            onClick={handleLogout}
           >
             <LogOut size={18} />
           </button>

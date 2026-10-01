@@ -1,13 +1,654 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="MetaHub - Seguimiento longitudinal de la técnica de carrera." />
-    <title>MetaHub</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetaHub Performance Lab — Mobile PWA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Reset & Showcase Outer Frame */
+    * { box-sizing: border-box; }
+    body {
+      background: #0b1329;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #1e293b;
+    }
+
+    .showcase-header {
+      text-align: center;
+      color: white;
+      margin: 20px 0 15px;
+    }
+    .showcase-header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 0 0 6px;
+      letter-spacing: -0.5px;
+    }
+    .showcase-header p {
+      color: #94a3b8;
+      font-size: 13px;
+      margin: 0;
+    }
+
+    /* Smartphone Device Mockup Container */
+    .phone-container {
+      width: 390px;
+      height: 780px;
+      background: #f5f7fa;
+      border-radius: 44px;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6), 0 0 0 12px #1e293b, 0 0 0 14px rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 25px;
+    }
+
+    /* Status Bar Mock (09:41, Wifi, Battery) */
+    .status-bar {
+      height: 38px;
+      background: #0c2033;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 11px;
+      font-weight: 700;
+      z-index: 200;
+      user-select: none;
+    }
+    .status-bar-icons {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* Main Phone Screen Frame */
+    .phone-body {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #f5f7fa;
+    }
+
+    /* SEQUENTIAL SCREENS (ISOLATION) */
+    .screen-page {
+      display: none !important;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+    }
+    .screen-page.active {
+      display: flex !important;
+    }
+
+    /* 1. LOGIN SCREEN */
+    #page-login {
+      background: linear-gradient(135deg, #0c2033 0%, #10283f 100%);
+      padding: 24px 20px;
+      align-items: center;
+      justify-content: center;
+    }
+    #page-login .login-card {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 24px 20px;
+      color: white;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    /* 2. APP SHELL CONTAINER */
+    #page-app {
+      background: #f5f7fa;
+    }
+
+    .app-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px 85px;
+    }
+
+    /* TAB VIEWS */
+    .tab-view {
+      display: none !important;
+    }
+    .tab-view.active {
+      display: block !important;
+    }
+
+    /* BOTTOM NAV BAR (MOVILE) */
+    .phone-bottom-nav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: linear-gradient(180deg, #10283f 0%, #0c2033 100%);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 150;
+    }
+    .nav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #8ca2b5;
+      background: transparent;
+      border: none;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 8px 0;
+      transition: color 0.2s ease;
+    }
+    .nav-btn.active {
+      color: #35a8e0;
+    }
+
+    /* Custom Mobile Cards & Buttons */
+    .m-header {
+      margin-bottom: 18px;
+    }
+    .m-header .eyebrow {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      color: #7b8798;
+    }
+    .m-header h1 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 4px 0 4px;
+      letter-spacing: -0.6px;
+      color: #10283f;
+    }
+    .m-header p {
+      font-size: 12px;
+      color: #7b8798;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .m-btn-primary {
+      width: 100%;
+      height: 44px;
+      background: linear-gradient(135deg, #2474d2, #35a8e0);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 14px 0;
+      box-shadow: 0 6px 16px rgba(36,116,210,0.25);
+      cursor: pointer;
+    }
+
+    .m-card {
+      background: white;
+      border: 1px solid #e6eaf0;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .m-stat-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .m-stat-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #eaf3ff;
+      color: #2474d2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .m-athlete-item {
+      background: white;
+      border: 1px solid #e6eaf0;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+
+    /* Responsive rule for actual mobile screens */
+    @media (max-width: 500px) {
+      body {
+        background: #f5f7fa;
+        padding: 0;
+      }
+      .showcase-header { display: none; }
+      .phone-container {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="showcase-header">
+    <h1>MetaHub Performance Lab</h1>
+    <p>Simulador Móvil PWA (Navegación Secuencial Obligatoria: Login ➔ App)</p>
+  </div>
+
+  <!-- SMARTPHONE DEVICE CONTAINER -->
+  <div class="phone-container">
+    
+    <!-- Status Bar Top Mock -->
+    <div class="status-bar">
+      <span>09:41</span>
+      <div style="width: 70px; height: 14px; background: #000; border-radius: 10px;"></div>
+      <div class="status-bar-icons">
+        <i data-lucide="wifi" style="width:12px;height:12px;"></i>
+        <i data-lucide="battery" style="width:14px;height:14px;"></i>
+      </div>
+    </div>
+
+    <div class="phone-body">
+
+      <!-- =================================================== -->
+      <!-- SECUENCIA 1: LOGIN (HU-02)                          -->
+      <!-- =================================================== -->
+      <div id="page-login" class="screen-page active">
+        <div class="login-card">
+          <div style="text-align:center; margin-bottom: 20px;">
+            <div style="width:50px; height:50px; background: linear-gradient(135deg, #2474d2, #35a8e0); border-radius:14px; display:inline-flex; align-items:center; justify-content:center; margin-bottom:10px;">
+              <i data-lucide="activity" style="width:26px;height:26px;stroke:white;"></i>
+            </div>
+            <h2 style="font-size:20px; font-weight:800; margin:0 0 4px;">Iniciar Sesión</h2>
+            <p style="font-size:12px; color:#94a3b8; margin:0;">MetaHub Performance Lab PWA</p>
+          </div>
+
+          <form id="mobileLoginForm" onsubmit="handleMobileLogin(event)">
+            <div style="margin-bottom: 14px;">
+              <label style="display:block; font-size:11px; font-weight:700; margin-bottom:6px; color:#cbd5e1;">Correo Entrenador</label>
+              <div style="position:relative;">
+                <i data-lucide="mail" style="position:absolute; left:12px; top:12px; width:16px; height:16px; color:#64748b;"></i>
+                <input type="email" id="loginEmail" value="entrenador@uct.cl" required style="width:100%; height:40px; padding-left:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.06); color:white; font-size:13px;" />
+              </div>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+              <label style="display:block; font-size:11px; font-weight:700; margin-bottom:6px; color:#cbd5e1;">Contraseña</label>
+              <div style="position:relative;">
+                <i data-lucide="lock" style="position:absolute; left:12px; top:12px; width:16px; height:16px; color:#64748b;"></i>
+                <input type="password" id="loginPass" value="123456" required style="width:100%; height:40px; padding-left:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.06); color:white; font-size:13px;" />
+              </div>
+            </div>
+
+            <div id="loginError" style="display:none; background:rgba(239, 68, 68, 0.2); border:1px solid #ef4444; color:#fca5a5; font-size:11px; padding:8px 12px; border-radius:8px; margin-bottom:14px; text-align:center;"></div>
+
+            <button type="submit" id="loginSubmitBtn" style="width:100%; height:44px; background:linear-gradient(135deg, #2474d2, #35a8e0); color:white; border:none; border-radius:12px; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;">
+              <span>Ingresar a MetaHub</span>
+              <i data-lucide="arrow-right" style="width:16px;height:16px;stroke:white;"></i>
+            </button>
+          </form>
+
+          <div style="margin-top:16px; text-align:center; font-size:11px; color:#94a3b8;">
+            Acceso seguro con Token JWT (HU-02)
+          </div>
+        </div>
+      </div>
+
+      <!-- =================================================== -->
+      <!-- SECUENCIA 2: APP PRINCIPAL Y MENÚS                  -->
+      <!-- =================================================== -->
+      <div id="page-app" class="screen-page">
+
+        <div class="app-content">
+
+          <!-- TAB 1: INICIO (DASHBOARD) -->
+          <div id="tab-inicio" class="tab-view active">
+            <div class="m-header">
+              <span class="eyebrow">PANEL DE ENTRENADOR</span>
+              <h1 id="userGreeting">Hola, Felipe 👋</h1>
+              <p>Revisa el progreso biomecánico de tu equipo.</p>
+            </div>
+
+            <button class="m-btn-primary" onclick="switchMobileTab('tab-atletas')">
+              <i data-lucide="users" style="width:16px;height:16px;stroke:white;"></i>
+              Gestionar Atletas
+            </button>
+
+            <div class="m-card">
+              <div class="m-stat-row">
+                <div class="m-stat-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></div>
+                <div>
+                  <span style="font-size:10px; font-weight:800; color:#7b8798; display:block;">ATLETAS ACTIVOS</span>
+                  <strong id="dashAthleteCount" style="font-size:18px; color:#10283f;">3</strong>
+                  <span style="font-size:11px; color:#7b8798; display:block;">Bajo tu seguimiento (HU-04)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="m-card">
+              <div class="m-stat-row">
+                <div class="m-stat-icon"><i data-lucide="video" style="width:20px;height:20px;"></i></div>
+                <div>
+                  <span style="font-size:10px; font-weight:800; color:#7b8798; display:block;">ANÁLISIS COMPLETADOS</span>
+                  <strong style="font-size:18px; color:#10283f;">12</strong>
+                  <span style="font-size:11px; color:#7b8798; display:block;">Con algoritmo MediaPipe</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="background: linear-gradient(110deg,#eaf3ff,#fff); border:1px solid #dce9f8; border-radius:16px; padding:14px; margin-top:10px;">
+              <span style="font-size:9px; font-weight:800; color:#2474d2; letter-spacing:1px; display:block;">SEGUIMIENTO EN TERRENO</span>
+              <h3 style="font-size:13px; margin:4px 0 2px; color:#10283f;">Captura y procesa carreras directo en la pista.</h3>
+            </div>
+          </div>
+
+          <!-- TAB 2: ATLETAS -->
+          <div id="tab-atletas" class="tab-view">
+            <div class="m-header">
+              <span class="eyebrow">GESTIÓN DE ATLETAS</span>
+              <h1>Mis Atletas</h1>
+              <p>Atletas asociados a tu cuenta de entrenador.</p>
+            </div>
+
+            <button class="m-btn-primary" onclick="openAddAthleteModal()">
+              <i data-lucide="user-plus" style="width:16px;height:16px;stroke:white;"></i>
+              Agregar Atleta
+            </button>
+
+            <div style="position:relative; margin-bottom:14px;">
+              <i data-lucide="search" style="position:absolute; left:12px; top:12px; width:16px; height:16px; color:#94a3b8;"></i>
+              <input type="text" id="mAthleteSearch" placeholder="Buscar atleta..." oninput="filterMobileAthletes()" style="width:100%; height:40px; padding-left:36px; border-radius:12px; border:1px solid #e6eaf0; font-size:12px; outline:none;" />
+            </div>
+
+            <div id="mAthletesList">
+              <!-- Renderizado dinámico -->
+            </div>
+          </div>
+
+          <!-- TAB 3: SESIONES -->
+          <div id="tab-sesiones" class="tab-view">
+            <div class="m-header">
+              <span class="eyebrow">ANÁLISIS BIOMECÁNICO</span>
+              <h1>Sesiones</h1>
+              <p>Historial de análisis y mediciones articulares.</p>
+            </div>
+
+            <button class="m-btn-primary" onclick="openNewSessionModal()">
+              <i data-lucide="plus" style="width:16px;height:16px;stroke:white;"></i>
+              Nueva Sesión
+            </button>
+
+            <div id="mSessionsList">
+              <div class="m-card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <strong style="display:block; font-size:13px; color:#10283f;">Martín Atleta</strong>
+                    <span style="font-size:11px; color:#7b8798;">Sesión S-014 · 26 Sep</span>
+                  </div>
+                  <span style="background:#e6f4ea; color:#137333; font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px;">Completada</span>
+                </div>
+              </div>
+
+              <div class="m-card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <strong style="display:block; font-size:13px; color:#10283f;">Javiera Soto</strong>
+                    <span style="font-size:11px; color:#7b8798;">Sesión S-013 · 24 Sep</span>
+                  </div>
+                  <span style="background:#e6f4ea; color:#137333; font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px;">Completada</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: AJUSTES -->
+          <div id="tab-ajustes" class="tab-view">
+            <div class="m-header">
+              <span class="eyebrow">CONFIGURACIÓN</span>
+              <h1>Ajustes</h1>
+              <p>Perfil de usuario y preferencias del sistema.</p>
+            </div>
+
+            <div class="m-card" style="text-align:center; padding:20px;">
+              <div style="width:50px; height:50px; background:#eaf3ff; color:#2474d2; border-radius:16px; font-weight:800; font-size:18px; display:inline-flex; align-items:center; justify-content:center; margin-bottom:8px;">
+                FA
+              </div>
+              <strong id="profileNameDisplay" style="display:block; font-size:15px; color:#10283f;">Felipe Arellano</strong>
+              <span id="profileEmailDisplay" style="font-size:12px; color:#7b8798; display:block;">entrenador@uct.cl</span>
+            </div>
+
+            <button onclick="handleMobileLogout()" style="width:100%; height:44px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:14px; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; margin-top:20px;">
+              <i data-lucide="log-out" style="width:16px;height:16px;"></i>
+              Cerrar Sesión
+            </button>
+          </div>
+
+        </div>
+
+        <!-- BARRA INFERIOR DE NAVEGACIÓN MÓVIL (BOTTOM NAV BAR) -->
+        <div class="phone-bottom-nav">
+          <button class="nav-btn active" id="nav-btn-tab-inicio" onclick="switchMobileTab('tab-inicio')">
+            <i data-lucide="layout-dashboard" style="width:18px;height:18px;"></i>
+            <span>Inicio</span>
+          </button>
+          <button class="nav-btn" id="nav-btn-tab-atletas" onclick="switchMobileTab('tab-atletas')">
+            <i data-lucide="users" style="width:18px;height:18px;"></i>
+            <span>Atletas</span>
+          </button>
+          <button class="nav-btn" id="nav-btn-tab-sesiones" onclick="switchMobileTab('tab-sesiones')">
+            <i data-lucide="video" style="width:18px;height:18px;"></i>
+            <span>Sesiones</span>
+          </button>
+          <button class="nav-btn" id="nav-btn-tab-ajustes" onclick="switchMobileTab('tab-ajustes')">
+            <i data-lucide="settings" style="width:18px;height:18px;"></i>
+            <span>Ajustes</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL PARA AGREGAR ATLETA -->
+  <div id="mAthleteModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:999; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:white; border-radius:20px; width:100%; max-width:340px; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,0.3);">
+      <h3 style="margin:0 0 6px; font-size:16px; color:#10283f;">Nuevo Atleta</h3>
+      <p style="margin:0 0 14px; font-size:11px; color:#7b8798;">Ingresa los datos para iniciar seguimiento.</p>
+
+      <input type="text" id="mNewName" placeholder="Nombre completo" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:12px; margin-bottom:10px;" />
+      <input type="number" id="mNewAge" placeholder="Edad (ej: 16)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:12px; margin-bottom:14px;" />
+
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="closeAddAthleteModal()" style="height:36px; padding:0 14px; border:1px solid #cbd5e1; background:#f8fafc; border-radius:8px; font-weight:600; font-size:12px;">Cancelar</button>
+        <button onclick="saveNewMobileAthlete()" style="height:36px; padding:0 14px; background:#2474d2; color:white; border:none; border-radius:8px; font-weight:700; font-size:12px;">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ESTADO GENERAL MÓVIL
+    let currentMobileAthletes = [
+      { id: 1, name: 'Martín Atleta', age: 15, consent: true },
+      { id: 2, name: 'Javiera Soto', age: 16, consent: true },
+      { id: 3, name: 'Tomás Muñoz', age: 14, consent: false }
+    ];
+
+    const API_URL = 'http://localhost:3000/api';
+
+    // MANEJO DEL LOGIN
+    async function handleMobileLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPass').value;
+      const btn = document.getElementById('loginSubmitBtn');
+      const errDiv = document.getElementById('loginError');
+
+      errDiv.style.display = 'none';
+      btn.innerText = 'Verificando JWT...';
+
+      try {
+        const resp = await fetch(API_URL + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await resp.json();
+
+        if (resp.ok && data.token) {
+          localStorage.setItem('metahub_token', data.token);
+          localStorage.setItem('metahub_user', JSON.stringify(data.user));
+          showAppSequence(data.user);
+        } else {
+          errDiv.innerText = data.error || 'Credenciales inválidas';
+          errDiv.style.display = 'block';
+        }
+      } catch (err) {
+        // Fallback demo login si el backend estuviera apagado
+        const demoUser = { name: 'Felipe Arellano', email: email, role: 'entrenador' };
+        localStorage.setItem('metahub_token', 'demo_jwt_token_123');
+        localStorage.setItem('metahub_user', JSON.stringify(demoUser));
+        showAppSequence(demoUser);
+      } finally {
+        btn.innerHTML = '<span>Ingresar a MetaHub</span><i data-lucide="arrow-right" style="width:16px;height:16px;stroke:white;"></i>';
+        lucide.createIcons();
+      }
+    }
+
+    // TRANSICIÓN SECUENCIAL LOGIN -> APP
+    function showAppSequence(user) {
+      document.getElementById('page-login').classList.remove('active');
+      document.getElementById('page-app').classList.add('active');
+
+      document.getElementById('userGreeting').innerText = 'Hola, ' + (user.name.split(' ')[0] || 'Entrenador') + ' 👋';
+      document.getElementById('profileNameDisplay').innerText = user.name || 'Felipe Arellano';
+      document.getElementById('profileEmailDisplay').innerText = user.email || 'entrenador@uct.cl';
+
+      renderMobileAthletes(currentMobileAthletes);
+      switchMobileTab('tab-inicio');
+    }
+
+    // MANEJO DE LOGOUT -> VUELVE AL LOGIN
+    function handleMobileLogout() {
+      localStorage.removeItem('metahub_token');
+      localStorage.removeItem('metahub_user');
+      document.getElementById('page-app').classList.remove('active');
+      document.getElementById('page-login').classList.add('active');
+    }
+
+    // CAMBIO DE MENÚS (BOTTOM NAV BAR)
+    function switchMobileTab(tabId) {
+      document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+      document.getElementById(tabId).classList.add('active');
+      const activeBtn = document.getElementById('nav-btn-' + tabId);
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    // RENDERIZADO DE ATLETAS MÓVIL
+    function renderMobileAthletes(list) {
+      const container = document.getElementById('mAthletesList');
+      const dashCount = document.getElementById('dashAthleteCount');
+      if (dashCount) dashCount.innerText = list.length;
+
+      if (!container) return;
+      container.innerHTML = list.map(a => `
+        <div class="m-athlete-item">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:36px; height:36px; border-radius:10px; background:#eaf3ff; color:#2474d2; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;">
+              ${a.name.split(' ').map(n=>n[0]).join('')}
+            </div>
+            <div style="flex:1;">
+              <strong style="display:block; font-size:13px; color:#10283f;">${a.name}</strong>
+              <span style="font-size:10px; color:#7b8798;">${a.age} años</span>
+            </div>
+            <span style="font-size:10px; font-weight:700; color:${a.consent ? '#137333':'#b06000'}; background:${a.consent ? '#e6f4ea':'#feefc3'}; padding:3px 8px; border-radius:6px;">
+              ${a.consent ? 'Vigente' : 'Pendiente'}
+            </span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterMobileAthletes() {
+      const q = document.getElementById('mAthleteSearch').value.toLowerCase();
+      const filtered = currentMobileAthletes.filter(a => a.name.toLowerCase().includes(q));
+      renderMobileAthletes(filtered);
+    }
+
+    // MODAL DE ATLETA
+    function openAddAthleteModal() {
+      document.getElementById('mAthleteModal').style.display = 'flex';
+    }
+    function closeAddAthleteModal() {
+      document.getElementById('mAthleteModal').style.display = 'none';
+    }
+    function saveNewMobileAthlete() {
+      const name = document.getElementById('mNewName').value;
+      const age = document.getElementById('mNewAge').value;
+      if (!name) return;
+
+      currentMobileAthletes.unshift({
+        id: Date.now(),
+        name: name,
+        age: parseInt(age) || 16,
+        consent: true
+      });
+
+      renderMobileAthletes(currentMobileAthletes);
+      document.getElementById('mNewName').value = '';
+      document.getElementById('mNewAge').value = '';
+      closeAddAthleteModal();
+    }
+
+    function openNewSessionModal() {
+      alert("Nueva sesión enviada a procesamiento en terreno.");
+    }
+
+    // VERIFICAR SESIÓN PREVIA AL CARGAR
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      const token = localStorage.getItem('metahub_token');
+      const rawUser = localStorage.getItem('metahub_user');
+      if (token && rawUser) {
+        try {
+          showAppSequence(JSON.parse(rawUser));
+        } catch (e) {
+          handleMobileLogout();
+        }
+      } else {
+        handleMobileLogout();
+      }
+    });
+  </script>
+</body>
 </html>

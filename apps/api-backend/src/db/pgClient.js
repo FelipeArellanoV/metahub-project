@@ -1,9 +1,15 @@
-const { Pool } = require('pg');
+let Pool = null;
+try {
+  Pool = require('pg').Pool;
+} catch (e) {
+  Pool = null;
+}
 
 let pool = null;
 
 function getPool() {
   if (pool) return pool;
+  if (!Pool) return null;
 
   const connectionString = process.env.DATABASE_URL;
   
