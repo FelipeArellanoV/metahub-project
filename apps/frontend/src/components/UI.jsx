@@ -1,3 +1,19 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Componentes de Interfaz de Usuario y Maquetación (UI.jsx)
+ * Descripción: Define el Shell de la plataforma (Layout, Sidebar, Perfil de entrenador),
+ *              tarjetas de resumen de atletas (AthleteCard), indicadores estadísticos (StatCard)
+ *              y cabeceras uniformes para la PWA de seguimiento biomecánico.
+ * =========================================================================================
+ */
+
 import {
   Activity,
   CalendarDays,
@@ -6,6 +22,7 @@ import {
   LogOut,
   PersonStanding,
   Settings,
+  Trash2,
   Users,
   Video
 } from 'lucide-react';
@@ -210,35 +227,47 @@ export function StatCard({
 }
 
 export function AthleteCard({
+  id,
   name,
   initials,
   age,
   lastSession,
+  lastSessionDate,
   consent,
   sessions,
-  onView
+  sessionCount,
+  onView,
+  onDelete
 }) {
+  const displayInitials = initials || (name
+    ? name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'AT');
+
+  const count = sessionCount !== undefined ? sessionCount : (sessions !== undefined ? sessions : 0);
+  
+  let formattedLastSession = lastSession || 'Sin sesiones';
+  if (lastSessionDate) {
+    try {
+      const d = new Date(lastSessionDate);
+      formattedLastSession = d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+      formattedLastSession = lastSessionDate;
+    }
+  }
+
   return (
     <article className="athlete-card">
-
       <div className="athlete-top">
-
         <div className="athlete-avatar">
-          {initials}
+          {displayInitials}
         </div>
 
         <div className="athlete-main-data">
-
-          <strong>
-            {name}
-          </strong>
-
+          <strong>{name}</strong>
           <span>
             <PersonStanding size={14} />
-
             {age} años
           </span>
-
         </div>
 
         <button
@@ -249,63 +278,56 @@ export function AthleteCard({
         >
           <ChevronRight size={20} />
         </button>
-
       </div>
 
       <div className="athlete-divider" />
 
       <div className="athlete-info-row">
-
         <div>
-          <span className="mini-label">
-            ÚLTIMA SESIÓN
-          </span>
-
+          <span className="mini-label">ÚLTIMA SESIÓN</span>
           <strong>
             <CalendarDays size={15} />
-
-            {lastSession}
+            {formattedLastSession}
           </strong>
         </div>
 
         <div>
-          <span className="mini-label">
-            SESIONES
-          </span>
-
-          <strong>
-            {sessions}
-          </strong>
+          <span className="mini-label">SESIONES</span>
+          <strong>{count}</strong>
         </div>
-
       </div>
 
       <div className="athlete-footer">
-
-        <span
-          className={
-            consent
-              ? 'status success'
-              : 'status warning'
-          }
-        >
+        <span className={consent ? 'status success' : 'status warning'}>
           <span className="status-dot" />
-
-          {consent
-            ? 'Consentimiento vigente'
-            : 'Consentimiento pendiente'}
+          {consent ? 'Consentimiento vigente' : 'Consentimiento pendiente'}
         </span>
 
-        <button
-          className="text-button"
-          type="button"
-          onClick={onView}
-        >
-          Ver detalle
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {onDelete && (
+            <button
+              className="text-button"
+              type="button"
+              style={{ color: '#ef4444', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(id, name);
+              }}
+              title="Eliminar atleta"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
 
+          <button
+            className="text-button"
+            type="button"
+            onClick={onView}
+          >
+            Ver detalle
+          </button>
+        </div>
       </div>
-
     </article>
   );
 }

@@ -4,6 +4,17 @@ Todas las modificaciones destacadas en este proyecto se documentarán en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.1.0] - 2026-10-13
+
+### Añadido
+- **Integración Completa Frontend-Backend:** Centralización de cliente HTTP en `apps/frontend/src/services/api.js` con manejo automático de tokens Bearer JWT y redirección por sesión expirada.
+- **CRUD React Atletas Dinámico:** `Athletes.jsx` conectado a `GET /api/athletes`, `POST /api/athletes` y `DELETE /api/athletes/:id`, con modal interactivo para consultar historial de sesiones individuales por atleta.
+- **Gestión de Sesiones en Terreno:** `Sessions.jsx` conectado a `GET /api/sessions` y `POST /api/sessions`, con selección dinámica de atletas registrados y visualización de métricas biomecánicas (ángulo rodilla, cadera y simetría).
+- **Dashboard en Tiempo Real:** `Dashboard.jsx` sincronizado con conteos reales de atletas, sesiones y estado de consentimientos informados desde la base de datos.
+- **Nuevo Endpoint Backend `GET /api/sessions`:** Permite al entrenador listar todas las sesiones de sus atletas ordenadas cronológicamente con conteo integrado.
+- **Suite de Pruebas Ampliada:** Añadida Prueba 8 a `apps/api-backend/tests/run_tests.js` (8/8 pruebas exitosas).
+- **Entrada PWA Vite:** `index.html` restaurado como punto de entrada SPA/PWA montando `/src/main.jsx`, preservando `preview.html` y `mobile.html` para vitrina estática.
+
 ## [1.0.0] - 2026-09-29
 
 ### Añadido

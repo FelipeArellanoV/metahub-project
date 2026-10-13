@@ -1,3 +1,18 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Hoja de Estilos y Sistema de Diseño (styles.css)
+ * Descripción: Tokens de diseño, paleta institucional (Navy, Azul Atlético, Cian),
+ *              componentes visuales, animaciones de carga y adaptabilidad responsive PWA.
+ * =========================================================================================
+ */
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -681,4 +696,14 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer;
   margin-left: 4px;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
+
 

@@ -1,5 +1,14 @@
--- MetaHub PostgreSQL + TimescaleDB Schema (T-09)
--- Esquema para gestión de usuarios, atletas, sesiones y métricas biomecánicas en series temporales.
+-- =========================================================================================
+-- PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+-- Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+-- 
+-- Memoria / Trabajo de Título:
+-- Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+-- Profesor Guía: Dr. Marcos Lévano
+-- 
+-- Módulo: Esquema de Base de Datos PostgreSQL + Extensión TimescaleDB (schema.sql)
+-- Descripción: Modelado relacional e Hypertables para series temporales de métricas biomecánicas.
+-- =========================================================================================
 
 -- 1. Habilitar extensión TimescaleDB para análisis de series temporales
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;

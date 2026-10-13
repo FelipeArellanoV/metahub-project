@@ -1,45 +1,51 @@
-import { Activity, ArrowRight, Lock, Mail, User } from 'lucide-react';
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Pantalla de Autenticación y Registro de Entrenadores (Login.jsx)
+ * Descripción: Provee el formulario seguro de inicio de sesión y registro de entrenadores,
+ *              almacenando el token JWT emitido y sincronizando el estado de la sesión.
+ * =========================================================================================
+ */
+
+import { Activity, ArrowRight, Loader2, Lock, Mail, User } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api.js';
 
 export default function Login({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-    const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
-    const body = isRegister 
-      ? { name, email, password, role: 'entrenador' } 
-      : { email, password };
+    setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al autenticar');
+      let data;
+      if (isRegister) {
+        data = await api.auth.register(name, email, password);
+      } else {
+        data = await api.auth.login(email, password);
       }
-
-      localStorage.setItem('metahub_token', data.token);
-      localStorage.setItem('metahub_user', JSON.stringify(data.user));
 
       if (onLoginSuccess) onLoginSuccess(data.user, data.token);
       navigate('/');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Error al autenticar');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -101,9 +107,10 @@ export default function Login({ onLoginSuccess }) {
             </div>
           </div>
 
-          <button type="submit" className="submit-btn">
-            <span>{isRegister ? 'Registrarse' : 'Ingresar a MetaHub'}</span>
-            <ArrowRight size={18} />
+          <button type="submit" className="submit-btn" disabled={loading}>
+            {loading && <Loader2 size={18} className="spin-animation" />}
+            <span>{loading ? 'Procesando...' : (isRegister ? 'Registrarse' : 'Ingresar a MetaHub')}</span>
+            {!loading && <ArrowRight size={18} />}
           </button>
         </form>
 
