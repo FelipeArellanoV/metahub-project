@@ -1,3 +1,21 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Suite de Pruebas Automatizadas de Integración Backend (run_tests.js)
+ * Descripción: Suite de pruebas de regresión que valida sin dependencias externas:
+ *              1. Registro y emisión de tokens JWT bajo salting bcrypt (RNF03).
+ *              2. Autenticación, control de acceso y denegación de credenciales erróneas.
+ *              3. Protección de endpoints y aislamiento estricto de atletas por entrenador (HU-04).
+ *              4. Ciclo de vida CRUD completo de atletas y registro de sesiones de carrera.
+ * =========================================================================================
+ */
+
 const assert = require('assert');
 const { EventEmitter } = require('events');
 const app = require('../src/app');
@@ -211,6 +229,46 @@ async function runTests() {
 
     assert.strictEqual(listRes.statusCode, 200);
     assert.strictEqual(listRes.body.sessions.length, 1);
+  });
+
+  // PRUEBA 8
+  await test('Prueba 8: Obtención global de sesiones del entrenador (GET /api/sessions) y conteo en atletas', async () => {
+    const reg = await makeRequest(app, 'POST', '/api/auth/register', {}, {
+      name: 'Entrenador E',
+      email: 'entrenadore@uct.cl',
+      password: 'password123'
+    });
+    const token = reg.body.token;
+
+    const ath1 = await makeRequest(app, 'POST', '/api/athletes', {
+      'authorization': `Bearer ${token}`
+    }, { name: 'Atleta Uno', age: 15, consent: true });
+
+    const ath2 = await makeRequest(app, 'POST', '/api/athletes', {
+      'authorization': `Bearer ${token}`
+    }, { name: 'Atleta Dos', age: 16, consent: true });
+
+    await makeRequest(app, 'POST', '/api/sessions', {
+      'authorization': `Bearer ${token}`
+    }, { athleteId: ath1.body.athlete.id, notes: 'Sesion 1' });
+
+    await makeRequest(app, 'POST', '/api/sessions', {
+      'authorization': `Bearer ${token}`
+    }, { athleteId: ath2.body.athlete.id, notes: 'Sesion 2' });
+
+    const allSessionsRes = await makeRequest(app, 'GET', '/api/sessions', {
+      'authorization': `Bearer ${token}`
+    });
+
+    assert.strictEqual(allSessionsRes.statusCode, 200);
+    assert.strictEqual(allSessionsRes.body.sessions.length, 2);
+    assert.strictEqual(allSessionsRes.body.sessions[0].athleteName, 'Atleta Dos');
+
+    const athletesRes = await makeRequest(app, 'GET', '/api/athletes', {
+      'authorization': `Bearer ${token}`
+    });
+    assert.strictEqual(athletesRes.statusCode, 200);
+    assert.strictEqual(athletesRes.body.athletes[0].sessionCount, 1);
   });
 
   console.log(`\n📊 Resumen de pruebas: ${passed} pasadas, ${failed} falladas.`);

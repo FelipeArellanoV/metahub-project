@@ -1,3 +1,17 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Pruebas de Integración con Supertest (auth.test.js)
+ * Descripción: Pruebas automatizadas para validación de seguridad JWT, roles y aislamiento de datos.
+ * =========================================================================================
+ */
+
 const request = require('supertest');
 const app = require('../src/app');
 const dbRepository = require('../src/db/repository');

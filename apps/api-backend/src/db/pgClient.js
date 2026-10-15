@@ -1,3 +1,18 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Adaptador y Conexión de Base de Datos (pgClient.js)
+ * Descripción: Inicializa el pool de conexiones a PostgreSQL / TimescaleDB con manejo
+ *              de fallbacks resilientes para ejecución local o en contenedores Docker.
+ * =========================================================================================
+ */
+
 let Pool = null;
 try {
   Pool = require('pg').Pool;
@@ -7,6 +22,10 @@ try {
 
 let pool = null;
 
+/**
+ * Obtiene o inicializa la instancia compartida de conexiones de base de datos (Pool)
+ * @returns {Pool|null} Instancia activa de pg.Pool o null en modo de fallback en memoria
+ */
 function getPool() {
   if (pool) return pool;
   if (!Pool) return null;
@@ -14,7 +33,8 @@ function getPool() {
   const connectionString = process.env.DATABASE_URL;
   
   if (!connectionString && !process.env.POSTGRES_HOST) {
-    return null; // Fallback a in-memory mode si no hay credenciales de BD
+    // Si no existen parámetros de entorno para la BD, conmuta transparentemente al modo en memoria
+    return null;
   }
 
   pool = new Pool({
@@ -33,9 +53,12 @@ function getPool() {
 
 module.exports = {
   getPool,
+  /**
+   * Ejecuta una consulta SQL parametrizada sobre el pool activo
+   */
   query: async (text, params) => {
     const p = getPool();
-    if (!p) throw new Error('Database pool not configured');
+    if (!p) throw new Error('El pool de conexiones a la base de datos no está configurado.');
     return p.query(text, params);
   }
 };
