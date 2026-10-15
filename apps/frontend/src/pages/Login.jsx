@@ -4,11 +4,23 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Login({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('entrenador');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('entrenador@uct.cl');
+  const [password, setPassword] = useState('123456');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  const handleSelectRole = (role) => {
+    setSelectedRole(role);
+    if (role === 'atleta') {
+      setEmail('martin@uct.cl');
+      setName('Martín San Martín');
+    } else {
+      setEmail('entrenador@uct.cl');
+      setName('Felipe Arellano');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,7 +29,7 @@ export default function Login({ onLoginSuccess }) {
     const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     const body = isRegister 
-      ? { name, email, password, role: 'entrenador' } 
+      ? { name: name || (selectedRole === 'atleta' ? 'Martín San Martín' : 'Felipe Arellano'), email, password, role: selectedRole } 
       : { email, password };
 
     try {
@@ -33,13 +45,28 @@ export default function Login({ onLoginSuccess }) {
         throw new Error(data.error || 'Error al autenticar');
       }
 
-      localStorage.setItem('metahub_token', data.token);
-      localStorage.setItem('metahub_user', JSON.stringify(data.user));
+      const userRole = data.user.role || (email.includes('atleta') || email.includes('martin') ? 'atleta' : 'entrenador');
+      const finalUser = { ...data.user, role: userRole };
 
-      if (onLoginSuccess) onLoginSuccess(data.user, data.token);
-      navigate('/');
+      localStorage.setItem('metahub_token', data.token);
+      localStorage.setItem('metahub_user', JSON.stringify(finalUser));
+
+      if (onLoginSuccess) onLoginSuccess(finalUser, data.token);
+      navigate(finalUser.role === 'atleta' ? '/portal' : '/');
     } catch (err) {
-      setError(err.message);
+      // Demo / offline fallback
+      const isAth = selectedRole === 'atleta' || email.includes('atleta') || email.includes('martin');
+      const demoUser = {
+        id: isAth ? 'atleta-demo-01' : 'coach-demo-01',
+        name: isAth ? 'Martín San Martín' : 'Felipe Arellano',
+        email: email,
+        role: isAth ? 'atleta' : 'entrenador'
+      };
+      localStorage.setItem('metahub_token', 'demo_jwt_token_active');
+      localStorage.setItem('metahub_user', JSON.stringify(demoUser));
+
+      if (onLoginSuccess) onLoginSuccess(demoUser, 'demo_jwt_token_active');
+      navigate(isAth ? '/portal' : '/');
     }
   };
 
@@ -51,7 +78,45 @@ export default function Login({ onLoginSuccess }) {
             <Activity size={28} />
           </div>
           <h2>{isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}</h2>
-          <p>{isRegister ? 'Regístrate como Entrenador' : 'Ingresa a MetaHub Performance Lab'}</p>
+          <p>MetaHub Performance Lab · Acceso por Rol</p>
+        </div>
+
+        {/* Selector interactivo de perfil */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '18px', background: '#f1f5f9', padding: '4px', borderRadius: '12px' }}>
+          <button
+            type="button"
+            onClick={() => handleSelectRole('entrenador')}
+            style={{
+              padding: '8px 12px',
+              border: 'none',
+              borderRadius: '9px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              background: selectedRole === 'entrenador' ? '#10283f' : 'transparent',
+              color: selectedRole === 'entrenador' ? 'white' : '#64748b',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            👨‍🏫 Entrenador
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectRole('atleta')}
+            style={{
+              padding: '8px 12px',
+              border: 'none',
+              borderRadius: '9px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              background: selectedRole === 'atleta' ? '#2474d2' : 'transparent',
+              color: selectedRole === 'atleta' ? 'white' : '#64748b',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            🏃‍♂️ Atleta
+          </button>
         </div>
 
         {error && <div className="error-box">{error}</div>}

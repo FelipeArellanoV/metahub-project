@@ -1,47 +1,85 @@
-import { Activity, CalendarDays, Play, Plus, Video } from 'lucide-react';
+import {
+  Activity,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  Eye,
+  FileVideo,
+  Filter,
+  MapPin,
+  Play,
+  Plus,
+  Video,
+  X
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Layout, PageHeader } from '../components/UI.jsx';
 
-const sessions = [
+const initialSessions = [
   {
     id: 'S-014',
     athlete: 'Martín Atleta',
     date: '26 Sep 2026',
+    testType: 'Sprint 30m Lanzado',
+    trackType: 'Pista Sintética (UCT)',
     status: 'Completada',
     quality: '94%',
-    metric: 'M1 26,4°'
+    fps: '60 FPS',
+    metric: 'M1 26,4°',
+    notes: 'Tomas limpias de perfil derecho a 6 metros de distancia.'
   },
   {
     id: 'S-013',
     athlete: 'Javiera Soto',
     date: '24 Sep 2026',
+    testType: '60m Planos Salida Baja',
+    trackType: 'Pista Sintética (UCT)',
     status: 'Completada',
     quality: '91%',
-    metric: 'M1 27,1°'
+    fps: '60 FPS',
+    metric: 'M1 27,1°',
+    notes: 'Buena iluminación natural, encuadre completo de cuerpo entero.'
   },
   {
     id: 'S-012',
     athlete: 'Martín Atleta',
     date: '21 Sep 2026',
+    testType: 'Skipping A en 20m',
+    trackType: 'Pista Ceniza (Estadio)',
     status: 'Procesando',
     quality: '—',
-    metric: '—'
+    fps: '30 FPS',
+    metric: '—',
+    notes: 'Procesando esqueleto BlazePose en servidor.'
   },
   {
     id: 'S-011',
     athlete: 'Antonia Pérez',
     date: '20 Sep 2026',
+    testType: 'Sprint 30m Lanzado',
+    trackType: 'Pista Colegio',
     status: 'Rechazada',
     quality: '58%',
-    metric: '—'
+    fps: '30 FPS',
+    metric: '—',
+    notes: 'Atleta salió de encuadre en los últimos 5 metros. Requiere repetición.'
   }
 ];
 
 export default function Sessions() {
-  const [sessionList, setSessionList] = useState(sessions);
+  const [sessionList, setSessionList] = useState(initialSessions);
   const [filter, setFilter] = useState('Todas');
   const [showModal, setShowModal] = useState(false);
-  const [newSession, setNewSession] = useState({ athlete: 'Martín Atleta', file: null });
+  const [selectedSession, setSelectedSession] = useState(null);
+
+  const [newSession, setNewSession] = useState({
+    athlete: 'Martín Atleta',
+    testType: 'Sprint 30m Lanzado',
+    trackType: 'Pista Sintética (UCT)',
+    fps: '60 FPS',
+    notes: ''
+  });
 
   const filtered = useMemo(() => {
     if (filter === 'Todas') return sessionList;
@@ -54,9 +92,13 @@ export default function Sessions() {
       id: `S-0${sessionList.length + 11}`,
       athlete: newSession.athlete,
       date: 'Hoy',
+      testType: newSession.testType,
+      trackType: newSession.trackType,
       status: 'Procesando',
       quality: '96%',
-      metric: 'M1 25,8°'
+      fps: newSession.fps,
+      metric: 'M1 25,8°',
+      notes: newSession.notes || 'Captura en pista registrada.'
     };
     setSessionList([created, ...sessionList]);
     setShowModal(false);
@@ -65,9 +107,9 @@ export default function Sessions() {
   return (
     <Layout>
       <PageHeader
-        eyebrow="ANÁLISIS BIOMECÁNICO"
-        title="Sesiones"
-        description="Revisa el estado de procesamiento y resultados de las sesiones registradas."
+        eyebrow="ANÁLISIS BIOMECÁNICO EN PISTA"
+        title="Sesiones de Carrera"
+        description="Revisa el historial de tomas de video, estado de procesamiento y calidad de encuadre."
         action={
           <button
             className="primary-button"
@@ -83,35 +125,49 @@ export default function Sessions() {
       <section className="stats-grid stats-grid-3">
         <article className="stat-card">
           <div className="stat-icon"><Video size={22} /></div>
-          <div><span className="stat-label">Total</span><strong className="stat-value">{sessionList.length}</strong><span className="stat-detail">sesiones</span></div>
+          <div>
+            <span className="stat-label">Total sesiones</span>
+            <strong className="stat-value">{sessionList.length}</strong>
+            <span className="stat-detail">en registro</span>
+          </div>
         </article>
         <article className="stat-card">
           <div className="stat-icon"><Activity size={22} /></div>
-          <div><span className="stat-label">Completadas</span><strong className="stat-value">{sessionList.filter(s => s.status === 'Completada').length}</strong><span className="stat-detail">con análisis</span></div>
+          <div>
+            <span className="stat-label">Completadas</span>
+            <strong className="stat-value">{sessionList.filter(s => s.status === 'Completada').length}</strong>
+            <span className="stat-detail">procesadas</span>
+          </div>
         </article>
         <article className="stat-card">
           <div className="stat-icon"><CalendarDays size={22} /></div>
-          <div><span className="stat-label">Esta semana</span><strong className="stat-value">4</strong><span className="stat-detail">registradas</span></div>
+          <div>
+            <span className="stat-label">Esta semana</span>
+            <strong className="stat-value">4</strong>
+            <span className="stat-detail">capturas</span>
+          </div>
         </article>
       </section>
 
-      <section className="panel-card">
+      <section className="panel-card" style={{ marginTop: 24 }}>
         <div className="panel-heading">
           <div>
-            <span className="eyebrow">HISTORIAL</span>
-            <h2>Últimas sesiones</h2>
+            <span className="eyebrow">REGISTRO HISTÓRICO</span>
+            <h2>Últimas Sesiones</h2>
           </div>
 
-          <select
-            className="select-control"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          >
-            <option>Todas</option>
-            <option>Completada</option>
-            <option>Procesando</option>
-            <option>Rechazada</option>
-          </select>
+          <div className="filter-pills-bar">
+            {['Todas', 'Completada', 'Procesando', 'Rechazada'].map((st) => (
+              <button
+                key={st}
+                type="button"
+                className={`filter-pill ${filter === st ? 'active' : ''}`}
+                onClick={() => setFilter(st)}
+              >
+                {st === 'Todas' ? `Todas (${sessionList.length})` : st}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="session-list">
@@ -123,17 +179,17 @@ export default function Sessions() {
 
               <div className="session-primary">
                 <strong>{session.athlete}</strong>
-                <span>{session.id} · {session.date}</span>
+                <span>{session.id} · {session.date} · {session.testType}</span>
+              </div>
+
+              <div className="session-meta">
+                <span>Superficie</span>
+                <strong>{session.trackType.split('(')[0]}</strong>
               </div>
 
               <div className="session-meta">
                 <span>Calidad</span>
                 <strong>{session.quality}</strong>
-              </div>
-
-              <div className="session-meta">
-                <span>Métrica</span>
-                <strong>{session.metric}</strong>
               </div>
 
               <span className={`status ${session.status === 'Completada' ? 'success' : session.status === 'Rechazada' ? 'danger' : 'warning'}`}>
@@ -144,77 +200,196 @@ export default function Sessions() {
               <button
                 className="text-button"
                 type="button"
-                onClick={() => alert(`Detalle de Sesión ${session.id}:\nÁngulo Rodilla: 26,4°\nÁngulo Cadera: 45,1°\nFrecuencia: 3.2 Hz`)}
+                onClick={() => setSelectedSession(session)}
               >
-                Ver
+                Ver ficha
               </button>
             </article>
           ))}
         </div>
       </section>
 
-      {/* Modal para Nueva Sesión */}
-      {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.75)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '20px',
-            padding: '28px',
-            width: '100%',
-            maxWidth: '440px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 6px', color: '#1e293b' }}>Registrar Nueva Sesión</h2>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Selecciona el atleta y sube el video para el análisis biomecánico con MediaPipe.</p>
-
-            <form onSubmit={handleCreateSession}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Atleta</label>
-                <select
-                  value={newSession.athlete}
-                  onChange={(e) => setNewSession({ ...newSession, athlete: e.target.value })}
-                  style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', background: 'white' }}
-                >
-                  <option>Martín Atleta</option>
-                  <option>Javiera Soto</option>
-                  <option>Tomás Muñoz</option>
-                  <option>Antonia Pérez</option>
-                </select>
+      {/* MODAL DETALLE DE SESIÓN */}
+      {selectedSession && (
+        <div className="modal-overlay" onClick={() => setSelectedSession(null)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#10283f' }}>
+                  Ficha Técnica: Sesión {selectedSession.id}
+                </h3>
+                <span style={{ fontSize: 12, color: '#7b8798' }}>
+                  Atleta: <strong>{selectedSession.athlete}</strong> · Fecha: {selectedSession.date}
+                </span>
               </div>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setSelectedSession(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Video de la Carrera (MP4, MOV)</label>
-                <div style={{ border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '20px', textAlign: 'center', background: '#f8fafc' }}>
-                  <Video size={28} style={{ color: '#2474d2', marginBottom: '8px' }} />
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#334155' }}>Haz clic para seleccionar video</p>
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>o arrastra el archivo aquí</span>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, color: '#7b8798', fontWeight: 800 }}>ESTADO</span>
+                  <strong style={{ display: 'block', fontSize: 13, color: '#10283f', marginTop: 2 }}>
+                    {selectedSession.status}
+                  </strong>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 10, color: '#7b8798', fontWeight: 800 }}>CALIDAD DE ENCUADRE</span>
+                  <strong style={{ display: 'block', fontSize: 13, color: '#2474d2', marginTop: 2 }}>
+                    {selectedSession.quality}
+                  </strong>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: 10, color: '#7b8798', fontWeight: 800 }}>CONDICIÓN DE TERRENO Y CÁMARA</span>
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#334155' }}>
+                  <span>• <strong>Prueba:</strong> {selectedSession.testType}</span>
+                  <span>• <strong>Pista:</strong> {selectedSession.trackType}</span>
+                  <span>• <strong>Tasa de muestreo:</strong> {selectedSession.fps}</span>
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: 10, color: '#7b8798', fontWeight: 800, textTransform: 'uppercase' }}>
+                  Observaciones de la toma
+                </span>
+                <p style={{ fontSize: 12, color: '#475569', background: '#f1f5f9', padding: 10, borderRadius: 8, margin: '4px 0 0' }}>
+                  "{selectedSession.notes}"
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-outline-sm"
+                onClick={() => setSelectedSession(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CREAR NUEVA SESION */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#10283f' }}>
+                  Registrar Nueva Sesión en Pista
+                </h3>
+                <span style={{ fontSize: 12, color: '#7b8798' }}>
+                  Configura los datos del test antes de la captura o subida de video
+                </span>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSession}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Atleta citado *</label>
+                  <select
+                    className="form-control"
+                    value={newSession.athlete}
+                    onChange={(e) => setNewSession({ ...newSession, athlete: e.target.value })}
+                  >
+                    <option>Martín Atleta</option>
+                    <option>Javiera Soto</option>
+                    <option>Tomás Muñoz</option>
+                    <option>Antonia Pérez</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label>Tipo de prueba</label>
+                    <select
+                      className="form-control"
+                      value={newSession.testType}
+                      onChange={(e) => setNewSession({ ...newSession, testType: e.target.value })}
+                    >
+                      <option>Sprint 30m Lanzado</option>
+                      <option>60m Planos Salida Baja</option>
+                      <option>Skipping A en 20m</option>
+                      <option>Pasadas Técnicas</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Superficie de pista</label>
+                    <select
+                      className="form-control"
+                      value={newSession.trackType}
+                      onChange={(e) => setNewSession({ ...newSession, trackType: e.target.value })}
+                    >
+                      <option>Pista Sintética (UCT)</option>
+                      <option>Pista Ceniza (Estadio)</option>
+                      <option>Pista Colegio</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Video de la carrera (Smartphone MP4/MOV)</label>
+                  <div
+                    style={{
+                      border: '2px dashed #cbd5e1',
+                      borderRadius: 12,
+                      padding: 22,
+                      textAlign: 'center',
+                      background: '#f8fafc',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Video size={28} style={{ color: '#2474d2', marginBottom: 6 }} />
+                    <strong style={{ display: 'block', fontSize: 13, color: '#10283f' }}>
+                      Seleccionar archivo o usar cámara
+                    </strong>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                      Recomendado: 60 FPS lateral perpendicular a 6 metros
+                    </span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Notas de la toma</label>
+                  <textarea
+                    rows={2}
+                    className="form-control"
+                    placeholder="Condición del viento, fatiga del atleta..."
+                    value={newSession.notes}
+                    onChange={(e) => setNewSession({ ...newSession, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
                 <button
                   type="button"
+                  className="btn-outline-sm"
                   onClick={() => setShowModal(false)}
-                  style={{ height: '42px', padding: '0 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '600', cursor: 'pointer' }}
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="primary-button"
-                  style={{ height: '42px', padding: '0 20px', borderRadius: '10px' }}
-                >
-                  Iniciar Procesamiento
+                <button type="submit" className="primary-button">
+                  Iniciar procesamiento
                 </button>
               </div>
             </form>

@@ -1,7 +1,12 @@
 import {
   Activity,
+  AlertTriangle,
+  Calendar,
   CalendarDays,
   ChevronRight,
+  Dumbbell,
+  FileText,
+  GitCompare,
   LayoutDashboard,
   LogOut,
   PersonStanding,
@@ -12,7 +17,7 @@ import {
 
 import { NavLink, useNavigate } from 'react-router-dom';
 
-const menuItems = [
+const coachMenuItems = [
   {
     label: 'Inicio',
     shortLabel: 'Inicio',
@@ -26,14 +31,83 @@ const menuItems = [
     to: '/athletes'
   },
   {
-    label: 'Sesiones',
+    label: 'Sesiones de pista',
     shortLabel: 'Sesiones',
     icon: Video,
     to: '/sessions'
   },
   {
+    label: 'Planificación',
+    shortLabel: 'Agenda',
+    icon: Calendar,
+    to: '/calendar'
+  },
+  {
+    label: 'Prioridad de apoyo',
+    shortLabel: 'Apoyo',
+    icon: AlertTriangle,
+    to: '/priority'
+  },
+  {
+    label: 'Comparador Antes/Después',
+    shortLabel: 'Comparar',
+    icon: GitCompare,
+    to: '/compare'
+  },
+  {
+    label: 'Biblioteca de drills',
+    shortLabel: 'Drills',
+    icon: Dumbbell,
+    to: '/drills'
+  },
+  {
+    label: 'Fichas de progreso',
+    shortLabel: 'Fichas',
+    icon: FileText,
+    to: '/reports'
+  },
+  {
     label: 'Configuración',
     shortLabel: 'Ajustes',
+    icon: Settings,
+    to: '/settings'
+  }
+];
+
+const athleteMenuItems = [
+  {
+    label: 'Mi Espacio',
+    shortLabel: 'Espacio',
+    icon: PersonStanding,
+    to: '/portal'
+  },
+  {
+    label: 'Mis Drills Asignados',
+    shortLabel: 'Drills',
+    icon: Dumbbell,
+    to: '/drills'
+  },
+  {
+    label: 'Mi Calendario',
+    shortLabel: 'Agenda',
+    icon: Calendar,
+    to: '/calendar'
+  },
+  {
+    label: 'Mi Evolución',
+    shortLabel: 'Evolución',
+    icon: GitCompare,
+    to: '/compare'
+  },
+  {
+    label: 'Mi Ficha Escolar',
+    shortLabel: 'Ficha',
+    icon: FileText,
+    to: '/reports'
+  },
+  {
+    label: 'Mi Perfil',
+    shortLabel: 'Perfil',
     icon: Settings,
     to: '/settings'
   }
@@ -50,15 +124,20 @@ export function Layout({ children }) {
     // Ignore parse error
   }
 
-  const userName = user?.name || 'Felipe Arellano';
+  const role = user?.role?.toLowerCase() || 'entrenador';
+  const isAthlete = role === 'atleta';
+  const menuItems = isAthlete ? athleteMenuItems : coachMenuItems;
+  const sectionTitle = isAthlete ? 'PORTAL ATLETA' : 'PANEL ENTRENADOR';
+
+  const userName = user?.name || (isAthlete ? 'Martín San Martín' : 'Felipe Arellano');
   const userInitials = userName
     .split(' ')
     .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .substring(0, 2)
-    .toUpperCase() || 'FA';
-  const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Entrenador';
+    .toUpperCase() || (isAthlete ? 'MA' : 'FA');
+  const userRole = isAthlete ? 'Atleta (Sub-16)' : 'Entrenador Jefe';
 
   const handleLogout = () => {
     localStorage.removeItem('metahub_token');
@@ -86,7 +165,7 @@ export function Layout({ children }) {
           aria-label="Navegación principal"
         >
           <span className="sidebar-section-title">
-            PLATAFORMA
+            {sectionTitle}
           </span>
 
           {menuItems.map((item) => {
@@ -96,7 +175,7 @@ export function Layout({ children }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.to === '/' || item.to === '/portal'}
                 className={({ isActive }) =>
                   `sidebar-link ${
                     isActive ? 'active' : ''
@@ -119,13 +198,13 @@ export function Layout({ children }) {
 
         <div className="sidebar-profile">
 
-          <div className="profile-avatar">
+          <div className="profile-avatar" style={{ background: isAthlete ? 'linear-gradient(135deg, #10b981, #059669)' : undefined }}>
             {userInitials}
           </div>
 
           <div className="profile-data">
             <strong>{userName}</strong>
-            <span>{userRole}</span>
+            <span style={{ color: isAthlete ? '#34d399' : undefined }}>{userRole}</span>
           </div>
 
           <button
