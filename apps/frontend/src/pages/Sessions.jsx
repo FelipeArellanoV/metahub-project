@@ -2,6 +2,7 @@ import {
   Activity,
   Calendar,
   CalendarDays,
+  Camera,
   CheckCircle2,
   Clock,
   Eye,
@@ -14,6 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 
 const initialSessions = [
@@ -68,6 +70,7 @@ const initialSessions = [
 ];
 
 export default function Sessions() {
+  const navigate = useNavigate();
   const [sessionList, setSessionList] = useState(initialSessions);
   const [filter, setFilter] = useState('Todas');
   const [showModal, setShowModal] = useState(false);
@@ -111,14 +114,32 @@ export default function Sessions() {
         title="Sesiones de Carrera"
         description="Revisa el historial de tomas de video, estado de procesamiento y calidad de encuadre."
         action={
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setShowModal(true)}
-          >
-            <Plus size={18} />
-            Nueva sesión
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              className="secondary-button"
+              style={{
+                background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.15), rgba(0, 245, 160, 0.15))',
+                border: '1px solid #00f5a0',
+                color: '#00f5a0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              type="button"
+              onClick={() => navigate('/capture')}
+            >
+              <Camera size={18} />
+              Cámara en Vivo & Calibración
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setShowModal(true)}
+            >
+              <Plus size={18} />
+              Nueva sesión
+            </button>
+          </div>
         }
       />
 

@@ -25,6 +25,7 @@ import Reports from './pages/Reports.jsx';
 import AthletePortal from './pages/AthletePortal.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
+import LiveCapture from './pages/LiveCapture.jsx';
 
 /**
  * Componente de orden superior que restringe el acceso a usuarios autenticados
@@ -151,6 +152,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/capture"
+          element={
+            <ProtectedRoute>
+              <LiveCapture />
             </ProtectedRoute>
           }
         />

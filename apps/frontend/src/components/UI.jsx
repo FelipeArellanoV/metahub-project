@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Calendar,
   CalendarDays,
+  Camera,
   ChevronRight,
   Dumbbell,
   FileText,
@@ -52,6 +53,12 @@ const coachMenuItems = [
     shortLabel: 'Sesiones',
     icon: Video,
     to: '/sessions'
+  },
+  {
+    label: 'Cámara en Vivo & Calibración',
+    shortLabel: 'Cámara',
+    icon: Camera,
+    to: '/capture'
   },
   {
     label: 'Planificación',
