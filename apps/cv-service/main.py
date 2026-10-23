@@ -211,11 +211,12 @@ async def process_video(
         if not cap.isOpened():
             raise HTTPException(status_code=400, detail="No se pudo decodificar el archivo de video.")
 
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        raw_fps = cap.get(cv2.CAP_PROP_FPS)
+        fps = raw_fps if (raw_fps and 1.0 <= raw_fps <= 240.0) else 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        duration_sec = round(total_frames / fps, 2) if fps > 0 else 0
+        duration_sec = round(total_frames / fps, 2) if (total_frames > 0 and fps > 0) else 0.0
 
         pose_detector = get_detector()
 
@@ -310,6 +311,9 @@ async def process_video(
             frame_idx += 1
 
         cap.release()
+        if total_frames <= 0 or duration_sec <= 0.0:
+            total_frames = frame_idx
+            duration_sec = round(frame_idx / fps, 2) if fps > 0 else 0.0
 
         # Resumen y diagnósticos basados en datos reales
         peak_knee = max(knee_angles) if knee_angles else 0.0

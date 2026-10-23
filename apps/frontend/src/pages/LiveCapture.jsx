@@ -47,6 +47,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
+import api from '../services/api.js';
 
 export default function LiveCapture() {
   const navigate = useNavigate();
@@ -105,8 +106,98 @@ export default function LiveCapture() {
   const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
   const [diagnosticReport, setDiagnosticReport] = useState(null);
 
-  // Atleta seleccionado para la toma
-  const [selectedAthlete, setSelectedAthlete] = useState('Martín San Martín');
+  // Atleta seleccionado para la toma desde la base de datos
+  const [athletesList, setAthletesList] = useState([]);
+  const [selectedAthleteId, setSelectedAthleteId] = useState('');
+  const [selectedAthlete, setSelectedAthlete] = useState('Seleccionar atleta');
+  const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | '¡YA!'
+  const [isUploadingToCv, setIsUploadingToCv] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+
+  useEffect(() => {
+    async function fetchAthletes() {
+      try {
+        const athletes = await api.athletes.getAll();
+        setAthletesList(athletes || []);
+        if (athletes && athletes.length > 0) {
+          setSelectedAthleteId(athletes[0].id);
+          setSelectedAthlete(athletes[0].name);
+        }
+      } catch (e) {
+        setAthletesList([
+          { id: 1, name: 'Martín San Martín (Demo)', category: 'Sub-16' },
+          { id: 2, name: 'Javiera Soto (Demo)', category: 'Sub-16' }
+        ]);
+        setSelectedAthleteId(1);
+        setSelectedAthlete('Martín San Martín (Demo)');
+      }
+    }
+    fetchAthletes();
+  }, []);
+
+  const startCountdownAndRecord = () => {
+    if (!selectedAthleteId) {
+      alert('Debes seleccionar un atleta antes de iniciar la captura en pista.');
+      return;
+    }
+
+    const audioCtx = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext) ? new (window.AudioContext || window.webkitAudioContext)() : null;
+    const playBeep = (freq, dur) => {
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = freq;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+        osc.stop(audioCtx.currentTime + dur);
+      } catch (e) {}
+    };
+
+    setCountdown(3);
+    playBeep(440, 0.12);
+
+    let sec = 3;
+    const interval = setInterval(() => {
+      sec--;
+      if (sec > 0) {
+        setCountdown(sec);
+        playBeep(440, 0.12);
+      } else if (sec === 0) {
+        setCountdown('¡YA!');
+        playBeep(880, 0.3);
+        clearInterval(interval);
+        setTimeout(() => {
+          setCountdown(null);
+          startActualMediaRecording();
+        }, 600);
+      }
+    }, 1000);
+  };
+
+  const startActualMediaRecording = () => {
+    setIsRecording(true);
+    recordedChunksRef.current = [];
+
+    const stream = videoRef.current?.srcObject;
+    if (stream && typeof MediaRecorder !== 'undefined') {
+      try {
+        let mime = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+        const recorder = new MediaRecorder(stream, { mimeType: mime });
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+        };
+        recorder.start(250);
+        mediaRecorderRef.current = recorder;
+      } catch (err) {
+        console.warn('Error iniciando MediaRecorder:', err);
+      }
+    }
+  };
 
   // Modo de operación: 'camera' o 'video_upload'
   const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'video_upload'
@@ -116,6 +207,53 @@ export default function LiveCapture() {
   const [realAnalysisData, setRealAnalysisData] = useState(null);
   const [previewFrameIndex, setPreviewFrameIndex] = useState(0);
   const [videoError, setVideoError] = useState(null);
+
+  const handleProcessRecordedVideo = async (file) => {
+    setIsProcessingVideo(true);
+    setVideoError(null);
+    setVideoProcessingStep('1/4: Conectando con microservicio MediaPipe (puerto :8000)...');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('use_sample', 'false');
+      formData.append('sample_stride', '2');
+      formData.append('max_frames', '240');
+
+      setTimeout(() => setVideoProcessingStep('2/4: Extrayendo fotogramas del video grabado...'), 800);
+      setTimeout(() => setVideoProcessingStep('3/4: MediaPipe detectando articulaciones reales...'), 1800);
+      setTimeout(() => setVideoProcessingStep('4/4: Evaluando Índice IPT MetaHub UCT...'), 2800);
+
+      const result = await api.cv.processVideo(formData);
+      setRealAnalysisData(result);
+      setPreviewFrameIndex(0);
+    } catch (err) {
+      setVideoError(err.message || 'Error procesando video grabado en servidor CV.');
+    } finally {
+      setIsProcessingVideo(false);
+    }
+  };
+
+  const handleSaveRealSession = async () => {
+    if (!realAnalysisData || !selectedAthleteId) return;
+    try {
+      const ipt = realAnalysisData.ipt_evaluation?.ipt_score || 0;
+      await api.sessions.create({
+        athleteId: selectedAthleteId,
+        sessionDate: new Date().toISOString(),
+        iptScore: ipt,
+        analysis: {
+          ipt_evaluation: realAnalysisData.ipt_evaluation,
+          summary_metrics: realAnalysisData.summary_metrics,
+          video_info: realAnalysisData.video_info
+        }
+      });
+      alert('¡Sesión guardada exitosamente en el historial con puntaje IPT!');
+      navigate('/sessions');
+    } catch (err) {
+      alert(`Error al guardar sesión: ${err.message}`);
+    }
+  };
 
   const handleProcessVideoUpload = async (useSample = false) => {
     setIsProcessingVideo(true);
@@ -409,8 +547,13 @@ export default function LiveCapture() {
 
     renderLoop();
 
-    // Motor de Evaluación de Anomalías y Buenos Movimientos en Tiempo Real (AI Biomechanical Assistant)
-    useEffect(() => {
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [demoMode, isLevel, orientation]);
+
+  // Motor de Evaluación de Anomalías y Buenos Movimientos en Tiempo Real (AI Biomechanical Assistant)
+  useEffect(() => {
       const now = Date.now();
       // Evaluar cada 3.2 segundos
       if (now - lastAiNotificationTimeRef.current < 3200) return;
@@ -689,6 +832,31 @@ export default function LiveCapture() {
                   }}
                 />
 
+                {/* OVERLAY DE CUENTA REGRESIVA (3, 2, 1, ¡YA!) */}
+                {countdown !== null && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(4, 18, 29, 0.88)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 50,
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#00c2ff', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
+                      INICIANDO CAPTURA EN PISTA
+                    </span>
+                    <span style={{ fontSize: '88px', fontWeight: '900', color: countdown === '¡YA!' ? '#00f5a0' : '#ffffff', fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 35px rgba(0, 245, 160, 0.7)' }}>
+                      {countdown}
+                    </span>
+                    <span style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '12px' }}>
+                      Atleta a registrar: <strong style={{ color: '#00f5a0' }}>{selectedAthlete}</strong>
+                    </span>
+                  </div>
+                )}
+
                 {/* Overlay de Estado en Vivo (Top Inside) */}
                 <div style={{
                   position: 'absolute',
@@ -702,8 +870,13 @@ export default function LiveCapture() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <select
-                      value={selectedAthlete}
-                      onChange={(e) => setSelectedAthlete(e.target.value)}
+                      value={selectedAthleteId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setSelectedAthleteId(id);
+                        const ath = athletesList.find(a => String(a.id) === String(id));
+                        if (ath) setSelectedAthlete(ath.name);
+                      }}
                       style={{
                         background: 'rgba(9, 15, 28, 0.85)',
                         border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -716,10 +889,15 @@ export default function LiveCapture() {
                         outline: 'none'
                       }}
                     >
-                      <option value="Martín San Martín">🏃 Martín San Martín (Sub-16)</option>
-                      <option value="Javiera Soto">🏃 Javiera Soto (Sub-16)</option>
-                      <option value="Antonia Pérez">🏃 Antonia Pérez (Sub-14)</option>
-                      <option value="Tomás Muñoz">🏃 Tomás Muñoz (Sub-14)</option>
+                      {athletesList.length > 0 ? (
+                        athletesList.map(a => (
+                          <option key={a.id} value={a.id}>
+                            🏃 {a.name} ({a.category || 'Atleta'})
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">Sin atletas registrados</option>
+                      )}
                     </select>
 
                     <button
@@ -958,47 +1136,48 @@ export default function LiveCapture() {
                 }}>
                   {!isRecording ? (
                     <button
-                      onClick={() => setIsRecording(true)}
+                      onClick={startCountdownAndRecord}
+                      disabled={countdown !== null}
                       style={{
-                        height: '48px',
-                        padding: '0 24px',
-                        background: 'linear-gradient(135deg, #ff3366, #e11d48)',
+                        height: '52px',
+                        padding: '0 28px',
+                        background: countdown !== null ? '#475569' : 'linear-gradient(135deg, #ff3366, #e11d48)',
                         color: 'white',
                         border: 'none',
-                        borderRadius: '24px',
+                        borderRadius: '26px',
                         fontSize: '13px',
                         fontWeight: '800',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '10px',
                         boxShadow: '0 0 25px rgba(255, 51, 102, 0.4)',
-                        cursor: 'pointer'
+                        cursor: countdown !== null ? 'not-allowed' : 'pointer'
                       }}
                     >
                       <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'white' }}></div>
-                      <span>INICIAR CAPTURA DE PASADA</span>
+                      <span>{countdown !== null ? `INICIANDO EN ${countdown}...` : 'INICIAR CAPTURA DE PASADA (3s)'}</span>
                     </button>
                   ) : (
                     <button
                       onClick={handleFinishRecording}
                       style={{
-                        height: '48px',
-                        padding: '0 24px',
+                        height: '52px',
+                        padding: '0 28px',
                         background: 'linear-gradient(135deg, #00f5a0, #00c2ff)',
                         color: '#04121d',
                         border: 'none',
-                        borderRadius: '24px',
+                        borderRadius: '26px',
                         fontSize: '13px',
                         fontWeight: '800',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '10px',
                         boxShadow: '0 0 25px rgba(0, 245, 160, 0.4)',
                         cursor: 'pointer'
                       }}
                     >
-                      <StopCircle size={18} />
-                      <span>DETENER Y GUARDAR ({recordSeconds}s)</span>
+                      <StopCircle size={20} />
+                      <span>DETENER Y PROCESAR ({recordSeconds}s)</span>
                     </button>
                   )}
                 </div>
@@ -1722,6 +1901,54 @@ export default function LiveCapture() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* GUARDAR SESIÓN AL ATLETA SELECCIONADO */}
+                  <div style={{
+                    background: 'rgba(16, 26, 46, 0.95)',
+                    border: '1px solid rgba(0, 245, 160, 0.4)',
+                    borderRadius: '18px',
+                    padding: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '14px',
+                    boxShadow: '0 8px 30px rgba(0, 245, 160, 0.12)'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#00f5a0', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                        GUARDAR EN FICHA DEL ATLETA
+                      </span>
+                      <h4 style={{ margin: '3px 0', fontSize: '16px', color: 'white', fontWeight: '800' }}>
+                        Vincular evaluación a: {selectedAthlete}
+                      </h4>
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                        Puntaje IPT: <strong style={{ color: '#00f5a0' }}>{realAnalysisData.ipt_evaluation?.ipt_score || 0} pts</strong> · Detección: <strong>{realAnalysisData.video_info?.detection_rate_pct}%</strong>
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={handleSaveRealSession}
+                      style={{
+                        height: '46px',
+                        padding: '0 24px',
+                        background: 'linear-gradient(135deg, #00f5a0, #00c2ff)',
+                        color: '#04121d',
+                        border: 'none',
+                        borderRadius: '14px',
+                        fontSize: '13px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 18px rgba(0, 245, 160, 0.4)'
+                      }}
+                    >
+                      <CheckCircle2 size={18} />
+                      <span>Guardar Sesión en Base de Datos ✓</span>
+                    </button>
                   </div>
 
                 </div>

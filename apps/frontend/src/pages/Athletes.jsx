@@ -14,13 +14,14 @@ import {
   User,
   X
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AthleteCard,
   Layout,
   PageHeader
 } from '../components/UI.jsx';
+import api from '../services/api.js';
 
 const initialAthletes = [
   {
@@ -95,7 +96,12 @@ const initialAthletes = [
 
 export default function Athletes() {
   const navigate = useNavigate();
-  const [athletesList, setAthletesList] = useState(initialAthletes);
+  const [athletesList, setAthletesList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [enableAccount, setEnableAccount] = useState(false);
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todas');
   const [selectedAthlete, setSelectedAthlete] = useState(null);
@@ -112,6 +118,45 @@ export default function Athletes() {
     consent: true
   });
 
+  const loadAthletes = async () => {
+    try {
+      setLoading(true);
+      setErrorMsg('');
+      const data = await api.athletes.getAll();
+      const mapped = data.map((a) => ({
+        id: a.id,
+        name: a.name,
+        initials: (a.name || 'AT').split(' ').filter(Boolean).map((n) => n[0]).slice(0, 2).join('').toUpperCase(),
+        age: a.age || 15,
+        category: a.category || 'Sub-16',
+        school: a.school || 'Liceo Regional',
+        lastSession: a.lastIptScore ? `IPT: ${a.lastIptScore} pts` : 'Sin sesiones',
+        sessions: a.sessionCount || 0,
+        consent: a.consentStatus === 'vigente',
+        consentDate: a.consentDate || 'Registrado',
+        guardian: a.guardianName || 'Apoderado registrado',
+        phone: a.guardianPhone || '+56 9 0000 0000',
+        needsSupport: a.lastIptScore !== null && a.lastIptScore !== undefined && a.lastIptScore < 75,
+        supportReason: a.lastIptScore !== null && a.lastIptScore !== undefined && a.lastIptScore < 75 ? `IPT bajo umbral (${a.lastIptScore} pts)` : 'Técnica en rango normal',
+        notes: a.hasAccount ? 'Cuenta de estudiante activa' : 'Sin cuenta vinculada',
+        hasAccount: a.hasAccount
+      }));
+      setAthletesList(mapped);
+    } catch (err) {
+      if (typeof window !== 'undefined' && window.location.search.includes('demo=1')) {
+        setAthletesList(initialAthletes);
+      } else {
+        setErrorMsg(err.message || 'Error cargando atletas');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAthletes();
+  }, []);
+
   const filteredAthletes = useMemo(() => {
     return athletesList.filter((athlete) => {
       const matchSearch =
@@ -126,48 +171,48 @@ export default function Athletes() {
     });
   }, [athletesList, search, categoryFilter]);
 
-  const handleAddAthlete = (e) => {
+  const handleAddAthlete = async (e) => {
     e.preventDefault();
     if (!newAthlete.name.trim()) return;
+    setErrorMsg('');
 
-    const initials =
-      newAthlete.name
-        .split(' ')
-        .filter(Boolean)
-        .map((n) => n[0])
-        .join('')
-        .substring(0, 2)
-        .toUpperCase() || 'AT';
+    try {
+      const payload = {
+        name: newAthlete.name.trim(),
+        age: parseInt(newAthlete.age, 10) || 15,
+        category: newAthlete.category,
+        school: newAthlete.school.trim(),
+        guardianName: newAthlete.guardian.trim() || 'Apoderado no registrado',
+        guardianPhone: newAthlete.phone.trim() || '+56 9 0000 0000',
+        consentStatus: newAthlete.consent ? 'vigente' : 'pendiente',
+        consentDate: newAthlete.consent ? new Date().toISOString().split('T')[0] : null
+      };
 
-    const created = {
-      id: Date.now(),
-      name: newAthlete.name,
-      initials,
-      age: parseInt(newAthlete.age, 10) || 15,
-      category: newAthlete.category,
-      school: newAthlete.school,
-      lastSession: 'Sin sesiones',
-      sessions: 0,
-      consent: newAthlete.consent,
-      consentDate: newAthlete.consent ? 'Hoy' : 'Pendiente',
-      guardian: newAthlete.guardian || 'Apoderado no registrado',
-      phone: newAthlete.phone || '+56 9 0000 0000',
-      needsSupport: false,
-      supportReason: 'Atleta recién incorporado al seguimiento.',
-      notes: 'Planificación de evaluación inicial pendiente.'
-    };
+      if (enableAccount && accountEmail.trim() && accountPassword.trim()) {
+        payload.account = {
+          email: accountEmail.trim(),
+          password: accountPassword.trim()
+        };
+      }
 
-    setAthletesList([created, ...athletesList]);
-    setNewAthlete({
-      name: '',
-      age: '15',
-      category: 'Sub-16',
-      school: 'Colegio Regional Temuco',
-      guardian: '',
-      phone: '',
-      consent: true
-    });
-    setShowAddModal(false);
+      await api.athletes.create(payload);
+      await loadAthletes();
+      setShowAddModal(false);
+      setNewAthlete({
+        name: '',
+        age: '15',
+        category: 'Sub-16',
+        school: 'Colegio Regional Temuco',
+        guardian: '',
+        phone: '',
+        consent: true
+      });
+      setEnableAccount(false);
+      setAccountEmail('');
+      setAccountPassword('');
+    } catch (err) {
+      setErrorMsg(err.message || 'Error guardando atleta');
+    }
   };
 
   return (
@@ -234,7 +279,11 @@ export default function Athletes() {
       </div>
 
       {/* ATHLETES GRID */}
-      {filteredAthletes.length > 0 ? (
+      {loading ? (
+        <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+          <p style={{ fontWeight: 600 }}>Cargando atletas desde la base de datos...</p>
+        </div>
+      ) : filteredAthletes.length > 0 ? (
         <div className="athletes-grid">
           {filteredAthletes.map((athlete) => (
             <AthleteCard
@@ -247,7 +296,7 @@ export default function Athletes() {
       ) : (
         <div className="empty-card">
           <h3>No encontramos atletas</h3>
-          <p>Prueba con otros términos de búsqueda o selecciona otra categoría.</p>
+          <p>Aún no hay atletas registrados. Haz clic en "Inscribir atleta" para comenzar.</p>
         </div>
       )}
 
@@ -572,6 +621,60 @@ export default function Athletes() {
                   <label htmlFor="consentToggle" style={{ fontSize: 12, color: '#334155', cursor: 'pointer', margin: 0 }}>
                     Consentimiento informado escolar firmado por el apoderado
                   </label>
+                </div>
+
+                {errorMsg && (
+                  <div style={{ padding: '8px 12px', background: '#fff1f2', color: '#9f1239', borderRadius: 8, fontSize: 12, marginTop: 10 }}>
+                    {errorMsg}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 12, padding: 12, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="checkbox"
+                      id="enableAccountToggle"
+                      checked={enableAccount}
+                      disabled={!newAthlete.consent}
+                      onChange={(e) => setEnableAccount(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    <label htmlFor="enableAccountToggle" style={{ fontSize: 12, fontWeight: 700, color: '#10283f', cursor: 'pointer', margin: 0 }}>
+                      Habilitar credenciales de acceso para el estudiante (Portal Móvil)
+                    </label>
+                  </div>
+                  {!newAthlete.consent && (
+                    <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginTop: 4 }}>
+                      * Requiere consentimiento informado vigente
+                    </span>
+                  )}
+                  {enableAccount && newAthlete.consent && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: 11 }}>Correo del estudiante/apoderado *</label>
+                        <input
+                          type="email"
+                          required={enableAccount}
+                          className="form-control"
+                          placeholder="estudiante@uct.cl"
+                          value={accountEmail}
+                          onChange={(e) => setAccountEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: 11 }}>Contraseña temporal (mín 6 car.) *</label>
+                        <input
+                          type="password"
+                          required={enableAccount}
+                          minLength={6}
+                          className="form-control"
+                          placeholder="••••••••"
+                          value={accountPassword}
+                          onChange={(e) => setAccountPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

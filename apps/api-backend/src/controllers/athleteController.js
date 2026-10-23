@@ -57,8 +57,15 @@ async function getAthleteById(req, res) {
  */
 async function createAthlete(req, res) {
   try {
-    const { name, age, consent } = req.body || {};
+    const { name, age } = req.body || {};
     const trainerId = req.user.id;
+
+    const rawAccount = req.body?.account;
+    const email = req.body?.email || rawAccount?.email;
+    const password = req.body?.password || rawAccount?.password;
+    const consent = req.body?.consent !== undefined 
+      ? Boolean(req.body.consent) 
+      : (req.body?.consentStatus === 'vigente');
 
     if (!name || age === undefined) {
       return res.status(400).json({
@@ -66,11 +73,28 @@ async function createAthlete(req, res) {
       });
     }
 
+    // Cuenta de acceso opcional: ambos campos deben venir juntos
+    let account = null;
+    if (email || password) {
+      if (!email || !password) {
+        return res.status(400).json({
+          error: 'Para crear la cuenta del atleta se requieren correo y contraseña temporal.'
+        });
+      }
+      if (password.length < 6) {
+        return res.status(400).json({
+          error: 'La contraseña temporal debe contener al menos 6 caracteres.'
+        });
+      }
+      account = { email: String(email).trim().toLowerCase(), password };
+    }
+
     const newAthlete = await dbRepository.createAthlete({
       name: name.trim(),
       age: parseInt(age, 10),
       consent: Boolean(consent),
-      trainerId
+      trainerId,
+      account
     });
 
     return res.status(201).json({

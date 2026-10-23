@@ -14,12 +14,17 @@
 
 const http = require('http');
 const app = require('./app');
+const dbRepository = require('./db/repository');
 
 // Puerto de escucha del servidor (3000 por defecto para el backend de MetaHub)
 const PORT = process.env.PORT || 3000;
 
-const server = http.createServer(app);
+async function bootstrap() {
+  await dbRepository.seedDefaults();
+  const server = http.createServer(app);
+  server.listen(PORT, () => {
+    console.log(`🚀 MetaHub API Backend ejecutándose en http://localhost:${PORT}`);
+  });
+}
 
-server.listen(PORT, () => {
-  console.log(`🚀 MetaHub API Backend ejecutándose en http://localhost:${PORT}`);
-});
+bootstrap();

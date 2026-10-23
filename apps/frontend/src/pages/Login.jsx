@@ -6,19 +6,24 @@ export default function Login({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [selectedRole, setSelectedRole] = useState('entrenador');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('entrenador@uct.cl');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(
+    typeof window !== 'undefined' && window.location.search.includes('demo=1')
+  );
   const navigate = useNavigate();
 
   const handleSelectRole = (role) => {
     setSelectedRole(role);
-    if (role === 'atleta') {
-      setEmail('martin@uct.cl');
-      setName('Martín San Martín');
-    } else {
-      setEmail('entrenador@uct.cl');
-      setName('Felipe Arellano');
+    if (isDemoMode) {
+      if (role === 'atleta') {
+        setEmail('martin@uct.cl');
+        setPassword('123456');
+      } else {
+        setEmail('entrenador@uct.cl');
+        setPassword('123456');
+      }
     }
   };
 
@@ -29,8 +34,8 @@ export default function Login({ onLoginSuccess }) {
     const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     const body = isRegister 
-      ? { name: name || (selectedRole === 'atleta' ? 'Martín San Martín' : 'Felipe Arellano'), email, password, role: selectedRole } 
-      : { email, password };
+      ? { name: name.trim(), email: email.trim(), password, role: 'entrenador' } 
+      : { email: email.trim(), password };
 
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -42,10 +47,11 @@ export default function Login({ onLoginSuccess }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error al autenticar');
+        throw new Error(data.error || 'Credenciales inválidas');
       }
 
-      const userRole = data.user.role || (email.includes('atleta') || email.includes('martin') ? 'atleta' : 'entrenador');
+      // El rol proviene EXCLUSIVAMENTE del backend validado
+      const userRole = data.user?.role || 'entrenador';
       const finalUser = { ...data.user, role: userRole };
 
       localStorage.setItem('metahub_token', data.token);
@@ -54,19 +60,24 @@ export default function Login({ onLoginSuccess }) {
       if (onLoginSuccess) onLoginSuccess(finalUser, data.token);
       navigate(finalUser.role === 'atleta' ? '/portal' : '/');
     } catch (err) {
-      // Demo / offline fallback
-      const isAth = selectedRole === 'atleta' || email.includes('atleta') || email.includes('martin');
-      const demoUser = {
-        id: isAth ? 'atleta-demo-01' : 'coach-demo-01',
-        name: isAth ? 'Martín San Martín' : 'Felipe Arellano',
-        email: email,
-        role: isAth ? 'atleta' : 'entrenador'
-      };
-      localStorage.setItem('metahub_token', 'demo_jwt_token_active');
-      localStorage.setItem('metahub_user', JSON.stringify(demoUser));
+      if (isDemoMode) {
+        // Solo en modo demostración explícito (?demo=1)
+        const isAth = selectedRole === 'atleta';
+        const demoUser = {
+          id: isAth ? 'atleta-demo-01' : 'coach-demo-01',
+          name: isAth ? 'Martín San Martín' : 'Profesor Demostración',
+          email: email || (isAth ? 'martin@uct.cl' : 'entrenador@uct.cl'),
+          role: isAth ? 'atleta' : 'entrenador'
+        };
+        localStorage.setItem('metahub_token', 'demo_jwt_token_active');
+        localStorage.setItem('metahub_user', JSON.stringify(demoUser));
 
-      if (onLoginSuccess) onLoginSuccess(demoUser, 'demo_jwt_token_active');
-      navigate(isAth ? '/portal' : '/');
+        if (onLoginSuccess) onLoginSuccess(demoUser, 'demo_jwt_token_active');
+        navigate(isAth ? '/portal' : '/');
+        return;
+      }
+
+      setError(err.message || 'Error de conexión con el servidor MetaHub');
     }
   };
 

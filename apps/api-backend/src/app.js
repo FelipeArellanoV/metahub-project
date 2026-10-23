@@ -18,6 +18,7 @@ const path = require('path');
 const authController = require('./controllers/authController');
 const athleteController = require('./controllers/athleteController');
 const sessionController = require('./controllers/sessionController');
+const portalController = require('./controllers/portalController');
 const { verifyToken, requireRole } = require('./middleware/authMiddleware');
 
 // Directorio raíz de la interfaz web frontend para entrega estática
@@ -144,7 +145,8 @@ async function app(req, res) {
         login: 'POST /api/auth/login',
         profile: 'GET /api/auth/me (Requiere JWT)',
         athletes: 'GET, POST, PUT /:id, DELETE /:id /api/athletes (Requiere JWT)',
-        sessions: 'GET, POST /api/sessions, GET /api/athletes/:id/sessions (Requiere JWT)'
+        sessions: 'GET, POST /api/sessions, GET /api/athletes/:id/sessions (Requiere JWT)',
+        portal: 'GET /api/portal/me (Requiere JWT con rol atleta)'
       }
     });
   }
@@ -166,6 +168,13 @@ async function app(req, res) {
   // Rutas protegidas - Perfil del usuario
   if (method === 'GET' && url === '/api/auth/me') {
     return verifyToken(req, res, () => authController.getProfile(req, res));
+  }
+
+  // Rutas protegidas - Portal del Atleta (solo rol 'atleta'; datos propios segun el JWT)
+  if (method === 'GET' && url === '/api/portal/me') {
+    return verifyToken(req, res, () => {
+      return requireRole(['atleta'])(req, res, () => portalController.getMyPortal(req, res));
+    });
   }
 
   // Rutas protegidas - Gestión de Sesiones de Carrera

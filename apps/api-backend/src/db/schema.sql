@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS athletes (
     age INT NOT NULL,
     consent BOOLEAN DEFAULT FALSE,
     trainer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- Cuenta de acceso del atleta (rol 'atleta'); NULL si el atleta no tiene login propio
+    user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -41,8 +43,16 @@ CREATE TABLE IF NOT EXISTS sessions (
     session_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     video_url TEXT,
     notes TEXT,
+    -- Resultado del analisis biomecanico (Indice IPT MetaHub UCT) y resumen compacto del analisis
+    ipt_score DOUBLE PRECISION,
+    analysis JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 4b. Migracion para bases existentes (idempotente)
+ALTER TABLE athletes ADD COLUMN IF NOT EXISTS user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ipt_score DOUBLE PRECISION;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS analysis JSONB;
 
 -- 5. Tabla de Métricas Biomecánicas (Series temporales)
 CREATE TABLE IF NOT EXISTS biomechanical_metrics (

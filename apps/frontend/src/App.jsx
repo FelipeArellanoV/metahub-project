@@ -28,13 +28,27 @@ import Login from './pages/Login.jsx';
 import LiveCapture from './pages/LiveCapture.jsx';
 
 /**
- * Componente de orden superior que restringe el acceso a usuarios autenticados
+ * Componente de orden superior que restringe el acceso a usuarios autenticados y con rol autorizado
  */
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, allowedRoles }) {
   const token = localStorage.getItem('metahub_token');
   if (!token) {
     return <Navigate to="/login" replace />;
   }
+  
+  if (allowedRoles && allowedRoles.length > 0) {
+    let user = null;
+    try {
+      const raw = localStorage.getItem('metahub_user');
+      if (raw) user = JSON.parse(raw);
+    } catch (e) {}
+
+    const role = user?.role || 'entrenador';
+    if (!allowedRoles.includes(role)) {
+      return <Navigate to={role === 'atleta' ? '/portal' : '/'} replace />;
+    }
+  }
+
   return children;
 }
 
@@ -86,7 +100,7 @@ export default function App() {
         <Route
           path="/athletes"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <Athletes />
             </ProtectedRoute>
           }
@@ -94,7 +108,7 @@ export default function App() {
         <Route
           path="/sessions"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <Sessions />
             </ProtectedRoute>
           }
@@ -102,7 +116,7 @@ export default function App() {
         <Route
           path="/calendar"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <Planning />
             </ProtectedRoute>
           }
@@ -110,7 +124,7 @@ export default function App() {
         <Route
           path="/priority"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <SupportPriority />
             </ProtectedRoute>
           }
@@ -118,7 +132,7 @@ export default function App() {
         <Route
           path="/compare"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <Compare />
             </ProtectedRoute>
           }
@@ -126,7 +140,7 @@ export default function App() {
         <Route
           path="/drills"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <Drills />
             </ProtectedRoute>
           }
@@ -134,7 +148,7 @@ export default function App() {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <Reports />
             </ProtectedRoute>
           }
@@ -142,7 +156,7 @@ export default function App() {
         <Route
           path="/portal"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['atleta', 'entrenador']}>
               <AthletePortal />
             </ProtectedRoute>
           }
@@ -150,7 +164,7 @@ export default function App() {
         <Route
           path="/settings"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['atleta', 'entrenador']}>
               <Settings />
             </ProtectedRoute>
           }
@@ -158,7 +172,7 @@ export default function App() {
         <Route
           path="/capture"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['entrenador']}>
               <LiveCapture />
             </ProtectedRoute>
           }

@@ -159,8 +159,32 @@ export const api = {
     }
   },
 
+  // Portal del Atleta
+  portal: {
+    async getMe() {
+      return request(`${API_BASE}/api/portal/me`);
+    }
+  },
+
   // Visión por Computador (CV Service)
   cv: {
+    async checkHealth() {
+      const res = await fetch(`${CV_BASE}/health`);
+      return res.json();
+    },
+
+    async processVideo(formData) {
+      const res = await fetch(`${CV_BASE}/api/cv/process-video`, {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || err.error || `Error CV (${res.status})`);
+      }
+      return res.json();
+    },
+
     async calculateMetrics(keypointsPayload) {
       return request(`${CV_BASE}/api/cv/metrics`, {
         method: 'POST',

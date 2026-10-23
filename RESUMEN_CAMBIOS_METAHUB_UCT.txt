@@ -1,0 +1,171 @@
+====================================================================================================
+PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco (UCT)
+====================================================================================================
+
+DOCUMENTO DE REGISTRO TÉCNICO Y METODOLÓGICO:
+"RESUMEN DE CAMBIOS IMPLEMENTADOS Y JUSTIFICACIÓN CIENTÍFICA / INGENIERIL"
+
+- Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+- Profesor Guía: Dr. Marcos Lévano
+- Fecha: Octubre 2026
+- Hash de Commit Asociado (GitHub): 636bc65
+- Repositorio: https://github.com/FelipeArellanoV/metahub-project.git
+
+====================================================================================================
+1. RESUMEN EJECUTIVO: ¿QUÉ SE HIZO Y POR QUÉ?
+====================================================================================================
+
+En esta etapa del proyecto se realizó una transición fundamental:
+MetaHub pasó de ser una maqueta visual interactiva a convertirse en un LABORATORIO BIOMECÁNICO REAL
+con visión artificial, modelamiento matemático cinemático y prescripción deportiva automatizada.
+
+¿Por qué se hizo este cambio?
+En una memoria de título de Ingeniería Civil en Informática, un sistema que solo muestra datos fijos
+o inventados carece de validez académica. Para responder a los requerimientos de la UCT y del
+Dr. Marcos Lévano, el sistema debía:
+1. Extraer puntos articulares reales desde video utilizando redes neuronales.
+2. Poseer una metodología y fórmula de autoría propia de la tesis (no usar solo librerías ajenas).
+3. Basar sus rangos en literatura científica real (World Athletics, Ralph Mann, Mero et al.).
+4. Cerrar el ciclo entregando prescripciones de entrenamiento específicas basadas en la falla detectada.
+
+====================================================================================================
+2. DESGLOSE DE CAMBIOS POR MÓDULO Y SU JUSTIFICACIÓN ("EL PORQUÉ")
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+MÓDULO 1: MOTOR DE VISIÓN COMPUTACIONAL REAL (OpenCV + MediaPipe PoseLandmarker)
+Archivos: apps/cv-service/main.py, apps/cv-service/models/pose_landmarker_lite.task
+----------------------------------------------------------------------------------------------------
+QUÉ SE HIZO:
+- Se implementó un microservicio backend en Python 3.11 con FastAPI y Uvicorn en el puerto :8000.
+- Se integró el modelo neuronal 'pose_landmarker_lite.task' de Google MediaPipe (BlazePose) localmente.
+- Se implementó el endpoint POST '/api/cv/process-video' que recibe archivos de video (.mp4, .webm),
+  los decodifica cuadro a cuadro con OpenCV, procesa cada imagen con MediaPipe y extrae 33 puntos
+  anatómicos normalizados (coordenadas X, Y, Z).
+- Se programó la función 'draw_skeleton_on_frame' que dibuja las conexiones óseas, nodos articulares
+  y superpone los ángulos vectoriales y marcas de agua de la tesis UCT en cada imagen.
+
+POR QUÉ SE HIZO:
+- Para garantizar que el sistema opere con "Inferencia Real en el Borde" (Edge AI).
+- Permite que cualquier video grabado con un teléfono móvil en la pista de atletismo pueda ser
+  procesado de forma autónoma sin depender de APIs de pago externas.
+- Permite la auditoría cuadro a cuadro: el entrenador puede pausar y ver exactamente dónde estaba
+  la rodilla o la cadera del atleta en cada milésima de segundo.
+
+----------------------------------------------------------------------------------------------------
+MÓDULO 2: MODELO DE SECCIONAMIENTO CINEMÁTICO EN 3 FASES (METODOLOGÍA UCT)
+Archivo: apps/cv-service/metrics_engine.py (función: classify_kinematic_sector)
+----------------------------------------------------------------------------------------------------
+QUÉ SE HIZO:
+Se dividió el ciclo de zancada en tres sectores cinemáticos delimitados:
+1. Sector 1: PROPULSIÓN (Triple extensión de despegue: Cadera-Rodilla-Tobillo).
+   - Rango objetivo: 165° a 175°.
+2. Sector 2: VUELO / RECOBRO (Péndulo corto de rodilla: Talón al glúteo).
+   - Rango objetivo: Ángulo interior de rodilla < 70° y elevación de muslo > 85°.
+3. Sector 3: CONTACTO ACTIVO / IMPACTO (Aterrizaje sin frenado y simetría bilateral).
+   - Rango objetivo: Simetría bilateral de zancada >= 92.0% y apoyo bajo centro de masa.
+
+POR QUÉ SE HIZO:
+- En biomecánica deportiva, analizar la carrera como un bloque continuo sin fases impide saber dónde
+  falla el atleta. Un corredor puede tener excelente despegue pero un pésimo recobro en el aire.
+- El seccionamiento permite etiquetar cada fotograma de forma automática (ej. "UCT [PROPULSIÓN]"),
+  aislando la fase exacta que el estudiante debe corregir.
+
+----------------------------------------------------------------------------------------------------
+MÓDULO 3: ÍNDICE PROPIETARIO DE PERFECCIONAMIENTO TÉCNICO (IPT METAHUB UCT)
+Archivo: apps/cv-service/metrics_engine.py (función: calculate_ipt_evaluation)
+----------------------------------------------------------------------------------------------------
+QUÉ SE HIZO:
+Se formuló e implementó la ecuación compuesta de autoría (Felipe Arellano & Sofía Henríquez, 2026):
+
+    IPT = (0.40 * Score_Propulsión) + (0.35 * Score_Recobro) + (0.25 * Simetría_Bilateral)
+
+Escala de Calificación Institucional:
+- 90 a 100 pts: Nivel I · Técnica Consolidada / Élite Escolar.
+- 75 a 89 pts: Nivel II · En Perfeccionamiento (Déficit Menor en un sector).
+- < 75 pts: Nivel III · Fase de Corrección Requerida (Bandera Roja por asimetría o sobrecarga).
+
+POR QUÉ SE HIZO:
+- Es el aporte científico y conceptual central de la tesis de grado.
+- Resuelve el problema de la subjetividad: los profesores de educación física ya no evalúan "al ojo"
+  o con impresiones cualitativas, sino con un índice numérico reproducible y validado.
+- La ponderación (40% propulsión, 35% recobro, 25% simetría) refleja la importancia mecánica de la
+  fuerza horizontal propulsiva, la reducción de inercia en el aire y la prevención de lesiones.
+
+----------------------------------------------------------------------------------------------------
+MÓDULO 4: MOTOR DE PRESCRIPCIÓN INTELIGENTE DE ENTRENAMIENTO (EN 4 CAPAS)
+Archivo: apps/cv-service/metrics_engine.py (objeto: prescripcion_completa)
+----------------------------------------------------------------------------------------------------
+QUÉ SE HIZO:
+Se programó un generador dinámico de planes de entrenamiento que se activa según el sector deficitario:
+Capa 1: Causa Raíz Biomecánica (Explica qué músculo o palanca articular falló).
+Capa 2: Clave Motora Inmediata (Cue Verbal: lo que el entrenador le grita en pista al atleta).
+Capa 3: Plan Progresivo de 3 Ejercicios:
+        - Fase 1: Aislamiento / Activación neuromuscular.
+        - Fase 2: Coordinación Dinámica con obstáculos (minivallas o cajones).
+        - Fase 3: Transferencia a Carrera a máxima velocidad en pista.
+Capa 4: Error Crítico a Evitar (Prevención de vicios y compensaciones lesivas).
+
+POR QUÉ SE HIZO:
+- Porque un diagnóstico sin solución no aporta al proceso educativo del escolar.
+- La IA no entrega frases genéricas como "corre mejor", sino planes estructurados con series,
+  repeticiones y descansos adaptados exactamente al defecto que MediaPipe midió en el video.
+
+----------------------------------------------------------------------------------------------------
+MÓDULO 5: CALIBRADOR DE TERRENO CON GIROSCOPIO MÓVIL
+Archivos: apps/frontend/src/pages/LiveCapture.jsx, apps/frontend/preview.html, index.html
+----------------------------------------------------------------------------------------------------
+QUÉ SE HIZO:
+- Integración del API 'deviceorientation' para leer en tiempo real la inclinación (Pitch y Roll)
+  del celular del entrenador.
+- Indicador visual y auditivo de nivelación perpendicular sagital (90° +/- 2.5°).
+
+POR QUÉ SE HIZO:
+- En cinemática 2D computacional, si la cámara está inclinada hacia arriba, hacia abajo o en diagonal,
+  se produce el fenómeno de "error de paralaje", falseando los ángulos articulares en 10° a 25°.
+- El calibrador asegura que las grabaciones se realicen estrictamente en el plano sagital perpendicular,
+  haciendo que los ángulos medidos sean matemáticamente válidos y confiables.
+
+----------------------------------------------------------------------------------------------------
+MÓDULO 6: FRONTEND INTERACTIVO Y VISOR FOTOGRAMA A FOTOGRAMA
+Archivos: apps/frontend/src/pages/LiveCapture.jsx, apps/frontend/preview.html, index.html
+----------------------------------------------------------------------------------------------------
+QUÉ SE HIZO:
+- Panel del Índice IPT con badge de nivel (Élite, En Desarrollo, Corrección).
+- Desglose visual de los 3 sectores cinemáticos con barras de progreso y comparación contra la meta.
+- Visor deslizante (Slider) que permite recorrer los fotogramas del video con el esqueleto superpuesto,
+  mostrando el tiempo exacto en segundos y el sector cinemático de cada zancada.
+- Tarjeta de coordenadas anatómicas reales (X, Y) para inspección técnica.
+- Botón de descarga de la auditoría en formato JSON estandarizado.
+
+POR QUÉ SE HIZO:
+- Para proveer transparencia absoluta en la defensa de tesis ante la comisión de profesores.
+- Permite que el entrenador y el atleta revisen juntos el video en la pista, comprendiendo
+  visualmente por qué obtuvieron su nota IPT y cómo deben mover sus extremidades.
+
+====================================================================================================
+3. SUSTENTO CIENTÍFICO Y REFERENCIAS BIBLIOGRÁFICAS
+====================================================================================================
+
+Los parámetros angulares implementados en MetaHub no son arbitrarios; están sustentados en la
+literatura canónica de la biomecánica del atletismo:
+
+1. World Athletics / IAAF Biomechanical Report London 2017 (Bissas et al., 2018):
+   - Valida el rango de extensión de rodilla previa al despegue (160° a 172°) y la altura de la rodilla
+     libre al frente en corredores de velocidad máxima.
+2. Mann, Ralph & Murphy, Amber (2018) "The Mechanics of Sprinting and Hurdling":
+   - Demuestra por qué el despegue no debe bloquearse rígidamente en 180° (over-pushing), y cómo
+     la mecánica de recobro corto reduce el tiempo de vuelo y el momento de inercia.
+3. Mero, Komi & Gregor (1992) "Biomechanics of Sprint Running" (Sports Medicine):
+   - Define los vectores de fuerza anteroposterior y la secuencia proximal-distal de las articulaciones.
+4. Ley del Momento de Inercia Rotacional (I = m * r^2):
+   - Justifica matemáticamente el Sector 2 (Recobro): doblar la rodilla a < 70° reduce el radio a la
+     mitad, lo que disminuye el esfuerzo angular a una cuarta parte.
+5. Carpes, Mota & Faria (2010) "Bilateral asymmetry during sprint running":
+   - Justifica el umbral de simetría bilateral (asimetría < 8% normal, > 10-15% bandera roja lesiva).
+
+====================================================================================================
+FIN DEL DOCUMENTO DE RESUMEN
+MetaHub Biomechanics Lab · Universidad Católica de Temuco · 2026
+====================================================================================================

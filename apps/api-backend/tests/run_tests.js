@@ -271,6 +271,168 @@ async function runTests() {
     assert.strictEqual(athletesRes.body.athletes[0].sessionCount, 1);
   });
 
+  // =======================================================================================
+  // ROL ATLETA REAL: cuentas, aislamiento de datos y progreso calculado desde sesiones
+  // =======================================================================================
+  const { computeProgress } = require('../src/services/progress');
+
+  const bearer = (token) => ({ authorization: `Bearer ${token}` });
+
+  async function registerCoach(email = 'coach@uct.cl') {
+    const reg = await makeRequest(app, 'POST', '/api/auth/register', {}, {
+      name: 'Entrenador', email, password: 'password123'
+    });
+    return reg.body.token;
+  }
+
+  function fakeCvResult(ipt, symmetry = 95) {
+    return {
+      status: 'success',
+      video_info: { duration_seconds: 3, fps: 30, detection_rate_pct: 100, filename: 'x.mp4' },
+      summary_metrics: { avg_symmetry_score: symmetry },
+      ipt_evaluation: {
+        ipt_score: ipt,
+        categoria: 'En Perfeccionamiento',
+        badge: 'NIVEL II',
+        sector_prioritario: 'Sector 2: Recobro',
+        prescripcion_completa: { ejercicios: [{ nombre: 'Skipping A' }] }
+      },
+      // Datos pesados que NO deben persistirse
+      frames: new Array(50).fill({ landmarks: new Array(33).fill({ x: 0.1, y: 0.2 }) })
+    };
+  }
+
+  await test('Prueba 11: El entrenador crea un atleta con cuenta y este puede iniciar sesión como rol atleta', async () => {
+    const coach = await registerCoach();
+    const res = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Martin Real', age: 15, consent: true, email: 'martin.real@uct.cl', password: 'temporal123'
+    });
+    assert.strictEqual(res.statusCode, 201);
+    assert.strictEqual(res.body.athlete.hasAccount, true);
+    assert.strictEqual(JSON.stringify(res.body).includes('temporal123'), false, 'No debe devolver la contraseña');
+
+    const login = await makeRequest(app, 'POST', '/api/auth/login', {}, {
+      email: 'martin.real@uct.cl', password: 'temporal123'
+    });
+    assert.strictEqual(login.statusCode, 200);
+    assert.strictEqual(login.body.user.role, 'atleta');
+  });
+
+  await test('Prueba 12: No se crea cuenta de atleta sin consentimiento parental (y no queda usuario huérfano)', async () => {
+    const coach = await registerCoach();
+    const res = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Sin Consentimiento', age: 14, consent: false, email: 'sc@uct.cl', password: 'temporal123'
+    });
+    assert.strictEqual(res.statusCode, 400);
+    const login = await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'sc@uct.cl', password: 'temporal123' });
+    assert.strictEqual(login.statusCode, 401);
+  });
+
+  await test('Prueba 13: Correo duplicado rechazado sin dejar ficha creada', async () => {
+    const coach = await registerCoach();
+    await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Uno', age: 15, consent: true, email: 'dup@uct.cl', password: 'temporal123'
+    });
+    const dup = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Dos', age: 15, consent: true, email: 'dup@uct.cl', password: 'temporal123'
+    });
+    assert.strictEqual(dup.statusCode, 400);
+    const list = await makeRequest(app, 'GET', '/api/athletes', bearer(coach));
+    assert.strictEqual(list.body.athletes.length, 1);
+  });
+
+  await test('Prueba 14: El token de atleta no accede a rutas del entrenador (403) ni el de entrenador al portal (403)', async () => {
+    const coach = await registerCoach();
+    await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Ana', age: 15, consent: true, email: 'ana@uct.cl', password: 'temporal123'
+    });
+    const athTok = (await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'ana@uct.cl', password: 'temporal123' })).body.token;
+
+    assert.strictEqual((await makeRequest(app, 'GET', '/api/athletes', bearer(athTok))).statusCode, 403);
+    assert.strictEqual((await makeRequest(app, 'GET', '/api/sessions', bearer(athTok))).statusCode, 403);
+    assert.strictEqual((await makeRequest(app, 'POST', '/api/sessions', bearer(athTok), { athleteId: 1 })).statusCode, 403);
+    assert.strictEqual((await makeRequest(app, 'GET', '/api/portal/me', bearer(coach))).statusCode, 403);
+    assert.strictEqual((await makeRequest(app, 'GET', '/api/portal/me')).statusCode, 401);
+  });
+
+  await test('Prueba 15: Una sesión guarda el IPT y un resumen sin los cuadros del video', async () => {
+    const coach = await registerCoach();
+    const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Beto', age: 15, consent: true, email: 'beto@uct.cl', password: 'temporal123'
+    });
+    const created = await makeRequest(app, 'POST', '/api/sessions', bearer(coach), {
+      athleteId: ath.body.athlete.id, analysis: fakeCvResult(79.84)
+    });
+    assert.strictEqual(created.statusCode, 201);
+    assert.strictEqual(created.body.session.iptScore, 79.8);
+
+    const bad = await makeRequest(app, 'POST', '/api/sessions', bearer(coach), {
+      athleteId: ath.body.athlete.id, analysis: { ipt_evaluation: { ipt_score: 250 } }
+    });
+    assert.strictEqual(bad.statusCode, 400);
+
+    const athTok = (await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'beto@uct.cl', password: 'temporal123' })).body.token;
+    const portal = await makeRequest(app, 'GET', '/api/portal/me', bearer(athTok));
+    assert.strictEqual(portal.statusCode, 200);
+    assert.strictEqual(portal.body.latestAnalysis.ipt_score, 79.84);
+    assert.strictEqual(portal.body.latestAnalysis.frames, undefined, 'No se deben persistir los cuadros');
+  });
+
+  await test('Prueba 16: Cada atleta ve únicamente sus propios datos en el portal', async () => {
+    const coach = await registerCoach();
+    const a = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Atleta A', age: 15, consent: true, email: 'a@uct.cl', password: 'temporal123'
+    });
+    const b = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Atleta B', age: 16, consent: true, email: 'b@uct.cl', password: 'temporal123'
+    });
+    await makeRequest(app, 'POST', '/api/sessions', bearer(coach), { athleteId: a.body.athlete.id, analysis: fakeCvResult(70) });
+    await makeRequest(app, 'POST', '/api/sessions', bearer(coach), { athleteId: a.body.athlete.id, analysis: fakeCvResult(80) });
+    await makeRequest(app, 'POST', '/api/sessions', bearer(coach), { athleteId: b.body.athlete.id, analysis: fakeCvResult(92) });
+
+    const tokA = (await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'a@uct.cl', password: 'temporal123' })).body.token;
+    const tokB = (await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'b@uct.cl', password: 'temporal123' })).body.token;
+
+    const pa = (await makeRequest(app, 'GET', '/api/portal/me', bearer(tokA))).body;
+    const pb = (await makeRequest(app, 'GET', '/api/portal/me', bearer(tokB))).body;
+    assert.strictEqual(pa.athlete.name, 'Atleta A');
+    assert.strictEqual(pa.sessions.length, 2);
+    assert.strictEqual(pa.progress.deltaIpt, 10);
+    assert.strictEqual(pb.athlete.name, 'Atleta B');
+    assert.strictEqual(pb.sessions.length, 1);
+    assert.strictEqual(pb.progress.bestIpt, 92);
+  });
+
+  await test('Prueba 17: Eliminar al atleta elimina también su cuenta de acceso', async () => {
+    const coach = await registerCoach();
+    const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Temporal', age: 15, consent: true, email: 'tmp@uct.cl', password: 'temporal123'
+    });
+    await makeRequest(app, 'DELETE', `/api/athletes/${ath.body.athlete.id}`, bearer(coach));
+    const login = await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'tmp@uct.cl', password: 'temporal123' });
+    assert.strictEqual(login.statusCode, 401);
+  });
+
+  await test('Prueba 18: XP, nivel y medallas se calculan solo con datos reales', async () => {
+    const empty = computeProgress([]);
+    assert.strictEqual(empty.xp, 0);
+    assert.strictEqual(empty.level, 1);
+    assert.ok(empty.medals.every(m => !m.earned), 'Sin sesiones no hay medallas');
+
+    const sessions = [
+      { id: 1, sessionDate: '2026-01-01T10:00:00Z', iptScore: 70 },
+      { id: 2, sessionDate: '2026-01-08T10:00:00Z', iptScore: 78 },
+      { id: 3, sessionDate: '2026-01-15T10:00:00Z', iptScore: 75 } // baja: no resta XP
+    ];
+    const p = computeProgress(sessions, { summary_metrics: { avg_symmetry_score: 93 } });
+    assert.strictEqual(p.sessionCount, 3);
+    assert.strictEqual(p.xp, 3 * 100 + 8 * 20);
+    assert.strictEqual(p.deltaIpt, 5);
+    const earned = p.medals.filter(m => m.earned).map(m => m.id);
+    assert.ok(earned.includes('first_session') && earned.includes('ipt_75') && earned.includes('improvement') && earned.includes('symmetry'));
+    assert.ok(!earned.includes('ipt_90') && !earned.includes('consistency'));
+  });
+
   console.log(`\n📊 Resumen de pruebas: ${passed} pasadas, ${failed} falladas.`);
   if (failed > 0) process.exit(1);
 }
