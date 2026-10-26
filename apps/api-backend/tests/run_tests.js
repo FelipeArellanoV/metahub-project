@@ -433,6 +433,53 @@ async function runTests() {
     assert.ok(!earned.includes('ipt_90') && !earned.includes('consistency'));
   });
 
+  await test('Prueba 19: Registro de atleta con birthDate y cálculo dinámico de age', async () => {
+    const coach = await registerCoach();
+    // Atleta nacido en 2011-04-18
+    const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Estudiante Biomecánico',
+      birthDate: '2011-04-18',
+      consent: true
+    });
+    assert.strictEqual(ath.statusCode, 201);
+    assert.strictEqual(ath.body.athlete.birthDate, '2011-04-18');
+    assert.strictEqual(ath.body.athlete.age, 15);
+
+    // Actualizar birthDate a 2010
+    const upd = await makeRequest(app, 'PUT', `/api/athletes/${ath.body.athlete.id}`, bearer(coach), {
+      birthDate: '2010-04-18'
+    });
+    assert.strictEqual(upd.statusCode, 200);
+    assert.strictEqual(upd.body.athlete.age, 16);
+  });
+
+  await test('Prueba 20: Gestión formal de Consentimientos Informados (CU-07 / HU-10)', async () => {
+    const coach = await registerCoach();
+    const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
+      name: 'Atleta con Consentimiento',
+      age: 14,
+      consent: true
+    });
+    const athleteId = ath.body.athlete.id;
+
+    // Verificar consulta de consentimiento
+    const consRes = await makeRequest(app, 'GET', `/api/athletes/${athleteId}/consents`, bearer(coach));
+    assert.strictEqual(consRes.statusCode, 200);
+    assert.strictEqual(consRes.body.hasValidConsent, true);
+    assert.ok(consRes.body.consents.length >= 1);
+
+    // Revocar consentimiento
+    const revokeRes = await makeRequest(app, 'POST', `/api/athletes/${athleteId}/consents`, bearer(coach), {
+      status: 'revoked',
+      notes: 'Revocación por parte del apoderado'
+    });
+    assert.strictEqual(revokeRes.statusCode, 201);
+
+    // Validar que ahora no está habilitado para captura
+    const validRes = await makeRequest(app, 'GET', `/api/athletes/${athleteId}/consents`, bearer(coach));
+    assert.strictEqual(validRes.body.hasValidConsent, false);
+  });
+
   console.log(`\n📊 Resumen de pruebas: ${passed} pasadas, ${failed} falladas.`);
   if (failed > 0) process.exit(1);
 }

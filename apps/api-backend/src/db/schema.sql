@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS athletes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    age INT NOT NULL,
+    age INT,
+    birth_date DATE,
     consent BOOLEAN DEFAULT FALSE,
     trainer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     -- Cuenta de acceso del atleta (rol 'atleta'); NULL si el atleta no tiene login propio
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 -- 4b. Migracion para bases existentes (idempotente)
+ALTER TABLE athletes ADD COLUMN IF NOT EXISTS birth_date DATE;
 ALTER TABLE athletes ADD COLUMN IF NOT EXISTS user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ipt_score DOUBLE PRECISION;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS analysis JSONB;
@@ -68,7 +70,23 @@ CREATE TABLE IF NOT EXISTS biomechanical_metrics (
 -- 6. Convertir la tabla de métricas en una Hypertable de TimescaleDB particionada por tiempo
 SELECT create_hypertable('biomechanical_metrics', 'time', if_not_exists => TRUE);
 
--- 7. Índices optimizados para consultas longitudinales
+-- 7. Tabla de Consentimientos Informados (Ley 19.628 / 21.719 - Menores de edad)
+CREATE TABLE IF NOT EXISTS consents (
+    id SERIAL PRIMARY KEY,
+    athlete_id INT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    guardian_id INT REFERENCES users(id) ON DELETE SET NULL,
+    consent_type VARCHAR(50) NOT NULL DEFAULT 'grabacion_biomecanica',
+    status VARCHAR(20) NOT NULL DEFAULT 'granted', -- 'granted', 'revoked', 'pending'
+    granted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Índices optimizados para consultas longitudinales
 CREATE INDEX IF NOT EXISTS idx_athletes_trainer ON athletes(trainer_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_athlete ON sessions(athlete_id);
 CREATE INDEX IF NOT EXISTS idx_metrics_session ON biomechanical_metrics(session_id, time DESC);
+CREATE INDEX IF NOT EXISTS idx_consents_athlete ON consents(athlete_id);
+

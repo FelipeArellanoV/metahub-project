@@ -49,4 +49,4 @@ if __name__ == "__main__":
     test_calculate_angle_right_angle()
     test_calculate_angle_straight_line()
     test_compute_biomechanical_metrics()
-    print("✅ Todas las pruebas de cinemática articular de cv-service han pasado exitosamente.")
+    print("[OK] Todas las pruebas de cinematica articular de cv-service han pasado exitosamente.")

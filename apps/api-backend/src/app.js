@@ -212,6 +212,18 @@ async function app(req, res) {
           return sessionController.getAthleteSessions(req, res);
         }
 
+        // GET o POST /api/athletes/:id/consents (CU-07 / HU-10)
+        const consentsMatch = url.match(/^\/api\/athletes\/(\d+)\/consents$/);
+        if (consentsMatch) {
+          req.params = { id: consentsMatch[1] };
+          if (method === 'GET') {
+            return athleteController.getAthleteConsents(req, res);
+          }
+          if (method === 'POST') {
+            return athleteController.createAthleteConsent(req, res);
+          }
+        }
+
         // GET, PUT o DELETE /api/athletes/:id
         const idMatch = url.match(/^\/api\/athletes\/(\d+)$/);
         if (idMatch) {

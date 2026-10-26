@@ -75,6 +75,23 @@ async function verifyPassword(password, storedHash) {
 }
 
 /**
+ * Calcula dinámicamente la edad cumplida en años a partir de la fecha de nacimiento (birthDate).
+ * Si no se dispone de birthDate, retorna el fallback de edad provisto.
+ */
+function calculateAge(birthDate, fallbackAge) {
+  if (!birthDate) return typeof fallbackAge === 'number' ? fallbackAge : 0;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return typeof fallbackAge === 'number' ? fallbackAge : 0;
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+/**
  * Clase controladora del repositorio de datos de MetaHub
  */
 class Repository {
@@ -89,9 +106,11 @@ class Repository {
     this.users = [];
     this.athletes = [];
     this.sessions = [];
+    this.consents = [];
     this.userIdCounter = 1;
     this.athleteIdCounter = 1;
     this.sessionIdCounter = 1;
+    this.consentIdCounter = 1;
   }
 
   /**
@@ -106,8 +125,9 @@ class Repository {
         password: 'password123',
         role: 'entrenador'
       });
-      await this.createAthlete({
+      const martin = await this.createAthlete({
         name: 'Martín San Martín',
+        birthDate: '2011-04-18', // 15 años calculados dinámicamente
         age: 15,
         consent: true,
         trainerId: coach.id,
@@ -118,8 +138,16 @@ class Repository {
           password: 'password123'
         }
       });
-      await this.createAthlete({
+      await this.createConsent({
+        athleteId: martin.id,
+        consentType: 'grabacion_biomecanica',
+        status: 'granted',
+        notes: 'Consentimiento informado firmado por apoderado para registro longitudinal UCT'
+      });
+
+      const javiera = await this.createAthlete({
         name: 'Javiera Soto',
+        birthDate: '2010-09-22', // 16 años calculados dinámicamente
         age: 16,
         consent: true,
         trainerId: coach.id,
@@ -129,6 +157,12 @@ class Repository {
           email: 'javiera@uct.cl',
           password: 'password123'
         }
+      });
+      await this.createConsent({
+        athleteId: javiera.id,
+        consentType: 'grabacion_biomecanica',
+        status: 'granted',
+        notes: 'Consentimiento informado firmado por apoderado para registro longitudinal UCT'
       });
     } catch (e) {
       // Ignorar si ya fueron creados
@@ -257,24 +291,50 @@ class Repository {
   // =======================================================================================
 
   /**
-   * Agrega el indicador 'hasAccount' (el atleta posee cuenta de acceso propia)
+   * Formatea un atleta, calculando dinámicamente su edad a partir de birthDate y añadiendo hasAccount
+   */
+  formatAthlete(athlete) {
+    if (!athlete) return athlete;
+    const rawBirthDate = athlete.birthDate || athlete.birth_date || null;
+    let birthDateStr = null;
+    if (rawBirthDate) {
+      birthDateStr = typeof rawBirthDate === 'string'
+        ? rawBirthDate.split('T')[0]
+        : new Date(rawBirthDate).toISOString().split('T')[0];
+    }
+    const computedAge = calculateAge(birthDateStr, athlete.age);
+    return {
+      ...athlete,
+      age: computedAge,
+      birthDate: birthDateStr,
+      hasAccount: Boolean(athlete.userId)
+    };
+  }
+
+  /**
+   * Agrega el indicador 'hasAccount' y formatea edad/nacimiento
    */
   withAccountFlag(athlete) {
-    if (!athlete) return athlete;
-    return { ...athlete, hasAccount: Boolean(athlete.userId) };
+    return this.formatAthlete(athlete);
   }
 
   /**
    * Registra un atleta escolar asociado al perfil del entrenador autenticado.
+   * Si se entrega 'birthDate', se almacena la fecha real y se calcula dinámicamente la edad.
    * Si se entrega 'account' ({ email, password }) se crea además una cuenta con rol 'atleta'
    * vinculada a la ficha. Por privacidad de menores, requiere consentimiento parental registrado.
    */
-  async createAthlete({ name, age, consent = false, trainerId, account = null }) {
+  async createAthlete({ name, age, birthDate = null, consent = false, trainerId, account = null }) {
     if (!trainerId) {
       const error = new Error('Se requiere asociar un entrenador.');
       error.statusCode = 400;
       throw error;
     }
+
+    const birthDateStr = birthDate
+      ? (typeof birthDate === 'string' ? birthDate.split('T')[0] : new Date(birthDate).toISOString().split('T')[0])
+      : null;
+    const computedAge = calculateAge(birthDateStr, age);
 
     let user = null;
     if (account) {
@@ -292,27 +352,40 @@ class Repository {
     }
 
     try {
+      let createdAthlete;
       if (this.isPgActive()) {
         const pool = getPool();
         const res = await pool.query(
-          'INSERT INTO athletes (name, age, consent, trainer_id, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, age, consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
-          [name, Number(age), Boolean(consent), Number(trainerId), user ? user.id : null]
+          'INSERT INTO athletes (name, age, birth_date, consent, trainer_id, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, age, birth_date as "birthDate", consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
+          [name, computedAge, birthDateStr, Boolean(consent), Number(trainerId), user ? user.id : null]
         );
-        return this.withAccountFlag(res.rows[0]);
+        createdAthlete = this.withAccountFlag(res.rows[0]);
+      } else {
+        const newAthlete = {
+          id: this.athleteIdCounter++,
+          name,
+          age: computedAge,
+          birthDate: birthDateStr,
+          consent: Boolean(consent),
+          trainerId: Number(trainerId),
+          userId: user ? user.id : null,
+          createdAt: new Date().toISOString()
+        };
+        this.athletes.push(newAthlete);
+        createdAthlete = this.withAccountFlag(newAthlete);
       }
 
-      const newAthlete = {
-        id: this.athleteIdCounter++,
-        name,
-        age: Number(age),
-        consent: Boolean(consent),
-        trainerId: Number(trainerId),
-        userId: user ? user.id : null,
-        createdAt: new Date().toISOString()
-      };
+      // Si se registró con consentimiento parental vigente, asentar el registro en consents
+      if (consent) {
+        await this.createConsent({
+          athleteId: createdAthlete.id,
+          consentType: 'grabacion_biomecanica',
+          status: 'granted',
+          notes: 'Consentimiento registrado al crear la ficha escolar'
+        });
+      }
 
-      this.athletes.push(newAthlete);
-      return this.withAccountFlag(newAthlete);
+      return createdAthlete;
     } catch (err) {
       // No dejar una cuenta huérfana si la ficha no pudo registrarse
       if (user) await this.deleteUser(user.id);
@@ -328,7 +401,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        `SELECT a.id, a.name, a.age, a.consent, a.trainer_id as "trainerId", a.user_id as "userId", a.created_at as "createdAt",
+        `SELECT a.id, a.name, a.age, a.birth_date as "birthDate", a.consent, a.trainer_id as "trainerId", a.user_id as "userId", a.created_at as "createdAt",
                 COUNT(s.id)::int as "sessionCount",
                 MAX(s.session_date) as "lastSessionDate",
                 (SELECT s2.ipt_score FROM sessions s2
@@ -369,7 +442,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        'SELECT id, name, age, consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt" FROM athletes WHERE id = $1',
+        'SELECT id, name, age, birth_date as "birthDate", consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt" FROM athletes WHERE id = $1',
         [Number(athleteId)]
       );
       const athlete = res.rows[0];
@@ -402,7 +475,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        `SELECT a.id, a.name, a.age, a.consent, a.trainer_id as "trainerId", a.user_id as "userId",
+        `SELECT a.id, a.name, a.age, a.birth_date as "birthDate", a.consent, a.trainer_id as "trainerId", a.user_id as "userId",
                 a.created_at as "createdAt", u.name as "trainerName"
          FROM athletes a
          JOIN users u ON u.id = a.trainer_id
@@ -419,9 +492,9 @@ class Repository {
   }
 
   /**
-   * Actualiza los datos de un atleta existente
+   * Actualiza los datos de un atleta existente, soportando birthDate y recálculo dinámico de age
    */
-  async updateAthlete({ athleteId, trainerId, name, age, consent }) {
+  async updateAthlete({ athleteId, trainerId, name, age, birthDate, consent }) {
     const athlete = await this.getAthleteByIdForTrainer(athleteId, trainerId);
     if (!athlete) {
       const error = new Error('Atleta no encontrado.');
@@ -429,21 +502,126 @@ class Repository {
       throw error;
     }
 
+    const birthDateStr = birthDate !== undefined
+      ? (birthDate ? (typeof birthDate === 'string' ? birthDate.split('T')[0] : new Date(birthDate).toISOString().split('T')[0]) : null)
+      : (athlete.birthDate || null);
+    const computedAge = birthDateStr
+      ? calculateAge(birthDateStr, age !== undefined ? Number(age) : athlete.age)
+      : (age !== undefined ? Number(age) : athlete.age);
+
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        'UPDATE athletes SET name = COALESCE($1, name), age = COALESCE($2, age), consent = COALESCE($3, consent) WHERE id = $4 AND trainer_id = $5 RETURNING id, name, age, consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
-        [name || null, age !== undefined ? Number(age) : null, consent !== undefined ? Boolean(consent) : null, Number(athleteId), Number(trainerId)]
+        'UPDATE athletes SET name = COALESCE($1, name), age = COALESCE($2, age), birth_date = COALESCE($3, birth_date), consent = COALESCE($4, consent) WHERE id = $5 AND trainer_id = $6 RETURNING id, name, age, birth_date as "birthDate", consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
+        [name || null, computedAge, birthDateStr, consent !== undefined ? Boolean(consent) : null, Number(athleteId), Number(trainerId)]
       );
       return this.withAccountFlag(res.rows[0]);
     }
 
     const stored = this.athletes.find(a => a.id === Number(athleteId));
     if (name !== undefined) stored.name = name;
-    if (age !== undefined) stored.age = Number(age);
+    if (birthDate !== undefined) stored.birthDate = birthDateStr;
+    stored.age = computedAge;
     if (consent !== undefined) stored.consent = Boolean(consent);
 
     return this.withAccountFlag(stored);
+  }
+
+  // =======================================================================================
+  // 2b. GESTIÓN FORMAL DE CONSENTIMIENTO PARENTAL (LEY 19.628 / 21.719 - CU-03 / HU-10)
+  // =======================================================================================
+
+  /**
+   * Asienta o actualiza un consentimiento parental para un atleta escolar
+   */
+  async createConsent({ athleteId, guardianId = null, consentType = 'grabacion_biomecanica', status = 'granted', expiresAt = null, notes = '' }) {
+    if (this.isPgActive()) {
+      const pool = getPool();
+      const res = await pool.query(
+        `INSERT INTO consents (athlete_id, guardian_id, consent_type, status, expires_at, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, athlete_id as "athleteId", guardian_id as "guardianId", consent_type as "consentType",
+                   status, granted_at as "grantedAt", expires_at as "expiresAt", notes`,
+        [Number(athleteId), guardianId ? Number(guardianId) : null, consentType, status, expiresAt, notes]
+      );
+      // Sincronizar flag booleano en la tabla athletes
+      await pool.query('UPDATE athletes SET consent = $1 WHERE id = $2', [status === 'granted', Number(athleteId)]);
+      return res.rows[0];
+    }
+
+    const consentEntry = {
+      id: this.consentIdCounter++,
+      athleteId: Number(athleteId),
+      guardianId: guardianId ? Number(guardianId) : null,
+      consentType,
+      status,
+      grantedAt: new Date().toISOString(),
+      expiresAt: expiresAt || null,
+      notes: notes || ''
+    };
+    this.consents.push(consentEntry);
+
+    const athlete = this.athletes.find(a => a.id === Number(athleteId));
+    if (athlete) {
+      athlete.consent = (status === 'granted');
+    }
+
+    return consentEntry;
+  }
+
+  /**
+   * Obtiene el historial de consentimientos asociados a un atleta
+   */
+  async getConsentsByAthlete(athleteId) {
+    if (this.isPgActive()) {
+      const pool = getPool();
+      const res = await pool.query(
+        `SELECT id, athlete_id as "athleteId", guardian_id as "guardianId", consent_type as "consentType",
+                status, granted_at as "grantedAt", revoked_at as "revokedAt", expires_at as "expiresAt", notes
+         FROM consents
+         WHERE athlete_id = $1
+         ORDER BY id DESC`,
+        [Number(athleteId)]
+      );
+      return res.rows;
+    }
+
+    return this.consents
+      .filter(c => c.athleteId === Number(athleteId))
+      .sort((a, b) => b.id - a.id);
+  }
+
+  /**
+   * Comprueba si el atleta escolar cuenta con autorización parental vigente para captura biomecánica
+   */
+  async isAthleteConsentValid(athleteId) {
+    if (this.isPgActive()) {
+      const pool = getPool();
+      const res = await pool.query(
+        `SELECT status, expires_at FROM consents
+         WHERE athlete_id = $1
+         ORDER BY id DESC LIMIT 1`,
+        [Number(athleteId)]
+      );
+      if (res.rows.length > 0) {
+        const latest = res.rows[0];
+        if (latest.status !== 'granted') return false;
+        if (latest.expires_at && new Date(latest.expires_at) <= new Date()) return false;
+        return true;
+      }
+    }
+
+    const athleteConsents = this.consents.filter(c => c.athleteId === Number(athleteId));
+    if (athleteConsents.length > 0) {
+      const latest = athleteConsents[athleteConsents.length - 1];
+      if (latest.status !== 'granted') return false;
+      if (latest.expiresAt && new Date(latest.expiresAt) <= new Date()) return false;
+      return true;
+    }
+
+    // Respaldo en la ficha del atleta si no existen entradas específicas
+    const athlete = this.athletes.find(a => a.id === Number(athleteId));
+    return Boolean(athlete && athlete.consent);
   }
 
   /**

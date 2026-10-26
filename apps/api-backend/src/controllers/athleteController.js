@@ -57,8 +57,9 @@ async function getAthleteById(req, res) {
  */
 async function createAthlete(req, res) {
   try {
-    const { name, age } = req.body || {};
+    const { name, age, birthDate, birth_date } = req.body || {};
     const trainerId = req.user.id;
+    const finalBirthDate = birthDate || birth_date || null;
 
     const rawAccount = req.body?.account;
     const email = req.body?.email || rawAccount?.email;
@@ -67,9 +68,9 @@ async function createAthlete(req, res) {
       ? Boolean(req.body.consent) 
       : (req.body?.consentStatus === 'vigente');
 
-    if (!name || age === undefined) {
+    if (!name || (age === undefined && !finalBirthDate)) {
       return res.status(400).json({
-        error: 'El nombre completo y la edad del atleta son campos obligatorios.'
+        error: 'El nombre completo y la fecha de nacimiento (o edad) del atleta son campos obligatorios.'
       });
     }
 
@@ -91,7 +92,8 @@ async function createAthlete(req, res) {
 
     const newAthlete = await dbRepository.createAthlete({
       name: name.trim(),
-      age: parseInt(age, 10),
+      age: age !== undefined ? parseInt(age, 10) : undefined,
+      birthDate: finalBirthDate,
       consent: Boolean(consent),
       trainerId,
       account
@@ -108,20 +110,22 @@ async function createAthlete(req, res) {
 }
 
 /**
- * Actualiza la información (nombre, edad o consentimiento) de un atleta
+ * Actualiza la información (nombre, edad, fecha de nacimiento o consentimiento) de un atleta
  * @route PUT /api/athletes/:id
  */
 async function updateAthlete(req, res) {
   try {
     const athleteId = req.params.id;
     const trainerId = req.user.id;
-    const { name, age, consent } = req.body || {};
+    const { name, age, birthDate, birth_date, consent } = req.body || {};
+    const finalBirthDate = birthDate !== undefined ? birthDate : (birth_date !== undefined ? birth_date : undefined);
 
     const updated = await dbRepository.updateAthlete({
       athleteId,
       trainerId,
       name: name ? name.trim() : undefined,
       age: age !== undefined ? parseInt(age, 10) : undefined,
+      birthDate: finalBirthDate,
       consent: consent !== undefined ? Boolean(consent) : undefined
     });
 
@@ -159,10 +163,66 @@ async function deleteAthlete(req, res) {
   }
 }
 
+/**
+ * Consulta el estado y registro de consentimientos informados del atleta (CU-07 / HU-10)
+ * @route GET /api/athletes/:id/consents
+ */
+async function getAthleteConsents(req, res) {
+  try {
+    const athleteId = req.params.id;
+    const trainerId = req.user.id;
+    await dbRepository.getAthleteByIdForTrainer(athleteId, trainerId);
+
+    const consents = await dbRepository.getConsentsByAthlete(athleteId);
+    const isValid = await dbRepository.isAthleteConsentValid(athleteId);
+
+    return res.json({
+      athleteId: Number(athleteId),
+      hasValidConsent: isValid,
+      consents
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ error: err.message });
+  }
+}
+
+/**
+ * Registra o renueva un consentimiento parental para el atleta (CU-07 / HU-10)
+ * @route POST /api/athletes/:id/consents
+ */
+async function createAthleteConsent(req, res) {
+  try {
+    const athleteId = req.params.id;
+    const trainerId = req.user.id;
+    await dbRepository.getAthleteByIdForTrainer(athleteId, trainerId);
+
+    const { status = 'granted', notes = '', expiresAt = null } = req.body || {};
+
+    const consentEntry = await dbRepository.createConsent({
+      athleteId,
+      consentType: 'grabacion_biomecanica',
+      status,
+      expiresAt,
+      notes
+    });
+
+    return res.status(201).json({
+      message: 'Consentimiento informado registrado exitosamente.',
+      consent: consentEntry
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ error: err.message });
+  }
+}
+
 module.exports = {
   getAthletes,
   getAthleteById,
   createAthlete,
   updateAthlete,
-  deleteAthlete
+  deleteAthlete,
+  getAthleteConsents,
+  createAthleteConsent
 };

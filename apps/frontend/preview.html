@@ -1559,7 +1559,10 @@
       <p style="margin:0 0 14px; font-size:11px; color:#94a3b8;">Ingresa los datos para iniciar seguimiento biomecánico.</p>
 
       <input type="text" id="mNewName" placeholder="Nombre completo del estudiante" style="width:100%; height:40px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:white; border-radius:10px; padding:0 12px; font-size:12px; margin-bottom:10px; outline:none;" />
-      <input type="number" id="mNewAge" placeholder="Edad (ej: 16)" style="width:100%; height:40px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:white; border-radius:10px; padding:0 12px; font-size:12px; margin-bottom:10px; outline:none;" />
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <input type="date" id="mNewBirthDate" title="Fecha de nacimiento" style="flex:1; height:40px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:white; border-radius:10px; padding:0 10px; font-size:11px; outline:none;" onchange="if(this.value){const d=new Date(this.value);const age=Math.floor((new Date()-d)/(365.25*24*3600*1000));if(!isNaN(age))document.getElementById('mNewAge').value=age;}" />
+        <input type="number" id="mNewAge" placeholder="Edad" style="width:85px; height:40px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:white; border-radius:10px; padding:0 10px; font-size:12px; outline:none;" />
+      </div>
 
       <label style="display:flex; align-items:flex-start; gap:8px; font-size:11px; color:#cbd5e1; margin-bottom:12px; line-height:1.35; cursor:pointer;">
         <input type="checkbox" id="mNewConsent" style="margin-top:2px; accent-color:#00f5a0;" />
@@ -2172,6 +2175,7 @@
     }
     async function saveNewMobileAthlete() {
       const name = document.getElementById('mNewName').value.trim();
+      const birthDate = document.getElementById('mNewBirthDate') ? document.getElementById('mNewBirthDate').value : null;
       const age = document.getElementById('mNewAge').value;
       const consent = document.getElementById('mNewConsent').checked;
       const email = document.getElementById('mNewEmail').value.trim();
@@ -2181,13 +2185,15 @@
       const fail = msg => { errEl.innerText = msg; errEl.style.display = 'block'; };
       errEl.style.display = 'none';
 
-      if (!name || !age) return fail('El nombre y la edad son obligatorios.');
+      if (!name || (!age && !birthDate)) return fail('El nombre y la fecha de nacimiento (o edad) son obligatorios.');
       if ((email || password) && !consent) return fail('Para crear el acceso del atleta debes confirmar el consentimiento del apoderado.');
       if ((email || password) && (!email || password.length < 6)) return fail('Para crear el acceso ingresa un correo y una contraseña temporal de al menos 6 caracteres.');
 
       if (DEMO_MODE) return fail('Modo demostración: no se guardan atletas nuevos.');
 
-      const body = { name, age: parseInt(age, 10), consent };
+      const body = { name, consent };
+      if (birthDate) body.birthDate = birthDate;
+      if (age) body.age = parseInt(age, 10);
       if (email) { body.email = email; body.password = password; }
 
       btn.disabled = true;
@@ -2195,7 +2201,7 @@
         const data = await apiFetch('/athletes', { method: 'POST', body: JSON.stringify(body) });
         currentMobileAthletes.unshift(Object.assign({ sessionCount: 0, lastIptScore: null }, data.athlete));
         refreshCoachViews();
-        ['mNewName', 'mNewAge', 'mNewEmail', 'mNewPassword'].forEach(id => { document.getElementById(id).value = ''; });
+        ['mNewName', 'mNewBirthDate', 'mNewAge', 'mNewEmail', 'mNewPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         document.getElementById('mNewConsent').checked = false;
         closeAddAthleteModal();
       } catch (err) {
