@@ -1,18 +1,41 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Componentes de Interfaz de Usuario y Maquetación (UI.jsx)
+ * Descripción: Define el Shell de la plataforma (Layout, Sidebar, Perfil de entrenador),
+ *              tarjetas de resumen de atletas (AthleteCard), indicadores estadísticos (StatCard)
+ *              y cabeceras uniformes para la PWA de seguimiento biomecánico.
+ * =========================================================================================
+ */
+
 import {
   Activity,
+  AlertTriangle,
+  Calendar,
   CalendarDays,
+  Camera,
   ChevronRight,
+  Dumbbell,
+  FileText,
+  GitCompare,
   LayoutDashboard,
   LogOut,
   PersonStanding,
   Settings,
+  Trash2,
   Users,
   Video
 } from 'lucide-react';
 
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 
-const menuItems = [
+const coachMenuItems = [
   {
     label: 'Inicio',
     shortLabel: 'Inicio',
@@ -26,10 +49,46 @@ const menuItems = [
     to: '/athletes'
   },
   {
-    label: 'Sesiones',
+    label: 'Sesiones de pista',
     shortLabel: 'Sesiones',
     icon: Video,
     to: '/sessions'
+  },
+  {
+    label: 'Cámara en Vivo & Calibración',
+    shortLabel: 'Cámara',
+    icon: Camera,
+    to: '/capture'
+  },
+  {
+    label: 'Planificación',
+    shortLabel: 'Agenda',
+    icon: Calendar,
+    to: '/calendar'
+  },
+  {
+    label: 'Prioridad de apoyo',
+    shortLabel: 'Apoyo',
+    icon: AlertTriangle,
+    to: '/priority'
+  },
+  {
+    label: 'Comparador Antes/Después',
+    shortLabel: 'Comparar',
+    icon: GitCompare,
+    to: '/compare'
+  },
+  {
+    label: 'Biblioteca de drills',
+    shortLabel: 'Drills',
+    icon: Dumbbell,
+    to: '/drills'
+  },
+  {
+    label: 'Fichas de progreso',
+    shortLabel: 'Fichas',
+    icon: FileText,
+    to: '/reports'
   },
   {
     label: 'Configuración',
@@ -39,7 +98,77 @@ const menuItems = [
   }
 ];
 
+const athleteMenuItems = [
+  {
+    label: 'Mi Espacio',
+    shortLabel: 'Espacio',
+    icon: PersonStanding,
+    to: '/portal'
+  },
+  {
+    label: 'Mis Drills Asignados',
+    shortLabel: 'Drills',
+    icon: Dumbbell,
+    to: '/drills'
+  },
+  {
+    label: 'Mi Calendario',
+    shortLabel: 'Agenda',
+    icon: Calendar,
+    to: '/calendar'
+  },
+  {
+    label: 'Mi Evolución',
+    shortLabel: 'Evolución',
+    icon: GitCompare,
+    to: '/compare'
+  },
+  {
+    label: 'Mi Ficha Escolar',
+    shortLabel: 'Ficha',
+    icon: FileText,
+    to: '/reports'
+  },
+  {
+    label: 'Mi Perfil',
+    shortLabel: 'Perfil',
+    icon: Settings,
+    to: '/settings'
+  }
+];
+
 export function Layout({ children }) {
+  const navigate = useNavigate();
+
+  let user = null;
+  try {
+    const raw = localStorage.getItem('metahub_user');
+    if (raw) user = JSON.parse(raw);
+  } catch (e) {
+    // Ignore parse error
+  }
+
+  const role = user?.role?.toLowerCase() || 'entrenador';
+  const isAthlete = role === 'atleta';
+  const menuItems = isAthlete ? athleteMenuItems : coachMenuItems;
+  const sectionTitle = isAthlete ? 'PORTAL ATLETA' : 'PANEL ENTRENADOR';
+
+  const userName = user?.name || (isAthlete ? 'Martín San Martín' : 'Felipe Arellano');
+  const userInitials = userName
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || (isAthlete ? 'MA' : 'FA');
+  const userRole = isAthlete ? 'Atleta (Sub-16)' : 'Entrenador Jefe';
+
+  const handleLogout = () => {
+    localStorage.removeItem('metahub_token');
+    localStorage.removeItem('metahub_user');
+    navigate('/login');
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -60,7 +189,7 @@ export function Layout({ children }) {
           aria-label="Navegación principal"
         >
           <span className="sidebar-section-title">
-            PLATAFORMA
+            {sectionTitle}
           </span>
 
           {menuItems.map((item) => {
@@ -70,7 +199,7 @@ export function Layout({ children }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.to === '/' || item.to === '/portal'}
                 className={({ isActive }) =>
                   `sidebar-link ${
                     isActive ? 'active' : ''
@@ -93,24 +222,20 @@ export function Layout({ children }) {
 
         <div className="sidebar-profile">
 
-          <div className="profile-avatar">
-            FA
+          <div className="profile-avatar" style={{ background: isAthlete ? 'linear-gradient(135deg, #10b981, #059669)' : undefined }}>
+            {userInitials}
           </div>
 
           <div className="profile-data">
-            <strong>Felipe Arellano</strong>
-            <span>Entrenador</span>
+            <strong>{userName}</strong>
+            <span style={{ color: isAthlete ? '#34d399' : undefined }}>{userRole}</span>
           </div>
 
           <button
             type="button"
             className="logout-button"
             aria-label="Cerrar sesión"
-            onClick={() =>
-              alert(
-                'El cierre de sesión se conectará al backend en el siguiente avance.'
-              )
-            }
+            onClick={handleLogout}
           >
             <LogOut size={18} />
           </button>
@@ -188,35 +313,47 @@ export function StatCard({
 }
 
 export function AthleteCard({
+  id,
   name,
   initials,
   age,
   lastSession,
+  lastSessionDate,
   consent,
   sessions,
-  onView
+  sessionCount,
+  onView,
+  onDelete
 }) {
+  const displayInitials = initials || (name
+    ? name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'AT');
+
+  const count = sessionCount !== undefined ? sessionCount : (sessions !== undefined ? sessions : 0);
+  
+  let formattedLastSession = lastSession || 'Sin sesiones';
+  if (lastSessionDate) {
+    try {
+      const d = new Date(lastSessionDate);
+      formattedLastSession = d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+      formattedLastSession = lastSessionDate;
+    }
+  }
+
   return (
     <article className="athlete-card">
-
       <div className="athlete-top">
-
         <div className="athlete-avatar">
-          {initials}
+          {displayInitials}
         </div>
 
         <div className="athlete-main-data">
-
-          <strong>
-            {name}
-          </strong>
-
+          <strong>{name}</strong>
           <span>
             <PersonStanding size={14} />
-
             {age} años
           </span>
-
         </div>
 
         <button
@@ -227,63 +364,56 @@ export function AthleteCard({
         >
           <ChevronRight size={20} />
         </button>
-
       </div>
 
       <div className="athlete-divider" />
 
       <div className="athlete-info-row">
-
         <div>
-          <span className="mini-label">
-            ÚLTIMA SESIÓN
-          </span>
-
+          <span className="mini-label">ÚLTIMA SESIÓN</span>
           <strong>
             <CalendarDays size={15} />
-
-            {lastSession}
+            {formattedLastSession}
           </strong>
         </div>
 
         <div>
-          <span className="mini-label">
-            SESIONES
-          </span>
-
-          <strong>
-            {sessions}
-          </strong>
+          <span className="mini-label">SESIONES</span>
+          <strong>{count}</strong>
         </div>
-
       </div>
 
       <div className="athlete-footer">
-
-        <span
-          className={
-            consent
-              ? 'status success'
-              : 'status warning'
-          }
-        >
+        <span className={consent ? 'status success' : 'status warning'}>
           <span className="status-dot" />
-
-          {consent
-            ? 'Consentimiento vigente'
-            : 'Consentimiento pendiente'}
+          {consent ? 'Consentimiento vigente' : 'Consentimiento pendiente'}
         </span>
 
-        <button
-          className="text-button"
-          type="button"
-          onClick={onView}
-        >
-          Ver detalle
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {onDelete && (
+            <button
+              className="text-button"
+              type="button"
+              style={{ color: '#ef4444', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(id, name);
+              }}
+              title="Eliminar atleta"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
 
+          <button
+            className="text-button"
+            type="button"
+            onClick={onView}
+          >
+            Ver detalle
+          </button>
+        </div>
       </div>
-
     </article>
   );
 }

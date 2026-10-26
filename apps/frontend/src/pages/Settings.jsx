@@ -1,6 +1,22 @@
+/**
+ * =========================================================================================
+ * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
+ * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
+ * 
+ * Memoria / Trabajo de Título:
+ * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
+ * Profesor Guía: Dr. Marcos Lévano
+ * 
+ * Módulo: Vista de Configuración y Preferencias del Entrenador (Settings.jsx)
+ * Descripción: Permite gestionar la información de la cuenta, preferencias de alertas
+ *              de calidad biomecánica y parámetros de sincronización en terreno.
+ * =========================================================================================
+ */
+
 import { Bell, CheckCircle2, Save, ShieldCheck, Smartphone } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout, PageHeader } from '../components/UI.jsx';
+import api from '../services/api.js';
 
 export default function Settings() {
   const [saved, setSaved] = useState(false);
@@ -10,6 +26,22 @@ export default function Settings() {
     notifications: true,
     qualityAlerts: true
   });
+
+  useEffect(() => {
+    try {
+      const rawUser = localStorage.getItem('metahub_user');
+      if (rawUser) {
+        const user = JSON.parse(rawUser);
+        setForm(prev => ({
+          ...prev,
+          name: user.name || prev.name,
+          email: user.email || prev.email
+        }));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   function updateField(key, value) {
     setSaved(false);
