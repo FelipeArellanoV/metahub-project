@@ -473,25 +473,31 @@ a { color: inherit; text-decoration: none; }
   .sidebar-nav {
     width: 100%;
     height: 100%;
-    display: grid;
-    grid-template-columns: repeat(4,1fr);
-    gap: 4px;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding: 4px 8px;
+    scrollbar-width: none;
   }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
   .sidebar-link {
-    width: 100%;
+    flex: 0 0 auto;
+    min-width: 62px;
     height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 6px 2px;
+    gap: 3px;
+    padding: 6px 6px;
     border-radius: 12px;
   }
   .sidebar-link svg { width: 20px; height: 20px; }
   .desktop-label { display: none; }
-  .mobile-label { display: block; font-size: 9px; font-weight: 600; white-space: nowrap; }
-  .sidebar-link.active { background: rgba(53,168,224,.13); color: #5fc6f5; }
+  .mobile-label { display: block; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .sidebar-link.active { background: rgba(53,168,224,.18); color: #5fc6f5; font-weight: 800; }
 
   .main-content {
     margin-left: 0;

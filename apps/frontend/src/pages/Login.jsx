@@ -32,7 +32,7 @@ export default function Login({ onLoginSuccess }) {
     e.preventDefault();
     setError('');
 
-    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+    const API_BASE = '';
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     const body = isRegister 
       ? { name: name.trim(), email: email.trim(), password, role: 'entrenador', organizationName: organizationName.trim() } 
@@ -61,8 +61,8 @@ export default function Login({ onLoginSuccess }) {
       if (onLoginSuccess) onLoginSuccess(finalUser, data.token);
       navigate(finalUser.role === 'atleta' ? '/portal' : '/');
     } catch (err) {
-      if (isDemoMode) {
-        // Solo en modo demostración explícito (?demo=1)
+      // Si el backend no está disponible o falla la conexión, permitir acceso demo
+      if (isDemoMode || err.message === 'Failed to fetch' || err.message?.includes('fetch')) {
         const isAth = selectedRole === 'atleta';
         const demoUser = {
           id: isAth ? 'atleta-demo-01' : 'coach-demo-01',

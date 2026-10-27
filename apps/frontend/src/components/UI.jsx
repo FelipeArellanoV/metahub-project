@@ -36,14 +36,29 @@ import {
 import { NavLink, useNavigate } from 'react-router-dom';
 
 const coachMenuItems = [
-  { label: 'Revisar sesiones', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
-  { label: 'Mis clubes', shortLabel: 'Clubes', icon: Users, to: '/clubs' },
-  { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Users, to: '/collaboration' },
   {
     label: 'Inicio',
     shortLabel: 'Inicio',
     icon: LayoutDashboard,
     to: '/'
+  },
+  {
+    label: 'Comparador Antes/Después',
+    shortLabel: 'Comparar',
+    icon: GitCompare,
+    to: '/compare'
+  },
+  {
+    label: 'Biblioteca de drills',
+    shortLabel: 'Drills',
+    icon: Dumbbell,
+    to: '/drills'
+  },
+  {
+    label: 'Cámara en Vivo & Calibración',
+    shortLabel: 'Cámara',
+    icon: Camera,
+    to: '/capture'
   },
   {
     label: 'Mis atletas',
@@ -58,29 +73,14 @@ const coachMenuItems = [
     to: '/sessions'
   },
   {
-    label: 'Cámara en Vivo & Calibración',
-    shortLabel: 'Cámara',
-    icon: Camera,
-    to: '/capture'
-  },
-  {
     label: 'Prioridad de apoyo',
     shortLabel: 'Apoyo',
     icon: AlertTriangle,
     to: '/priority'
   },
-  {
-    label: 'Comparador Antes/Después',
-    shortLabel: 'Comparar',
-    icon: GitCompare,
-    to: '/compare'
-  },
-  {
-    label: 'Biblioteca de drills',
-    shortLabel: 'Drills',
-    icon: Dumbbell,
-    to: '/drills'
-  },
+  { label: 'Revisar sesiones', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
+  { label: 'Mis clubes', shortLabel: 'Clubes', icon: Users, to: '/clubs' },
+  { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Users, to: '/collaboration' },
   {
     label: 'Fichas de progreso',
     shortLabel: 'Fichas',
@@ -96,10 +96,11 @@ const coachMenuItems = [
 ];
 
 const athleteMenuItems = [
+  { label: 'Mi Espacio', shortLabel: 'Inicio', icon: PersonStanding, to: '/portal' },
+  { label: 'Comparador Biomecánico', shortLabel: 'Comparar', icon: GitCompare, to: '/compare' },
   { label: 'Mis revisiones y plan', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
   { label: 'Subir video', shortLabel: 'Video', icon: Video, to: '/upload' },
   { label: 'Mi evolución', shortLabel: 'Evolución', icon: GitCompare, to: '/evolution' },
-  { label: 'Mi Espacio', shortLabel: 'Espacio', icon: PersonStanding, to: '/portal' },
   { label: 'Mi seguimiento', shortLabel: 'Seguimiento', icon: Dumbbell, to: '/collaboration' },
   { label: 'Mi perfil', shortLabel: 'Perfil', icon: Settings, to: '/settings' }
 ];

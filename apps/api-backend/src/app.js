@@ -82,9 +82,9 @@ function parseJsonBody(req) {
     req.on('error', reject);
     req.on('data', chunk => {
       size += Buffer.byteLength(chunk);
-      if (size > 256 * 1024) {
+      if (size > 10 * 1024 * 1024) {
         exceeded = true;
-        const error = new Error('El cuerpo JSON supera el máximo de 256 KiB.');
+        const error = new Error('El cuerpo JSON supera el máximo de 10 MiB.');
         error.statusCode = 413;
         reject(error);
         return;

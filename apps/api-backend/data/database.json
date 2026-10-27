@@ -1,0 +1,267 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Felipe Arellano (Entrenador UCT)",
+      "email": "entrenador@uct.cl",
+      "passwordHash": "$2a$12$r7u88Gt..U8Qh0XQ6eDGGuLMfD4Ba4PVCUJImhY8qT.AlONvwVnNG",
+      "role": "entrenador",
+      "organizationName": "",
+      "createdAt": "2026-10-27T13:29:00.264Z"
+    },
+    {
+      "id": 2,
+      "name": "Martín San Martín",
+      "email": "martin@uct.cl",
+      "passwordHash": "$2a$12$lYSU08i.pU8HuJ4HM1xWO.Ercp0Lpp9PZAKtgvdKc5z63W3Ufuuje",
+      "role": "atleta",
+      "organizationName": "",
+      "createdAt": "2026-10-27T13:29:00.664Z"
+    },
+    {
+      "id": 3,
+      "name": "Javiera Soto",
+      "email": "javiera@uct.cl",
+      "passwordHash": "$2a$12$vTRG9gJDGxsVOZ13fPzuw./RN2f.nBt1XBIaCWDQk/OVNJeQFs4Ku",
+      "role": "atleta",
+      "organizationName": "",
+      "createdAt": "2026-10-27T13:29:01.057Z"
+    }
+  ],
+  "athletes": [
+    {
+      "id": 1,
+      "name": "Martín San Martín",
+      "age": 15,
+      "birthDate": "2011-04-18",
+      "consent": true,
+      "trainerId": 1,
+      "organizationName": "",
+      "userId": 2,
+      "createdAt": "2026-10-27T13:29:00.665Z"
+    },
+    {
+      "id": 2,
+      "name": "Javiera Soto",
+      "age": 16,
+      "birthDate": "2010-09-22",
+      "consent": true,
+      "trainerId": 1,
+      "organizationName": "",
+      "userId": 3,
+      "createdAt": "2026-10-27T13:29:01.058Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": 1,
+      "athleteId": 1,
+      "trainerId": 1,
+      "sessionDate": "2026-10-27T13:29:00.668Z",
+      "videoUrl": "/sample_sprint.webm",
+      "notes": "Evaluación inicial en pista sintética UCT. Flexión de rodilla baja en fase de recobro; caída de cadera en contacto y asimetría de zancada.",
+      "iptScore": 68.4,
+      "analysis": {
+        "ipt_score": 68.4,
+        "categoria": "Fase de Corrección Requerida (Bandera Roja)",
+        "badge": "NIVEL III · CORRECCIÓN",
+        "diagnostico": "Flexión de rodilla baja en recobro (24.2°) con asimetría bilateral (85.2%).",
+        "desglose_sectores": {
+          "propulsion": 72,
+          "recobro": 61.5,
+          "simetria": 85.2
+        },
+        "sector_prioritario": "recobro",
+        "drill_prescrito": "Skipping A sobre Vallas Bajas (40cm)",
+        "summary_metrics": {
+          "peak_knee_extension": 158.4,
+          "min_knee_flexion": 76.5,
+          "avg_knee_angle": 24.2,
+          "avg_hip_angle": 38.5,
+          "avg_symmetry_score": 85.2,
+          "min_symmetry_score": 79.1,
+          "cadence_hz": 3.1,
+          "cadence_ppm": 186,
+          "stride_length_m": 1.74,
+          "speed_ms": 5.39,
+          "trunk_lean_angle": -7.4
+        },
+        "video_info": {
+          "duration_seconds": 4.5,
+          "fps": 30,
+          "detection_rate_pct": 98.2
+        }
+      },
+      "createdAt": "2026-10-27T13:29:00.668Z"
+    },
+    {
+      "id": 2,
+      "athleteId": 1,
+      "trainerId": 1,
+      "sessionDate": "2026-10-27T13:29:00.669Z",
+      "videoUrl": "/sample_sprint.webm",
+      "notes": "Control longitudinal a 6 meses. Excelente elevación de rodilla al frente, zancada simétrica y centro de masa alineado.",
+      "iptScore": 87.2,
+      "analysis": {
+        "ipt_score": 87.2,
+        "categoria": "En Perfeccionamiento (Déficit Menor)",
+        "badge": "NIVEL II · EN DESARROLLO",
+        "diagnostico": "Gran evolución biomecánica: +3.9° en recobro, +15 cm zancada y 95.8% de simetría.",
+        "desglose_sectores": {
+          "propulsion": 89.5,
+          "recobro": 84,
+          "simetria": 95.8
+        },
+        "sector_prioritario": "propulsion",
+        "drill_prescrito": "Zancadas Reactivas en Gradas",
+        "summary_metrics": {
+          "peak_knee_extension": 168.2,
+          "min_knee_flexion": 62.1,
+          "avg_knee_angle": 28.1,
+          "avg_hip_angle": 44.2,
+          "avg_symmetry_score": 95.8,
+          "min_symmetry_score": 93.4,
+          "cadence_hz": 3.38,
+          "cadence_ppm": 203,
+          "stride_length_m": 1.89,
+          "speed_ms": 6.39,
+          "trunk_lean_angle": -4.2
+        },
+        "video_info": {
+          "duration_seconds": 4.2,
+          "fps": 30,
+          "detection_rate_pct": 100
+        }
+      },
+      "createdAt": "2026-10-27T13:29:00.669Z"
+    },
+    {
+      "id": 3,
+      "athleteId": 2,
+      "trainerId": 1,
+      "sessionDate": "2026-10-27T13:29:01.060Z",
+      "videoUrl": "/sample_sprint.webm",
+      "notes": "Evaluación inicial. Disparidad notable entre pierna izquierda y derecha con cadencia reducida por tiempo de contacto prolongado.",
+      "iptScore": 64.1,
+      "analysis": {
+        "ipt_score": 64.1,
+        "categoria": "Fase de Corrección Requerida (Bandera Roja)",
+        "badge": "NIVEL III · CORRECCIÓN",
+        "diagnostico": "Asimetría marcada en apoyos (81.5%) y baja cadencia cíclica (2.95 Hz).",
+        "desglose_sectores": {
+          "propulsion": 68,
+          "recobro": 62,
+          "simetria": 81.5
+        },
+        "sector_prioritario": "simetria",
+        "drill_prescrito": "Trabajo Propioceptivo en Tobillo Unipodal",
+        "summary_metrics": {
+          "peak_knee_extension": 154.2,
+          "min_knee_flexion": 78.2,
+          "avg_knee_angle": 23.5,
+          "avg_hip_angle": 37,
+          "avg_symmetry_score": 81.5,
+          "min_symmetry_score": 75,
+          "cadence_hz": 2.95,
+          "cadence_ppm": 177,
+          "stride_length_m": 1.62,
+          "speed_ms": 4.78,
+          "trunk_lean_angle": -6.8
+        },
+        "video_info": {
+          "duration_seconds": 4.8,
+          "fps": 30,
+          "detection_rate_pct": 97.5
+        }
+      },
+      "createdAt": "2026-10-27T13:29:01.060Z"
+    },
+    {
+      "id": 4,
+      "athleteId": 2,
+      "trainerId": 1,
+      "sessionDate": "2026-10-27T13:29:01.061Z",
+      "videoUrl": "/sample_sprint.webm",
+      "notes": "Control longitudinal a 6 meses. Mejora sostenida tras trabajo de estabilidad y fuerza reactiva en tobillos.",
+      "iptScore": 82.5,
+      "analysis": {
+        "ipt_score": 82.5,
+        "categoria": "En Perfeccionamiento (Déficit Menor)",
+        "badge": "NIVEL II · EN DESARROLLO",
+        "diagnostico": "Reducción notable de la asimetría (+9.7%) y mayor frecuencia de zancada (3.25 Hz).",
+        "desglose_sectores": {
+          "propulsion": 84,
+          "recobro": 80.5,
+          "simetria": 91.2
+        },
+        "sector_prioritario": "recobro",
+        "drill_prescrito": "Zarpazo Activo en Carrera (Paw-Back Drill)",
+        "summary_metrics": {
+          "peak_knee_extension": 164,
+          "min_knee_flexion": 67.5,
+          "avg_knee_angle": 27.4,
+          "avg_hip_angle": 42,
+          "avg_symmetry_score": 91.2,
+          "min_symmetry_score": 88.5,
+          "cadence_hz": 3.25,
+          "cadence_ppm": 195,
+          "stride_length_m": 1.76,
+          "speed_ms": 5.72,
+          "trunk_lean_angle": -4.8
+        },
+        "video_info": {
+          "duration_seconds": 4.3,
+          "fps": 30,
+          "detection_rate_pct": 99.1
+        }
+      },
+      "createdAt": "2026-10-27T13:29:01.061Z"
+    }
+  ],
+  "consents": [
+    {
+      "id": 1,
+      "athleteId": 1,
+      "guardianId": null,
+      "consentType": "grabacion_biomecanica",
+      "status": "granted",
+      "grantedAt": "2026-10-27T13:29:00.666Z",
+      "expiresAt": null,
+      "notes": "Consentimiento registrado al crear la ficha escolar"
+    },
+    {
+      "id": 2,
+      "athleteId": 1,
+      "guardianId": null,
+      "consentType": "grabacion_biomecanica",
+      "status": "granted",
+      "grantedAt": "2026-10-27T13:29:00.667Z",
+      "expiresAt": null,
+      "notes": "Consentimiento informado firmado por apoderado para registro longitudinal UCT"
+    },
+    {
+      "id": 3,
+      "athleteId": 2,
+      "guardianId": null,
+      "consentType": "grabacion_biomecanica",
+      "status": "granted",
+      "grantedAt": "2026-10-27T13:29:01.059Z",
+      "expiresAt": null,
+      "notes": "Consentimiento registrado al crear la ficha escolar"
+    },
+    {
+      "id": 4,
+      "athleteId": 2,
+      "guardianId": null,
+      "consentType": "grabacion_biomecanica",
+      "status": "granted",
+      "grantedAt": "2026-10-27T13:29:01.059Z",
+      "expiresAt": null,
+      "notes": "Consentimiento informado firmado por apoderado para registro longitudinal UCT"
+    }
+  ],
+  "userIdCounter": 4,
+  "athleteIdCounter": 3,
+  "sessionIdCounter": 5,
+  "consentIdCounter": 5
+}

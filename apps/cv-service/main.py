@@ -56,7 +56,9 @@ def get_detector():
     if detector is None:
         if not os.path.exists(MODEL_PATH):
             raise RuntimeError(f"Modelo MediaPipe no encontrado en {MODEL_PATH}")
-        base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
+        with open(MODEL_PATH, "rb") as f:
+            model_bytes = f.read()
+        base_options = python.BaseOptions(model_asset_buffer=model_bytes)
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             output_segmentation_masks=False
@@ -91,6 +93,7 @@ def read_root():
 
 
 @app.get("/health", summary="Health Check")
+@app.get("/api/cv/health", summary="Health Check Alias")
 def health_check():
     return {"status": "ok", "servicio": "cv-service", "mediapipe": "ready"}
 

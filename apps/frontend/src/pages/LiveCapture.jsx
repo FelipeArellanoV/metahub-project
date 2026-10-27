@@ -260,8 +260,7 @@ export default function LiveCapture() {
     setVideoProcessingStep('1/4: Conectando con microservicio MediaPipe (puerto :8000)...');
 
     try {
-      const host = window.location.hostname || 'localhost';
-      const apiUrl = `http://${host}:8000/api/cv/process-video`;
+      const apiUrl = '/api/cv/process-video';
 
       const formData = new FormData();
       if (useSample || !selectedVideoFile) {

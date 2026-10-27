@@ -19,7 +19,7 @@ const ANALYSIS_KEYS = [
   'ipt_score', 'categoria', 'badge', 'diagnostico', 'desglose_sectores',
   'sector_prioritario', 'drill_prescrito', 'prescripcion_completa'
 ];
-const MAX_ANALYSIS_BYTES = 32 * 1024;
+const MAX_ANALYSIS_BYTES = 512 * 1024;
 
 /**
  * Extrae del resultado del servicio CV solo el resumen necesario (sin los cuadros del video).
@@ -27,7 +27,9 @@ const MAX_ANALYSIS_BYTES = 32 * 1024;
  */
 function buildAnalysisSummary(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  const ipt = raw.ipt_evaluation && typeof raw.ipt_evaluation === 'object' ? raw.ipt_evaluation : null;
+  const ipt = (raw.ipt_evaluation && typeof raw.ipt_evaluation === 'object')
+    ? raw.ipt_evaluation
+    : (raw.ipt_score !== undefined ? raw : null);
   if (!ipt) return null;
 
   const summary = {};
@@ -36,13 +38,23 @@ function buildAnalysisSummary(raw) {
   }
   if (raw.summary_metrics && typeof raw.summary_metrics === 'object') {
     summary.summary_metrics = raw.summary_metrics;
+  } else if (ipt.summary_metrics && typeof ipt.summary_metrics === 'object') {
+    summary.summary_metrics = ipt.summary_metrics;
   }
   if (raw.video_info && typeof raw.video_info === 'object') {
     const { duration_seconds, fps, detection_rate_pct } = raw.video_info;
     summary.video_info = { duration_seconds, fps, detection_rate_pct };
+  } else if (ipt.video_info && typeof ipt.video_info === 'object') {
+    summary.video_info = ipt.video_info;
+  }
+  if (Array.isArray(raw.preview_frames) && raw.preview_frames.length > 0) {
+    // Mantener hasta 2 preview frames en base64 para visualización instantánea
+    summary.preview_frames = raw.preview_frames.slice(0, 2);
   }
 
-  if (Buffer.byteLength(JSON.stringify(summary), 'utf8') > MAX_ANALYSIS_BYTES) return null;
+  if (Buffer.byteLength(JSON.stringify(summary), 'utf8') > MAX_ANALYSIS_BYTES) {
+    delete summary.preview_frames;
+  }
   return summary;
 }
 

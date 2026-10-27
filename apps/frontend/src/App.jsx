@@ -142,7 +142,7 @@ export default function App() {
         <Route
           path="/compare"
           element={
-            <ProtectedRoute allowedRoles={['entrenador']}>
+            <ProtectedRoute allowedRoles={['atleta', 'entrenador']}>
               <Compare />
             </ProtectedRoute>
           }
@@ -150,7 +150,7 @@ export default function App() {
         <Route
           path="/drills"
           element={
-            <ProtectedRoute allowedRoles={['entrenador']}>
+            <ProtectedRoute allowedRoles={['atleta', 'entrenador']}>
               <Drills />
             </ProtectedRoute>
           }

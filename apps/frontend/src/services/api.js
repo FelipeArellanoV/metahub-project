@@ -14,11 +14,9 @@
  * =========================================================================================
  */
 
-const API_BASE = import.meta.env?.VITE_API_BASE || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3000' : '');
+const API_BASE = import.meta.env?.VITE_API_BASE || '';
 
-const CV_BASE = import.meta.env?.VITE_CV_BASE || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
+const CV_BASE = import.meta.env?.VITE_CV_BASE || '';
 
 function getHeaders() {
   const headers = {
@@ -169,7 +167,7 @@ export const api = {
   // Visión por Computador (CV Service)
   cv: {
     async checkHealth() {
-      const res = await fetch(`${CV_BASE}/health`);
+      const res = await fetch(`${CV_BASE}/api/cv/health`);
       return res.json();
     },
 
