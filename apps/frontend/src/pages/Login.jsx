@@ -6,6 +6,7 @@ export default function Login({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [selectedRole, setSelectedRole] = useState('entrenador');
   const [name, setName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -34,7 +35,7 @@ export default function Login({ onLoginSuccess }) {
     const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     const body = isRegister 
-      ? { name: name.trim(), email: email.trim(), password, role: 'entrenador' } 
+      ? { name: name.trim(), email: email.trim(), password, role: 'entrenador', organizationName: organizationName.trim() } 
       : { email: email.trim(), password };
 
     try {
@@ -133,6 +134,11 @@ export default function Login({ onLoginSuccess }) {
         {error && <div className="error-box">{error}</div>}
 
         <form onSubmit={handleSubmit}>
+          {isRegister && <label className="form-field">
+            <span>Club o establecimiento *</span>
+            <input required maxLength={160} value={organizationName} onChange={e=>setOrganizationName(e.target.value)}
+              placeholder="Nombre de tu club, colegio o establecimiento" />
+          </label>}
           {isRegister && (
             <div className="form-group">
               <label>Nombre Completo</label>

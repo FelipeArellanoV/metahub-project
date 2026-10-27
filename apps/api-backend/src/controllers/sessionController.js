@@ -125,6 +125,7 @@ async function getAllSessions(req, res) {
 }
 
 module.exports = {
+  buildAnalysisSummary,
   createSession,
   getAthleteSessions,
   getAllSessions

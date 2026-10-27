@@ -12,8 +12,10 @@ import {
   UserCheck,
   X
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layout, PageHeader } from '../components/UI.jsx';
+import api from '../services/api.js';
+import { saveCollaboration } from '../services/collaboration.js';
 
 const initialDrills = [
   {
@@ -26,7 +28,7 @@ const initialDrills = [
     execution: 'Colocar 6 vallas a 1.20m de distancia. Pasar con elevación rápida de rodilla a 90°, manteniendo el tobillo en flexión dorsal.',
     commonErrors: 'Echar el tronco hacia atrás para compensar falta de fuerza en el psoas.',
     dosing: '4 series x 6 vallas con pausa completa (1:30 min).',
-    recommendedFor: ['Martín Atleta', 'Tomás Muñoz']
+    recommendedFor: []
   },
   {
     id: 'D-02',
@@ -38,7 +40,7 @@ const initialDrills = [
     execution: 'Apoyo monopodal sobre superficie inestable (bosu o colchoneta). Mantener equilibrio 20 segundos realizando círculos con brazos.',
     commonErrors: 'Bloquear la rodilla o colapsar el arco plantar medial.',
     dosing: '3 series x 25 seg por pierna.',
-    recommendedFor: ['Antonia Pérez']
+    recommendedFor: []
   },
   {
     id: 'D-03',
@@ -50,7 +52,7 @@ const initialDrills = [
     execution: 'El atleta se deja caer hacia adelante manteniendo el cuerpo recto hasta que el compañero libera la resistencia.',
     commonErrors: 'Flexionar la cintura antes del despegue, perdiendo alineación.',
     dosing: '5 salidas de 15 metros.',
-    recommendedFor: ['Tomás Muñoz']
+    recommendedFor: []
   },
   {
     id: 'D-04',
@@ -62,7 +64,7 @@ const initialDrills = [
     execution: 'Subir gradas de 2 en 2 con empuje explosivo de la pierna trasera, minimizando el tiempo de contacto.',
     commonErrors: 'Mirar al suelo o apoyar únicamente los dedos del pie.',
     dosing: '4 repeticiones de 12 gradas.',
-    recommendedFor: ['Martín Atleta', 'Javiera Soto']
+    recommendedFor: []
   },
   {
     id: 'D-05',
@@ -74,7 +76,7 @@ const initialDrills = [
     execution: 'Sprints de 20 metros con goma elástica tensionada por el entrenador.',
     commonErrors: 'Pasos excesivamente largos (overstriding) por exceso de resistencia.',
     dosing: '4 pasadas de 20 metros.',
-    recommendedFor: ['Martín Atleta']
+    recommendedFor: []
   },
   {
     id: 'D-06',
@@ -86,7 +88,7 @@ const initialDrills = [
     execution: 'Saltos verticales cortos usando casi exclusivamente la articulación del tobillo con piernas casi rectas.',
     commonErrors: 'Doblar excesivamente las rodillas disipando la energía elástica.',
     dosing: '3 series de 20 botes rápidos.',
-    recommendedFor: ['Antonia Pérez', 'Javiera Soto']
+    recommendedFor: []
   }
 ];
 
@@ -96,7 +98,18 @@ export default function Drills() {
   const [search, setSearch] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [targetDrill, setTargetDrill] = useState(null);
-  const [selectedAthlete, setSelectedAthlete] = useState('Martín Atleta');
+  const [selectedAthlete, setSelectedAthlete] = useState('');
+  const [ownedAthletes, setOwnedAthletes] = useState([]);
+  const [scopeError, setScopeError] = useState('');
+  const [assignBusy, setAssignBusy] = useState(false);
+  const assignment = useRef({signature:'',requestId:''});
+  const sending = useRef(false);
+  useEffect(() => {
+    let alive=true;
+    api.athletes.getAll().then(rows=>{if(alive){setOwnedAthletes(rows);setSelectedAthlete(rows[0]?String(rows[0].id):'');}})
+      .catch(err=>{if(alive){setOwnedAthletes([]);setScopeError(err.message);}});
+    return ()=>{alive=false;};
+  }, []);
   const [assignedFrequency, setAssignedFrequency] = useState('2 veces por semana');
 
   const filtered = useMemo(() => {
@@ -114,10 +127,21 @@ export default function Drills() {
     setShowAssignModal(true);
   };
 
-  const handleConfirmAssign = (e) => {
+  const handleConfirmAssign = async (e) => {
     e.preventDefault();
-    alert(`Ejercicio "${targetDrill.name}" asignado exitosamente al plan de entrenamiento de ${selectedAthlete} (${assignedFrequency}).`);
-    setShowAssignModal(false);
+    if(sending.current || !ownedAthletes.some(a=>String(a.id)===selectedAthlete))return;
+    const fields={athleteId:Number(selectedAthlete),title:targetDrill.name,
+      details:[targetDrill.dosing,assignedFrequency,targetDrill.execution].join(' · ')};
+    const signature=JSON.stringify(fields);
+    if(assignment.current.signature!==signature)assignment.current={signature,requestId:crypto.randomUUID()};
+    sending.current=true;setAssignBusy(true);setScopeError('');
+    try {
+      await saveCollaboration('tasks',null,{...fields,requestId:assignment.current.requestId});
+      assignment.current={signature:'',requestId:''};
+      setShowAssignModal(false);
+      alert('Ejercicio guardado en el seguimiento de tu atleta.');
+    } catch(err){setScopeError(err.message);}
+    finally{sending.current=false;setAssignBusy(false);}
   };
 
   const categories = [
@@ -130,6 +154,7 @@ export default function Drills() {
 
   return (
     <Layout>
+      {scopeError && <p role="alert">{scopeError}</p>}
       <PageHeader
         eyebrow="CATÁLOGO FORMATIVO DE ATLETISMO"
         title="Biblioteca de Drills & Ejercicios"
@@ -267,6 +292,7 @@ export default function Drills() {
 
             <form onSubmit={handleConfirmAssign}>
               <div className="modal-body">
+                {scopeError && <p role="alert">{scopeError}</p>}
                 <div className="form-group">
                   <label>Atleta destinatario *</label>
                   <select
@@ -274,10 +300,8 @@ export default function Drills() {
                     value={selectedAthlete}
                     onChange={(e) => setSelectedAthlete(e.target.value)}
                   >
-                    <option value="Martín Atleta">Martín Atleta (Sub-16 · Requiere recobro rodilla)</option>
-                    <option value="Antonia Pérez">Antonia Pérez (Sub-14 · Requiere simetría tobillo)</option>
-                    <option value="Tomás Muñoz">Tomás Muñoz (Sub-14 · Requiere postura tronco)</option>
-                    <option value="Javiera Soto">Javiera Soto (Sub-18 · Mantenimiento técnico)</option>
+                    <option value="">Seleccionar atleta propio</option>
+                    {ownedAthletes.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
 
@@ -324,7 +348,7 @@ export default function Drills() {
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="primary-button">
+                <button type="submit" disabled={assignBusy || !selectedAthlete} className="primary-button">
                   Confirmar asignación
                 </button>
               </div>

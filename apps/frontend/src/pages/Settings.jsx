@@ -17,6 +17,7 @@ import { Bell, CheckCircle2, Save, ShieldCheck, Smartphone } from 'lucide-react'
 import { useEffect, useState } from 'react';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
+import OrganizationProfile from '../components/OrganizationProfile.jsx';
 
 export default function Settings() {
   const [saved, setSaved] = useState(false);
@@ -61,6 +62,7 @@ export default function Settings() {
         description="Personaliza la experiencia del panel de entrenador."
       />
 
+      <OrganizationProfile />
       <form className="settings-grid" onSubmit={handleSubmit}>
         <section className="panel-card">
           <div className="panel-heading">

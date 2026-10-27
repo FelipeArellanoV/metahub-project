@@ -13,7 +13,7 @@
  * =========================================================================================
  */
 
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter as BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Dashboard from './pages/Dashboard.jsx';
 import Athletes from './pages/Athletes.jsx';
 import Sessions from './pages/Sessions.jsx';
@@ -26,6 +26,11 @@ import AthletePortal from './pages/AthletePortal.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import LiveCapture from './pages/LiveCapture.jsx';
+import UploadVideo from './pages/UploadVideo.jsx';
+import MyEvolution from './pages/MyEvolution.jsx';
+import SessionReviews from './pages/SessionReviews.jsx';
+import Collaboration from './pages/Collaboration.jsx';
+import Clubs from './pages/Clubs.jsx';
 
 /**
  * Componente de orden superior que restringe el acceso a usuarios autenticados y con rol autorizado
@@ -81,6 +86,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/reviews" element={<ProtectedRoute allowedRoles={['atleta','entrenador']}><SessionReviews /></ProtectedRoute>} />
+        <Route path="/upload" element={<ProtectedRoute allowedRoles={['atleta']}><UploadVideo /></ProtectedRoute>} />
+        <Route path="/evolution" element={<ProtectedRoute allowedRoles={['atleta']}><MyEvolution /></ProtectedRoute>} />
+        <Route path="/clubs" element={<ProtectedRoute allowedRoles={['entrenador']}><Clubs /></ProtectedRoute>} />
+        <Route path="/collaboration" element={<ProtectedRoute allowedRoles={['atleta', 'entrenador']}><Collaboration /></ProtectedRoute>} />
         <Route
           path="/login"
           element={
@@ -116,8 +126,8 @@ export default function App() {
         <Route
           path="/calendar"
           element={
-            <ProtectedRoute allowedRoles={['entrenador']}>
-              <Planning />
+            <ProtectedRoute allowedRoles={['atleta', 'entrenador']}>
+              <Navigate to="/collaboration" replace />
             </ProtectedRoute>
           }
         />

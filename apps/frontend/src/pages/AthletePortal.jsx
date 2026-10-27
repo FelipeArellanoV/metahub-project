@@ -21,7 +21,7 @@ import {
   Video
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 
@@ -31,59 +31,26 @@ export default function AthletePortal() {
   const [loading, setLoading] = useState(true);
   const [portalData, setPortalData] = useState(null);
   const [error, setError] = useState(null);
-  const [assistanceConfirmed, setAssistanceConfirmed] = useState(false);
-  const [completedDrills, setCompletedDrills] = useState({});
 
   useEffect(() => {
+    let alive = true;
+    let timer;
     async function loadPortal() {
       try {
-        setLoading(true);
         const data = await api.portal.getMe();
-        setPortalData(data);
+        if (alive) { setPortalData(data); setError(null); }
       } catch (err) {
-        // Si hay token demo o falla el backend, verificar demo
-        const isDemo = typeof window !== 'undefined' && window.location.search.includes('demo=1');
-        if (isDemo) {
-          setPortalData({
-            athlete: {
-              name: 'Martín San Martín (Demo)',
-              category: 'Sub-16',
-              school: 'Liceo Deportivo Temuco',
-              consentStatus: 'vigente'
-            },
-            progress: {
-              xp: 450,
-              level: { name: 'Intermedio' },
-              nextLevelAt: 700,
-              sessionCount: 4,
-              deltaIpt: 7.5,
-              medals: [
-                { id: 'first_session', name: 'Bautismo en Pista', description: 'Primera sesión analizada', earned: true, icon: '🏃' },
-                { id: 'ipt_75', name: 'Técnica Sólida', description: 'IPT alcanzado ≥ 75 pts', earned: true, icon: '🎯' },
-                { id: 'improvement', name: 'Progresión Positiva', description: 'Superaste tu marca previa', earned: true, icon: '📈' }
-              ]
-            },
-            sessions: [
-              { id: 101, sessionDate: new Date().toISOString(), iptScore: 78.4 }
-            ],
-            latestAnalysis: null
-          });
-        } else {
-          setError(err.message || 'Error cargando datos del portal');
-        }
+        if (alive) setError(err.message || 'Error cargando datos del portal');
       } finally {
-        setLoading(false);
+        if (alive) {
+          setLoading(false);
+          timer = setTimeout(loadPortal, 15000);
+        }
       }
     }
     loadPortal();
+    return () => { alive = false; clearTimeout(timer); };
   }, []);
-
-  const toggleDrill = (idx) => {
-    setCompletedDrills(prev => ({
-      ...prev,
-      [idx]: !prev[idx]
-    }));
-  };
 
   const athlete = portalData?.athlete;
   const progress = portalData?.progress;
@@ -92,10 +59,6 @@ export default function AthletePortal() {
 
   // Ejercicios dinámicos derivados de la última prescripción biomecánica real
   const dynamicDrills = latestAnalysis?.prescripcion_completa?.ejercicios || [];
-
-  const completedCount = Object.values(completedDrills).filter(Boolean).length;
-  const totalDrills = dynamicDrills.length;
-  const progressPercent = totalDrills > 0 ? Math.round((completedCount / totalDrills) * 100) : 0;
 
   if (loading) {
     return (
@@ -184,8 +147,8 @@ export default function AthletePortal() {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: athlete?.consentStatus === 'vigente' ? '#6ee7b7' : '#f59e0b' }}>
-            <ShieldCheck size={15} /> Consentimiento {athlete?.consentStatus === 'vigente' ? 'vigente' : 'pendiente'}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: athlete?.consent === true ? '#6ee7b7' : '#f59e0b' }}>
+            <ShieldCheck size={15} /> Consentimiento {athlete?.consent === true ? 'vigente' : 'pendiente'}
           </span>
           <span style={{ color: '#64748b' }}>•</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#93c5fd' }}>
@@ -204,145 +167,26 @@ export default function AthletePortal() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* CITACIÓN OFICIAL EN PISTA */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #e6eaf0',
-              borderRadius: 16,
-              padding: 20,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: '#2474d2', letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                PRÓXIMA SESIÓN EN PISTA
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#7b8798', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Clock size={13} /> Horario habitual de entrenamiento
-              </span>
-            </div>
-
-            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#10283f' }}>
-              Captura Biomecánica: Sprint y Medición con Calibrador de Terreno
-            </h3>
-            <p style={{ margin: '0 0 14px', fontSize: 13, color: '#475569', lineHeight: 1.4 }}>
-              Ubicación: <strong>Pista Atlética UCT Campus Norte</strong>. Tu profesor registrará tus pasadas con el giroscopio calibrado y la cámara de alta frecuencia para actualizar tu Índice de Perfeccionamiento Técnico (IPT).
-            </p>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
-                <MapPin size={14} color="#2474d2" /> Campus Norte UCT
-              </div>
-
-              <button
-                type="button"
-                className={assistanceConfirmed ? 'btn-outline-sm' : 'primary-button'}
-                style={{
-                  height: 38,
-                  background: assistanceConfirmed ? '#e9f8f1' : undefined,
-                  borderColor: assistanceConfirmed ? '#10b981' : undefined,
-                  color: assistanceConfirmed ? '#116945' : undefined
-                }}
-                onClick={() => setAssistanceConfirmed(!assistanceConfirmed)}
-              >
-                {assistanceConfirmed ? (
-                  <>
-                    <CheckCircle2 size={15} color="#10b981" />
-                    <span>¡Asistencia Confirmada!</span>
-                  </>
-                ) : (
-                  <>
-                    <Check size={15} />
-                    <span>Confirmar asistencia</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* MIS TAREAS / DRILLS BIOMECÁNICOS REALES */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #e6eaf0',
-              borderRadius: 16,
-              padding: 20,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <div>
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#2474d2', letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                  PLAN PROGRESIVO DE EJERCICIOS CORRECTIVOS
-                </span>
-                <h3 style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 800, color: '#10283f' }}>
-                  Prescripción Técnica Asignada
-                </h3>
-              </div>
-              {totalDrills > 0 && (
-                <span style={{ fontSize: 12, fontWeight: 800, color: '#2474d2', background: '#eaf3ff', padding: '4px 10px', borderRadius: 8 }}>
-                  {completedCount} de {totalDrills} ({progressPercent}%)
-                </span>
-              )}
-            </div>
-
-            {totalDrills > 0 ? (
-              <>
-                <div style={{ width: '100%', height: 6, background: '#e2e8f0', borderRadius: 4, margin: '12px 0 16px', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width: `${progressPercent}%`,
-                      height: '100%',
-                      background: 'linear-gradient(90deg, #2474d2, #10b981)',
-                      transition: 'width 0.3s ease'
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {dynamicDrills.map((drill, idx) => {
-                    const isDone = !!completedDrills[idx];
-                    return (
-                      <div
-                        key={idx}
-                        className={`athlete-task-item ${isDone ? 'completed' : ''}`}
-                        onClick={() => toggleDrill(idx)}
-                        style={{ cursor: 'pointer', padding: 12, border: '1px solid #f1f5f9', borderRadius: 10 }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div className={`checkbox-round ${isDone ? 'checked' : ''}`}>
-                            {isDone && <Check size={14} />}
-                          </div>
-                          <div>
-                            <strong style={{ fontSize: 13, color: '#10283f', textDecoration: isDone ? 'line-through' : 'none' }}>
-                              [{drill.fase || 'FASE'}] {drill.nombre}
-                            </strong>
-                            <span style={{ fontSize: 11, color: '#7b8798', display: 'block' }}>
-                              {drill.protocolo} · <em>Foco: {drill.foco}</em>
-                            </span>
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: isDone ? '#10b981' : '#f59e0b' }}>
-                          {isDone ? 'Completado ✓' : 'Pendiente'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <div style={{ padding: '24px 16px', background: '#f8fafc', borderRadius: 10, textAlign: 'center', marginTop: 12, color: '#64748b' }}>
-                <Dumbbell size={28} style={{ margin: '0 auto 8px', color: '#94a3b8' }} />
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
-                  Sin ejercicios correctivos pendientes actualmente.
-                </p>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                  Tu plan se generará automáticamente tras la próxima pasada grabada y evaluada con el IPT MetaHub.
-                </span>
-              </div>
-            )}
-          </div>
+          <section className="panel-card">
+            <h3>Mis sesiones y seguimiento</h3>
+            <Link className="secondary-button" to="/reviews">Mis revisiones y ejercicios por sesión</Link>
+            <Link className="primary-button" to="/upload">Subir video para analizar</Link>
+            <Link className="secondary-button" to="/evolution">Comparar mis sesiones y ver mi evolución</Link>
+            <p>Consulta tus citas y ejercicios asignados. El cumplimiento y los mensajes se guardan en el servidor.</p>
+            <Link className="primary-button" to="/collaboration">Abrir seguimiento compartido</Link>
+          </section>
+          <section className="panel-card">
+            <h3>Prescripción del último análisis</h3>
+            <p>Referencia del análisis biomecánico. Revisa con tu entrenador qué ejercicios y dosificación realizar;
+              las asignaciones y su cumplimiento se registran en Seguimiento compartido.</p>
+            {dynamicDrills.length ? dynamicDrills.map((drill, idx) => (
+              <article key={idx} style={{ padding: 12, borderBottom: '1px solid #e6eaf0' }}>
+                <strong>[{drill.fase || 'FASE'}] {drill.nombre}</strong>
+                <p>{drill.protocolo}</p>
+                <p>{drill.foco}</p>
+              </article>
+            )) : <p>No hay una prescripción disponible en el último análisis.</p>}
+          </section>
 
           {/* HISTORIAL RECIENTE DE SESIONES */}
           <div
@@ -371,7 +215,7 @@ export default function AthletePortal() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: 16, fontWeight: 800, color: (s.iptScore || 0) >= 80 ? '#10b981' : (s.iptScore || 0) >= 65 ? '#2474d2' : '#f59e0b' }}>
-                        {s.iptScore ? `${s.iptScore} pts` : 'Evaluada'}
+                        {s.iptScore != null ? `${s.iptScore} pts` : 'Sin análisis'}
                       </span>
                       <span style={{ fontSize: 10, color: '#94a3b8', display: 'block' }}>Índice IPT</span>
                     </div>

@@ -36,6 +36,9 @@ import {
 import { NavLink, useNavigate } from 'react-router-dom';
 
 const coachMenuItems = [
+  { label: 'Revisar sesiones', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
+  { label: 'Mis clubes', shortLabel: 'Clubes', icon: Users, to: '/clubs' },
+  { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Users, to: '/collaboration' },
   {
     label: 'Inicio',
     shortLabel: 'Inicio',
@@ -59,12 +62,6 @@ const coachMenuItems = [
     shortLabel: 'Cámara',
     icon: Camera,
     to: '/capture'
-  },
-  {
-    label: 'Planificación',
-    shortLabel: 'Agenda',
-    icon: Calendar,
-    to: '/calendar'
   },
   {
     label: 'Prioridad de apoyo',
@@ -99,42 +96,12 @@ const coachMenuItems = [
 ];
 
 const athleteMenuItems = [
-  {
-    label: 'Mi Espacio',
-    shortLabel: 'Espacio',
-    icon: PersonStanding,
-    to: '/portal'
-  },
-  {
-    label: 'Mis Drills Asignados',
-    shortLabel: 'Drills',
-    icon: Dumbbell,
-    to: '/drills'
-  },
-  {
-    label: 'Mi Calendario',
-    shortLabel: 'Agenda',
-    icon: Calendar,
-    to: '/calendar'
-  },
-  {
-    label: 'Mi Evolución',
-    shortLabel: 'Evolución',
-    icon: GitCompare,
-    to: '/compare'
-  },
-  {
-    label: 'Mi Ficha Escolar',
-    shortLabel: 'Ficha',
-    icon: FileText,
-    to: '/reports'
-  },
-  {
-    label: 'Mi Perfil',
-    shortLabel: 'Perfil',
-    icon: Settings,
-    to: '/settings'
-  }
+  { label: 'Mis revisiones y plan', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
+  { label: 'Subir video', shortLabel: 'Video', icon: Video, to: '/upload' },
+  { label: 'Mi evolución', shortLabel: 'Evolución', icon: GitCompare, to: '/evolution' },
+  { label: 'Mi Espacio', shortLabel: 'Espacio', icon: PersonStanding, to: '/portal' },
+  { label: 'Mi seguimiento', shortLabel: 'Seguimiento', icon: Dumbbell, to: '/collaboration' },
+  { label: 'Mi perfil', shortLabel: 'Perfil', icon: Settings, to: '/settings' }
 ];
 
 export function Layout({ children }) {
@@ -153,7 +120,7 @@ export function Layout({ children }) {
   const menuItems = isAthlete ? athleteMenuItems : coachMenuItems;
   const sectionTitle = isAthlete ? 'PORTAL ATLETA' : 'PANEL ENTRENADOR';
 
-  const userName = user?.name || (isAthlete ? 'Martín San Martín' : 'Felipe Arellano');
+  const userName = user?.name || 'Usuario';
   const userInitials = userName
     .split(' ')
     .filter(Boolean)
@@ -161,7 +128,7 @@ export function Layout({ children }) {
     .join('')
     .substring(0, 2)
     .toUpperCase() || (isAthlete ? 'MA' : 'FA');
-  const userRole = isAthlete ? 'Atleta (Sub-16)' : 'Entrenador Jefe';
+  const userRole = isAthlete ? 'Atleta' : 'Entrenador';
 
   const handleLogout = () => {
     localStorage.removeItem('metahub_token');

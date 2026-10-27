@@ -50,7 +50,7 @@ async function request(url, options = {}) {
         localStorage.removeItem('metahub_token');
         localStorage.removeItem('metahub_user');
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+          window.location.href = '/app.html#/login';
         }
       }
       const errorMsg = data.error || data.detail || `Error del servidor (${response.status})`;
@@ -98,7 +98,7 @@ export const api = {
       localStorage.removeItem('metahub_token');
       localStorage.removeItem('metahub_user');
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        window.location.href = '/app.html#/login';
       }
     }
   },

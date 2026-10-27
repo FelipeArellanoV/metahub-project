@@ -22,7 +22,10 @@ const { sign } = require('../config/jwt');
  */
 async function register(req, res) {
   try {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, organizationName } = req.body || {};
+    if (organizationName !== undefined && (typeof organizationName !== 'string' || !organizationName.trim() || organizationName.length > 160)) {
+      return res.status(400).json({ error: 'Indica tu club o establecimiento (máximo 160 caracteres).' });
+    }
 
     if (!name || !email || !password) {
       res.statusCode = 400;
@@ -43,7 +46,8 @@ async function register(req, res) {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
-      role: 'entrenador'
+      role: 'entrenador',
+      organizationName: (organizationName || '').trim()
     });
 
     // Emisión de token JWT con tiempo de vida estricto (15 minutos)

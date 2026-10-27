@@ -19,6 +19,11 @@ const authController = require('./controllers/authController');
 const athleteController = require('./controllers/athleteController');
 const sessionController = require('./controllers/sessionController');
 const portalController = require('./controllers/portalController');
+const sessionReviewController = require('./controllers/sessionReviewController');
+const athleteVideoController = require('./controllers/athleteVideoController');
+const organizationController = require('./controllers/organizationController');
+const clubController = require('./controllers/clubController');
+const collaborationController = require('./controllers/collaborationController');
 const { verifyToken, requireRole } = require('./middleware/authMiddleware');
 
 // Directorio raíz de la interfaz web frontend para entrega estática
@@ -70,14 +75,32 @@ function serveStatic(req, res, targetUrl) {
  * Función auxiliar para parsear de forma asíncrona cuerpos de solicitud en formato JSON
  */
 function parseJsonBody(req) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', chunk => data += chunk);
+    let size = 0;
+    let exceeded = false;
+    req.on('error', reject);
+    req.on('data', chunk => {
+      size += Buffer.byteLength(chunk);
+      if (size > 256 * 1024) {
+        exceeded = true;
+        const error = new Error('El cuerpo JSON supera el máximo de 256 KiB.');
+        error.statusCode = 413;
+        reject(error);
+        return;
+      }
+      if (!exceeded) data += chunk;
+    });
     req.on('end', () => {
+      if (exceeded) return;
       try {
-        resolve(data ? JSON.parse(data) : {});
-      } catch (e) {
-        resolve({});
+        const parsed = data ? JSON.parse(data) : {};
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
+        resolve(parsed);
+      } catch {
+        const error = new Error('Se requiere un objeto JSON válido.');
+        error.statusCode = 400;
+        reject(error);
       }
     });
   });
@@ -120,9 +143,18 @@ async function app(req, res) {
     if (served) return;
   }
 
+  // El video llega como binario: no debe pasar por el parser JSON.
+  if (method === 'POST' && url === '/api/portal/videos') {
+    return verifyToken(req, res, () => athleteVideoController.handle(req, res));
+  }
+
   // Parsear cuerpo de la petición si es POST o PUT
   if (method !== 'GET') {
-    req.body = await parseJsonBody(req);
+    try {
+      req.body = await parseJsonBody(req);
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({ error: error.message });
+    }
   } else {
     req.body = {};
   }
@@ -156,6 +188,17 @@ async function app(req, res) {
     return res.json({ status: 'ok', service: 'metahub-api-backend' });
   }
 
+  if (url === '/api/organization') {
+    return verifyToken(req, res, () => organizationController.handle(req, res));
+  }
+  if (url === '/api/portal/videos' || url.startsWith('/api/portal/videos/') || url.startsWith('/api/videos/')) {
+    return verifyToken(req, res, () => athleteVideoController.handle(req, res));
+  }
+
+  if (url === '/api/reviews' || url.startsWith('/api/reviews/')) {
+    return verifyToken(req, res, () => sessionReviewController.handle(req, res));
+  }
+
   // Rutas públicas de autenticación
   if (method === 'POST' && url === '/api/auth/register') {
     return authController.register(req, res);
@@ -168,6 +211,15 @@ async function app(req, res) {
   // Rutas protegidas - Perfil del usuario
   if (method === 'GET' && url === '/api/auth/me') {
     return verifyToken(req, res, () => authController.getProfile(req, res));
+  }
+
+  if (url === '/api/roster' || url.startsWith('/api/roster/') || url === '/api/clubs' || url.startsWith('/api/clubs/')) {
+    return verifyToken(req, res, () => clubController.handle(req, res));
+  }
+
+  // Seguimiento compartido: el servicio valida propiedad y rol en cada operación.
+  if (url === '/api/collaboration' || url.startsWith('/api/collaboration/')) {
+    return verifyToken(req, res, () => collaborationController.handle(req, res));
   }
 
   // Rutas protegidas - Portal del Atleta (solo rol 'atleta'; datos propios segun el JWT)

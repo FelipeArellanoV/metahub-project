@@ -60,6 +60,10 @@ async function createAthlete(req, res) {
     const { name, age, birthDate, birth_date } = req.body || {};
     const trainerId = req.user.id;
     const finalBirthDate = birthDate || birth_date || null;
+    const organizationName = req.body?.organizationName ?? req.body?.school;
+    if (organizationName !== undefined && (typeof organizationName !== 'string' || !organizationName.trim() || organizationName.length > 160)) {
+      return res.status(400).json({ error: 'Indica el club o establecimiento del atleta (máximo 160 caracteres).' });
+    }
 
     const rawAccount = req.body?.account;
     const email = req.body?.email || rawAccount?.email;
@@ -96,6 +100,7 @@ async function createAthlete(req, res) {
       birthDate: finalBirthDate,
       consent: Boolean(consent),
       trainerId,
+      organizationName: (organizationName || '').trim(),
       account
     });
 

@@ -189,7 +189,7 @@ class Repository {
    * Por directriz de seguridad (RNF03), el registro público fuerza el rol 'entrenador'
    * previniendo escalamiento de privilegios a 'admin'.
    */
-  async createUser({ name, email, password, role = 'entrenador' }) {
+  async createUser({ name, email, password, role = 'entrenador', organizationName = '' }) {
     const safeRole = role === 'admin' ? 'entrenador' : (role || 'entrenador');
     const passwordHash = await hashPassword(password);
 
@@ -202,8 +202,8 @@ class Repository {
         throw error;
       }
       const res = await pool.query(
-        'INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at as "createdAt"',
-        [name, email.toLowerCase(), passwordHash, safeRole]
+        'INSERT INTO users (name, email, password_hash, role, organization_name) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, organization_name as "organizationName", created_at as "createdAt"',
+        [name, email.toLowerCase(), passwordHash, safeRole, organizationName]
       );
       return res.rows[0];
     }
@@ -221,6 +221,7 @@ class Repository {
       email: email.toLowerCase(),
       passwordHash,
       role: safeRole,
+      organizationName,
       createdAt: new Date().toISOString()
     };
 
@@ -235,7 +236,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        'SELECT id, name, email, password_hash as "passwordHash", role, created_at as "createdAt" FROM users WHERE LOWER(email) = LOWER($1)',
+        'SELECT id, name, email, password_hash as "passwordHash", role, organization_name as "organizationName", created_at as "createdAt" FROM users WHERE LOWER(email) = LOWER($1)',
         [email]
       );
       return res.rows[0] || null;
@@ -250,7 +251,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        'SELECT id, name, email, role, created_at as "createdAt" FROM users WHERE id = $1',
+        'SELECT id, name, email, role, organization_name as "organizationName", created_at as "createdAt" FROM users WHERE id = $1',
         [Number(id)]
       );
       return res.rows[0] || null;
@@ -324,7 +325,7 @@ class Repository {
    * Si se entrega 'account' ({ email, password }) se crea además una cuenta con rol 'atleta'
    * vinculada a la ficha. Por privacidad de menores, requiere consentimiento parental registrado.
    */
-  async createAthlete({ name, age, birthDate = null, consent = false, trainerId, account = null }) {
+  async createAthlete({ name, age, birthDate = null, consent = false, trainerId, account = null, organizationName = '' }) {
     if (!trainerId) {
       const error = new Error('Se requiere asociar un entrenador.');
       error.statusCode = 400;
@@ -356,8 +357,8 @@ class Repository {
       if (this.isPgActive()) {
         const pool = getPool();
         const res = await pool.query(
-          'INSERT INTO athletes (name, age, birth_date, consent, trainer_id, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, age, birth_date as "birthDate", consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
-          [name, computedAge, birthDateStr, Boolean(consent), Number(trainerId), user ? user.id : null]
+          'INSERT INTO athletes (name, age, birth_date, consent, trainer_id, user_id, organization_name) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, age, birth_date as "birthDate", consent, organization_name as "organizationName", trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
+          [name, computedAge, birthDateStr, Boolean(consent), Number(trainerId), user ? user.id : null, organizationName]
         );
         createdAthlete = this.withAccountFlag(res.rows[0]);
       } else {
@@ -368,6 +369,7 @@ class Repository {
           birthDate: birthDateStr,
           consent: Boolean(consent),
           trainerId: Number(trainerId),
+          organizationName,
           userId: user ? user.id : null,
           createdAt: new Date().toISOString()
         };
@@ -401,7 +403,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        `SELECT a.id, a.name, a.age, a.birth_date as "birthDate", a.consent, a.trainer_id as "trainerId", a.user_id as "userId", a.created_at as "createdAt",
+        `SELECT a.id, a.name, a.age, a.birth_date as "birthDate", a.consent, a.organization_name as "organizationName", a.trainer_id as "trainerId", a.user_id as "userId", a.created_at as "createdAt",
                 COUNT(s.id)::int as "sessionCount",
                 MAX(s.session_date) as "lastSessionDate",
                 (SELECT s2.ipt_score FROM sessions s2
@@ -442,7 +444,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        'SELECT id, name, age, birth_date as "birthDate", consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt" FROM athletes WHERE id = $1',
+        'SELECT id, name, age, birth_date as "birthDate", consent, organization_name as "organizationName", trainer_id as "trainerId", user_id as "userId", created_at as "createdAt" FROM athletes WHERE id = $1',
         [Number(athleteId)]
       );
       const athlete = res.rows[0];
@@ -475,7 +477,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        `SELECT a.id, a.name, a.age, a.birth_date as "birthDate", a.consent, a.trainer_id as "trainerId", a.user_id as "userId",
+        `SELECT a.id, a.name, a.age, a.birth_date as "birthDate", a.consent, a.organization_name as "organizationName", a.trainer_id as "trainerId", a.user_id as "userId",
                 a.created_at as "createdAt", u.name as "trainerName"
          FROM athletes a
          JOIN users u ON u.id = a.trainer_id
@@ -512,7 +514,7 @@ class Repository {
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        'UPDATE athletes SET name = COALESCE($1, name), age = COALESCE($2, age), birth_date = COALESCE($3, birth_date), consent = COALESCE($4, consent) WHERE id = $5 AND trainer_id = $6 RETURNING id, name, age, birth_date as "birthDate", consent, trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
+        'UPDATE athletes SET name = COALESCE($1, name), age = COALESCE($2, age), birth_date = COALESCE($3, birth_date), consent = COALESCE($4, consent) WHERE id = $5 AND trainer_id = $6 RETURNING id, name, age, birth_date as "birthDate", consent, organization_name as "organizationName", trainer_id as "trainerId", user_id as "userId", created_at as "createdAt"',
         [name || null, computedAge, birthDateStr, consent !== undefined ? Boolean(consent) : null, Number(athleteId), Number(trainerId)]
       );
       return this.withAccountFlag(res.rows[0]);
@@ -659,7 +661,12 @@ class Repository {
    */
   async createSession({ athleteId, trainerId, videoUrl = '', notes = '', iptScore = null, analysis = null }) {
     // Validar que el atleta pertenezca al entrenador antes de asociar la sesión
-    await this.getAthleteByIdForTrainer(athleteId, trainerId);
+    const athlete = await this.getAthleteByIdForTrainer(athleteId, trainerId);
+    if (!athlete) {
+      const error = new Error('Atleta no encontrado.');
+      error.statusCode = 404;
+      throw error;
+    }
 
     if (this.isPgActive()) {
       const pool = getPool();

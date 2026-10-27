@@ -108,6 +108,7 @@ export default function LiveCapture() {
 
   // Atleta seleccionado para la toma desde la base de datos
   const [athletesList, setAthletesList] = useState([]);
+  const [athleteLoadError, setAthleteLoadError] = useState('');
   const [selectedAthleteId, setSelectedAthleteId] = useState('');
   const [selectedAthlete, setSelectedAthlete] = useState('Seleccionar atleta');
   const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1 | '¡YA!'
@@ -125,12 +126,10 @@ export default function LiveCapture() {
           setSelectedAthlete(athletes[0].name);
         }
       } catch (e) {
-        setAthletesList([
-          { id: 1, name: 'Martín San Martín (Demo)', category: 'Sub-16' },
-          { id: 2, name: 'Javiera Soto (Demo)', category: 'Sub-16' }
-        ]);
-        setSelectedAthleteId(1);
-        setSelectedAthlete('Martín San Martín (Demo)');
+        setAthletesList([]);
+        setSelectedAthleteId('');
+        setSelectedAthlete('Seleccionar atleta');
+        setAthleteLoadError(e.message || 'No se pudieron cargar tus atletas.');
       }
     }
     fetchAthletes();
@@ -674,6 +673,7 @@ export default function LiveCapture() {
 
     return (
       <Layout>
+      {athleteLoadError && <p role="alert">{athleteLoadError}</p>}
         <div style={{ maxWidth: '960px', margin: '0 auto', paddingBottom: '40px' }}>
 
           {/* Cabecera Superior */}

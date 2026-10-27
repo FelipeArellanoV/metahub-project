@@ -22,77 +22,8 @@ import {
   PageHeader
 } from '../components/UI.jsx';
 import api from '../services/api.js';
+import ScopedRoster from '../components/ScopedRoster.jsx';
 
-const initialAthletes = [
-  {
-    id: 1,
-    name: 'Martín Atleta',
-    initials: 'MA',
-    age: 15,
-    category: 'Sub-16',
-    school: 'Liceo Deportivo Temuco',
-    lastSession: '26 Sep 2026',
-    sessions: 8,
-    consent: true,
-    consentDate: '12 Mar 2026',
-    guardian: 'Carlos Atleta (Padre)',
-    phone: '+56 9 8765 4321',
-    needsSupport: true,
-    supportReason: 'Flexión de rodilla limitada (24,2° vs 28°) y caída de cadera.',
-    notes: 'Requiere énfasis en skipping alto con vallas bajas.'
-  },
-  {
-    id: 2,
-    name: 'Javiera Soto',
-    initials: 'JS',
-    age: 16,
-    category: 'Sub-18',
-    school: 'Liceo Pablo Neruda',
-    lastSession: '24 Sep 2026',
-    sessions: 6,
-    consent: true,
-    consentDate: '18 Mar 2026',
-    guardian: 'Elena Soto (Madre)',
-    phone: '+56 9 7654 3210',
-    needsSupport: false,
-    supportReason: 'Técnica balanceada, en observación por resistencia a la fatiga.',
-    notes: 'Excelente respuesta en salidas de tacos.'
-  },
-  {
-    id: 3,
-    name: 'Tomás Muñoz',
-    initials: 'TM',
-    age: 14,
-    category: 'Sub-14',
-    school: 'Instituto Claret',
-    lastSession: 'Sin sesiones',
-    sessions: 0,
-    consent: false,
-    consentDate: 'Pendiente de entrega',
-    guardian: 'Marcela Muñoz (Madre)',
-    phone: '+56 9 6543 2109',
-    needsSupport: true,
-    supportReason: 'Inclinación excesiva de tronco en aceleración.',
-    notes: 'Requiere firma de apoderado antes de la primera captura en video.'
-  },
-  {
-    id: 4,
-    name: 'Antonia Pérez',
-    initials: 'AP',
-    age: 15,
-    category: 'Sub-14',
-    school: 'Colegio Metodista',
-    lastSession: '20 Sep 2026',
-    sessions: 3,
-    consent: true,
-    consentDate: '05 Abr 2026',
-    guardian: 'Roberto Pérez (Padre)',
-    phone: '+56 9 5432 1098',
-    needsSupport: true,
-    supportReason: 'Asimetría marcada en zancada izq/der (14,8%).',
-    notes: 'Trabajo unilateral en tobillo y cadera izquierda asignado.'
-  }
-];
 
 export default function Athletes() {
   const navigate = useNavigate();
@@ -112,7 +43,7 @@ export default function Athletes() {
     name: '',
     age: '15',
     category: 'Sub-16',
-    school: 'Colegio Regional Temuco',
+    school: '',
     guardian: '',
     phone: '',
     consent: true
@@ -129,10 +60,10 @@ export default function Athletes() {
         initials: (a.name || 'AT').split(' ').filter(Boolean).map((n) => n[0]).slice(0, 2).join('').toUpperCase(),
         age: a.age || 15,
         category: a.category || 'Sub-16',
-        school: a.school || 'Liceo Regional',
+        school: a.organizationName || a.school || 'Sin registrar',
         lastSession: a.lastIptScore ? `IPT: ${a.lastIptScore} pts` : 'Sin sesiones',
         sessions: a.sessionCount || 0,
-        consent: a.consentStatus === 'vigente',
+        consent: a.consent === true,
         consentDate: a.consentDate || 'Registrado',
         guardian: a.guardianName || 'Apoderado registrado',
         phone: a.guardianPhone || '+56 9 0000 0000',
@@ -143,11 +74,8 @@ export default function Athletes() {
       }));
       setAthletesList(mapped);
     } catch (err) {
-      if (typeof window !== 'undefined' && window.location.search.includes('demo=1')) {
-        setAthletesList(initialAthletes);
-      } else {
-        setErrorMsg(err.message || 'Error cargando atletas');
-      }
+      setAthletesList([]);
+      setErrorMsg(err.message || 'Error cargando atletas');
     } finally {
       setLoading(false);
     }
@@ -174,6 +102,7 @@ export default function Athletes() {
   const handleAddAthlete = async (e) => {
     e.preventDefault();
     if (!newAthlete.name.trim()) return;
+    if (!newAthlete.school.trim()) { setErrorMsg('Indica el club o establecimiento del atleta.'); return; }
     setErrorMsg('');
 
     try {
@@ -182,6 +111,7 @@ export default function Athletes() {
         age: parseInt(newAthlete.age, 10) || 15,
         category: newAthlete.category,
         school: newAthlete.school.trim(),
+        organizationName: newAthlete.school.trim(),
         guardianName: newAthlete.guardian.trim() || 'Apoderado no registrado',
         guardianPhone: newAthlete.phone.trim() || '+56 9 0000 0000',
         consentStatus: newAthlete.consent ? 'vigente' : 'pendiente',
@@ -202,7 +132,7 @@ export default function Athletes() {
         name: '',
         age: '15',
         category: 'Sub-16',
-        school: 'Colegio Regional Temuco',
+        school: '',
         guardian: '',
         phone: '',
         consent: true
@@ -233,6 +163,7 @@ export default function Athletes() {
         }
       />
 
+      <details className="panel-card" style={{ marginBottom: 20 }}><summary>Consultar atletas de mis clubes (solo lectura)</summary><ScopedRoster embedded clubOnly mode="club" /></details>
       {/* FILTER PILLS & SEARCH TOOLBAR */}
       <div
         style={{
@@ -577,10 +508,11 @@ export default function Athletes() {
                 </div>
 
                 <div className="form-group">
-                  <label>Colegio / Institución Educativa</label>
+                  <label>Club o establecimiento *</label>
                   <input
                     type="text"
                     className="form-control"
+                    required maxLength={160}
                     value={newAthlete.school}
                     onChange={(e) => setNewAthlete({ ...newAthlete, school: e.target.value })}
                   />
