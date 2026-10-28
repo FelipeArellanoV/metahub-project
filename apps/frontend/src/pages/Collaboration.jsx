@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {CalendarDays,Dumbbell,MessageSquare,Users} from 'lucide-react';
+import FeatureBanner from '../components/FeatureBanner.jsx';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import { clubRequest } from '../services/roster.js';
 import useCollaboration from '../hooks/useCollaboration.js';
@@ -84,10 +86,13 @@ export default function Collaboration() {
     }
   }
 
-  return <Layout>
+  return <Layout><div className="feature-page feature-collaboration">
     <PageHeader eyebrow="ALUMNO Y ENTRENADOR" title="Seguimiento compartido"
       description="Ejercicios, citas y mensajes vinculados a la misma ficha. Actualización automática cada 10 segundos."
       action={<button className="secondary-button" onClick={refresh} disabled={busy || (coach && !athleteId)}>Actualizar</button>} />
+    <FeatureBanner icon={Users} title="Entrenador y alumno, en el mismo equipo"
+      description="Ejercicios, citas y mensajes conectados a una sola ficha."
+      stats={[{label:'Ejercicios',value:data?data.tasks.length:'—'},{label:'Citas',value:data?data.appointments.length:'—'},{label:'Mensajes',value:data?data.messages.length:'—'}]}/>
     <section className="collaboration" aria-busy={busy || loading}>
       {coach && <label className="form-field">
         <span>Alumno bajo seguimiento</span>
@@ -122,7 +127,7 @@ export default function Collaboration() {
 
         <div className="collab-grid">
           <section className="panel-card">
-            <h2>Ejercicios asignados</h2>
+            <h2 className="feature-title"><Dumbbell size={21}/>Ejercicios asignados</h2>
             <p>{data.tasks.filter(t => t.done).length} completados de {data.tasks.length} registros mostrados.</p>
             {coach && !readOnly && <form onSubmit={createTask} className="collab-form">
               <label>Título<input required maxLength={160} value={task.title} disabled={busy}
@@ -145,7 +150,7 @@ export default function Collaboration() {
           </section>
 
           <section className="panel-card">
-            <h2>Citas en pista</h2>
+            <h2 className="feature-title"><CalendarDays size={21}/>Citas en pista</h2>
             <p>Las fechas se muestran en la zona horaria de este dispositivo.</p>
             {coach && !readOnly && <form onSubmit={createAppointment} className="collab-form">
               <label>Título<input required maxLength={160} value={appointment.title} disabled={busy}
@@ -176,7 +181,7 @@ export default function Collaboration() {
         </div>
 
         <section className="panel-card">
-          <h2>Mensajes de seguimiento</h2>
+          <h2 className="feature-title"><MessageSquare size={21}/>Mensajes de seguimiento</h2>
           {!readOnly && <form className="collab-form" onSubmit={sendMessage}>
             <label>Mensaje para {coach ? 'el alumno' : 'tu entrenador'}
               <textarea required maxLength={2000} value={message} disabled={busy} onChange={e => setMessage(e.target.value)} /></label>
@@ -197,5 +202,5 @@ export default function Collaboration() {
         <p className="collab-limit">Se muestran hasta 200 ejercicios, 100 citas, 100 mensajes y 50 eventos recientes por alumno.</p>
       </>}
     </section>
-  </Layout>;
+  </div></Layout>;
 }

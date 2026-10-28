@@ -1,3 +1,4 @@
+import {ThemeSwitch} from '../components/Theme.jsx';
 import { Activity, ArrowRight, Lock, Mail, User } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -32,7 +33,7 @@ export default function Login({ onLoginSuccess }) {
     e.preventDefault();
     setError('');
 
-    const API_BASE = '';
+    const API_BASE = import.meta.env.VITE_API_BASE || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : '');
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     const body = isRegister 
       ? { name: name.trim(), email: email.trim(), password, role: 'entrenador', organizationName: organizationName.trim() } 
@@ -45,10 +46,19 @@ export default function Login({ onLoginSuccess }) {
         body: JSON.stringify(body)
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('La API no devolvió JSON. Revisa VITE_API_BASE en apps/frontend/.env.local y reinicia Vite.');
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Credenciales inválidas');
+      }
+
+      if (!data || typeof data.token !== 'string' || !data.token || !data.user) {
+        throw new Error('La API no devolvió una sesión válida. Comprueba la dirección del backend.');
       }
 
       // El rol proviene EXCLUSIVAMENTE del backend validado
@@ -61,8 +71,8 @@ export default function Login({ onLoginSuccess }) {
       if (onLoginSuccess) onLoginSuccess(finalUser, data.token);
       navigate(finalUser.role === 'atleta' ? '/portal' : '/');
     } catch (err) {
-      // Si el backend no está disponible o falla la conexión, permitir acceso demo
-      if (isDemoMode || err.message === 'Failed to fetch' || err.message?.includes('fetch')) {
+      if (isDemoMode) {
+        // Solo en modo demostración explícito (?demo=1)
         const isAth = selectedRole === 'atleta';
         const demoUser = {
           id: isAth ? 'atleta-demo-01' : 'coach-demo-01',
@@ -84,6 +94,7 @@ export default function Login({ onLoginSuccess }) {
 
   return (
     <div className="login-container">
+      <ThemeSwitch/>
       <div className="login-card">
         <div className="login-header">
           <div className="login-brand-icon">

@@ -18,6 +18,7 @@ import io
 import cv2
 import base64
 import tempfile
+import math
 import numpy as np
 from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
@@ -110,73 +111,33 @@ def calculate_metrics(payload: KeypointsPayload):
 
 # Conexiones óseas estándar de MediaPipe Pose para renderizar el esqueleto
 SKELETON_CONNECTIONS = [
-    (11, 12), # Hombro a hombro
-    (11, 23), # Hombro izq a cadera izq
-    (12, 24), # Hombro der a cadera der
-    (23, 24), # Cadera a cadera
-    (23, 25), # Cadera izq a rodilla izq
-    (25, 27), # Rodilla izq a tobillo izq
-    (24, 26), # Cadera der a rodilla der
-    (26, 28), # Rodilla der a tobillo der
-    (11, 13), # Brazo izq
-    (13, 15), # Antebrazo izq
-    (12, 14), # Brazo der
-    (14, 16), # Antebrazo der
+    (0,1),(1,2),(2,3),(3,7),(0,4),(4,5),(5,6),(6,8),(9,10),
+    (11,12),(11,13),(13,15),(15,17),(15,19),(15,21),(17,19),
+    (12,14),(14,16),(16,18),(16,20),(16,22),(18,20),
+    (11,23),(12,24),(23,24),(23,25),(25,27),(27,29),(29,31),(27,31),
+    (24,26),(26,28),(28,30),(30,32),(28,32)
 ]
 
 
 def draw_skeleton_on_frame(frame: np.ndarray, landmarks, metrics: Dict[str, Any]) -> np.ndarray:
-    """Dibuja el esqueleto cinemático y los ángulos en el cuadro con OpenCV."""
-    h, w, _ = frame.shape
+    """Superpone el cuerpo detectado; no genera puntos fuera de imagen o con baja confianza."""
+    h, w = frame.shape[:2]
     annotated = frame.copy()
-
-    # Coordenadas en píxeles
     coords = {}
-    for idx, lm in enumerate(landmarks):
-        px = int(lm.x * w)
-        py = int(lm.y * h)
-        coords[idx] = (px, py)
-
-    # 1. Dibujar conexiones óseas
-    for start_idx, end_idx in SKELETON_CONNECTIONS:
-        if start_idx in coords and end_idx in coords:
-            p1 = coords[start_idx]
-            p2 = coords[end_idx]
-            # Solo si están en rango visible
-            if 0 <= p1[0] < w and 0 <= p1[1] < h and 0 <= p2[0] < w and 0 <= p2[1] < h:
-                cv2.line(annotated, p1, p2, (0, 245, 160), 3, cv2.LINE_AA)
-
-    # 2. Dibujar nodos articulares
-    for idx in [11, 12, 23, 24, 25, 26, 27, 28]:
-        if idx in coords:
-            p = coords[idx]
-            if 0 <= p[0] < w and 0 <= p[1] < h:
-                # Nodo central y halo
-                cv2.circle(annotated, p, 7, (0, 194, 255), -1, cv2.LINE_AA)
-                cv2.circle(annotated, p, 9, (255, 255, 255), 2, cv2.LINE_AA)
-
-    # 3. Superponer valores de ángulos
-    left_knee = metrics.get('left_knee_angle')
-    if left_knee and 25 in coords:
-        kp = coords[25]
-        text = f"Rodilla: {left_knee:.1f}°"
-        cv2.putText(annotated, text, (kp[0] + 12, kp[1] - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
-
-    symmetry = metrics.get('symmetry_score')
-    if symmetry:
-        sym_text = f"Simetria: {symmetry:.1f}%"
-        color = (0, 245, 160) if symmetry >= 90.0 else (51, 102, 255)
-        cv2.putText(annotated, sym_text, (20, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
-
-    # 4. Superponer Sector Cinemático (Metodología UCT Arellano & Henríquez)
-    phase_sector = metrics.get('phase_sector')
-    if phase_sector:
-        sec_tag = phase_sector.get('tag', 'UCT CINEMÁTICA')
-        cv2.putText(annotated, f"UCT [{sec_tag}]", (20, h - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 245, 160), 2, cv2.LINE_AA)
-
+    for index, point in enumerate(landmarks):
+        if (getattr(point, "visibility", 0) >= 0.4 and getattr(point, "presence", 1) >= 0.4
+                and 0 <= point.x <= 1 and 0 <= point.y <= 1):
+            coords[index] = (min(w-1, int(point.x*w)), min(h-1, int(point.y*h)))
+    thickness = max(1, int(min(w,h)/150))
+    for start, end in SKELETON_CONNECTIONS:
+        if start in coords and end in coords:
+            cv2.line(annotated, coords[start], coords[end], (255,255,255), thickness, cv2.LINE_AA)
+    if 0 in coords and 11 in coords and 12 in coords:
+        neck = ((coords[11][0]+coords[12][0])//2, (coords[11][1]+coords[12][1])//2)
+        cv2.line(annotated, coords[0], neck, (255,255,255), thickness, cv2.LINE_AA)
+    for index, xy in coords.items():
+        color = (255,180,40) if index < 11 else ((40,70,255) if index < 23 else (100,255,50))
+        cv2.circle(annotated, xy, max(2, thickness+1), color, -1, cv2.LINE_AA)
     return annotated
 
 
@@ -185,7 +146,10 @@ async def process_video(
     file: Optional[UploadFile] = File(None),
     use_sample: bool = Form(False),
     sample_stride: int = Form(3),
-    max_frames: int = Form(150)
+    max_frames: int = Form(150),
+    scan_full_video: bool = Form(False),
+    include_pose: bool = Form(False),
+    max_samples: int = Form(4500)
 ):
     """
     Recibe un archivo de video (.mp4, .webm, .mov) o usa el video de muestra de velocista.
@@ -193,6 +157,8 @@ async def process_video(
     calcula ángulos vectoriales y simetría bilateral, y retorna la telemetría completa.
     """
     temp_path = None
+    if not 1 <= sample_stride <= 60 or not 1 <= max_frames <= 3600 or not 30 <= max_samples <= 6000:
+        raise HTTPException(status_code=422, detail="Parámetros de muestreo fuera de rango.")
     try:
         # Determinar fuente del video
         if use_sample or file is None:
@@ -223,6 +189,14 @@ async def process_video(
 
         pose_detector = get_detector()
 
+        if scan_full_video and duration_sec > 300:
+            cap.release()
+            raise HTTPException(status_code=413, detail="Usa un clip de hasta cinco minutos para analizar el recorrido completo.")
+        effective_stride = sample_stride
+        if scan_full_video:
+            effective_stride = max(sample_stride, int(math.ceil(fps / 15)), int(math.ceil(max(1,total_frames) / max_samples)))
+        processing_limit = total_frames if scan_full_video and total_frames > 0 else (int(fps * 300) if scan_full_video else max_frames)
+        pose_frames = []
         processed_frames = []
         preview_frames = []
         frame_idx = 0
@@ -233,12 +207,12 @@ async def process_video(
         symmetries = []
 
         # Procesar cuadros
-        while cap.isOpened() and frame_idx < max_frames:
+        while cap.isOpened() and frame_idx < processing_limit:
             ret, frame = cap.read()
             if not ret:
                 break
 
-            if frame_idx % sample_stride == 0:
+            if frame_idx % effective_stride == 0:
                 time_sec = round(frame_idx / fps, 3)
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -253,9 +227,13 @@ async def process_video(
                     "landmarks_summary": None
                 }
 
+                sample_landmarks = None
                 if detection.pose_landmarks and len(detection.pose_landmarks) > 0:
                     frames_with_pose += 1
                     lm = detection.pose_landmarks[0]
+                    if include_pose:
+                        sample_landmarks = [[round(float(p.x),5), round(float(p.y),5),
+                            round(float(getattr(p,"visibility",0)),3), round(float(getattr(p,"presence",1)),3)] for p in lm]
                     frame_data["has_pose"] = True
 
                     # Coordenadas normalizadas clave
@@ -310,6 +288,8 @@ async def process_video(
                         })
 
                 processed_frames.append(frame_data)
+                if include_pose:
+                    pose_frames.append({"time": time_sec, "frame": frame_idx, "landmarks": sample_landmarks})
 
             frame_idx += 1
 
@@ -367,6 +347,13 @@ async def process_video(
 
         return {
             "status": "success",
+            "pose_track": {
+                "version": 1, "landmark_count": 33, "width": width, "height": height,
+                "fps": fps, "duration": duration_sec, "sample_stride": effective_stride,
+                "sample_interval": round(effective_stride / fps, 5),
+                "full_video": scan_full_video, "connections": SKELETON_CONNECTIONS,
+                "frames": pose_frames
+            } if include_pose else None,
             "video_info": {
                 "filename": video_filename,
                 "resolution": f"{width}x{height}",
@@ -395,6 +382,8 @@ async def process_video(
             "processed_frames": processed_frames
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error procesando video: {str(e)}")
     finally:

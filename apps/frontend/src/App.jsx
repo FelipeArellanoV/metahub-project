@@ -86,8 +86,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/capture-lab" element={<ProtectedRoute allowedRoles={['entrenador']}><LiveCapture /></ProtectedRoute>} />
         <Route path="/reviews" element={<ProtectedRoute allowedRoles={['atleta','entrenador']}><SessionReviews /></ProtectedRoute>} />
-        <Route path="/upload" element={<ProtectedRoute allowedRoles={['atleta']}><UploadVideo /></ProtectedRoute>} />
+        <Route path="/upload" element={<ProtectedRoute allowedRoles={['atleta','entrenador']}><UploadVideo /></ProtectedRoute>} />
         <Route path="/evolution" element={<ProtectedRoute allowedRoles={['atleta']}><MyEvolution /></ProtectedRoute>} />
         <Route path="/clubs" element={<ProtectedRoute allowedRoles={['entrenador']}><Clubs /></ProtectedRoute>} />
         <Route path="/collaboration" element={<ProtectedRoute allowedRoles={['atleta', 'entrenador']}><Collaboration /></ProtectedRoute>} />
@@ -183,7 +184,7 @@ export default function App() {
           path="/capture"
           element={
             <ProtectedRoute allowedRoles={['entrenador']}>
-              <LiveCapture />
+              <UploadVideo />
             </ProtectedRoute>
           }
         />

@@ -41,6 +41,9 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
+const poseRequest=async path=>{const r=await fetch((import.meta.env.VITE_API_BASE||'')+path,{headers:{Authorization:'Bearer '+localStorage.getItem('metahub_token')}});const data=await r.json();if(!r.ok)throw new Error(data.error||'No se pudieron cargar los datos');return data;};
+
+const formatMetric=(value,digits)=>Number.isFinite(value)?value.toFixed(digits):'Sin medición';
 
 function extractSessionMetrics(session) {
   if (!session) {
@@ -65,16 +68,16 @@ function extractSessionMetrics(session) {
   const sm = a.summary_metrics || {};
   const ipt = typeof session.iptScore === 'number'
     ? session.iptScore
-    : (typeof a.ipt_score === 'number' ? a.ipt_score : 0);
+    : (typeof a.ipt_score === 'number' ? a.ipt_score : NaN);
 
-  const cadenceHz = sm.cadence_hz ?? (sm.avg_cadence_hz || 3.10);
+  const cadenceHz = sm.cadence_hz ?? (sm.avg_cadence_hz ?? NaN);
   const cadencePpm = sm.cadence_ppm ?? Math.round(cadenceHz * 60);
-  const strideLengthM = sm.stride_length_m ?? 1.74;
-  const speedMs = sm.speed_ms ?? Number((cadenceHz * strideLengthM).toFixed(2));
-  const kneeAngle = sm.avg_knee_angle ?? sm.min_knee_flexion ?? 24.2;
-  const hipAngle = sm.avg_hip_angle ?? sm.peak_hip_extension ?? 38.5;
-  const symmetry = sm.avg_symmetry_score ?? 85.0;
-  const trunkLean = sm.trunk_lean_angle ?? -5.0;
+  const strideLengthM = sm.stride_length_m ?? NaN;
+  const speedMs = sm.speed_ms ?? NaN;
+  const kneeAngle = sm.avg_knee_angle ?? sm.min_knee_flexion ?? NaN;
+  const hipAngle = sm.avg_hip_angle ?? sm.peak_hip_extension ?? NaN;
+  const symmetry = sm.avg_symmetry_score ?? NaN;
+  const trunkLean = sm.trunk_lean_angle ?? NaN;
 
   const dateFormatted = session.sessionDate
     ? new Date(session.sessionDate).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -101,6 +104,7 @@ function extractSessionMetrics(session) {
 
 export default function Compare() {
   const navigate = useNavigate();
+  const viewerRole=JSON.parse(localStorage.getItem('metahub_user')||'{}').role;
   const [athletesList, setAthletesList] = useState([]);
   const [selectedAthleteId, setSelectedAthleteId] = useState('');
   const [athleteSessions, setAthleteSessions] = useState([]);
@@ -111,14 +115,14 @@ export default function Compare() {
   const [cvStatusMessage, setCvStatusMessage] = useState('');
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [scrubPhase, setScrubPhase] = useState(55); // 0% Impulso, 50% Vuelo, 100% Contacto
-  const [showSkeleton, setShowSkeleton] = useState(true);
+  const [scrubPhase, setScrubPhase] = useState(55);
   const animFrameRef = useRef(null);
+  const [showSkeleton, setShowSkeleton] = useState(true);
 
   // 1. Cargar lista real de atletas desde el backend
   useEffect(() => {
     let isMounted = true;
-    api.athletes.getAll()
+    (viewerRole==='atleta' ? api.portal.getMe().then(data=>[data.athlete]) : poseRequest('/api/roster').then(data=>data.athletes))
       .then(list => {
         if (isMounted && Array.isArray(list) && list.length > 0) {
           setAthletesList(list);
@@ -135,7 +139,7 @@ export default function Compare() {
   const loadSessionsForAthlete = (athleteId) => {
     if (!athleteId) return;
     setLoadingSessions(true);
-    api.sessions.getByAthlete(athleteId)
+    poseRequest('/api/videos/sessions?athleteId='+encodeURIComponent(athleteId)).then(data=>data.sessions)
       .then(sessions => {
         const sorted = (sessions || []).slice().sort((a, b) => new Date(a.sessionDate || a.createdAt) - new Date(b.sessionDate || b.createdAt));
         setAthleteSessions(sorted);
@@ -165,49 +169,7 @@ export default function Compare() {
     }
   }, [selectedAthleteId]);
 
-  // 3. Ejecutar análisis real con MediaPipe en video de prueba o captura
-  const handleRunRealCvAnalysis = async () => {
-    if (!selectedAthleteId) return;
-    setIsProcessingCv(true);
-    setCvStatusMessage('Iniciando microservicio MediaPipe Pose en puerto 8000...');
-
-    try {
-      const formData = new FormData();
-      formData.append('use_sample', 'true');
-      formData.append('sample_stride', '2');
-      formData.append('max_frames', '120');
-
-      setTimeout(() => setCvStatusMessage('Extrayendo fotogramas con OpenCV y detectando 33 articulaciones...'), 1000);
-      setTimeout(() => setCvStatusMessage('Calculando ángulos vectoriales y evaluando Índice IPT UCT...'), 2400);
-
-      const result = await api.cv.processVideo(formData);
-      setCvStatusMessage('Guardando sesión biomecánica real en base de datos...');
-
-      const ipt = result.ipt_evaluation?.ipt_score || 78.5;
-      await api.sessions.create({
-        athleteId: Number(selectedAthleteId),
-        sessionDate: new Date().toISOString(),
-        videoUrl: '/sample_sprint.webm',
-        notes: `Control Biomecánico MediaPipe — ${result.ipt_evaluation?.categoria || 'Evaluación Técnica Real'}`,
-        iptScore: ipt,
-        analysis: {
-          ipt_evaluation: result.ipt_evaluation,
-          summary_metrics: result.summary_metrics,
-          video_info: result.video_info
-        }
-      });
-
-      setCvStatusMessage('¡Análisis completado y guardado con éxito!');
-      loadSessionsForAthlete(selectedAthleteId);
-    } catch (err) {
-      alert(`Error en análisis MediaPipe: ${err.message}`);
-    } finally {
-      setTimeout(() => {
-        setIsProcessingCv(false);
-        setCvStatusMessage('');
-      }, 1200);
-    }
-  };
+  const handleRunRealCvAnalysis=()=>navigate(viewerRole==='atleta'?'/upload':'/capture');
 
   // 4. Animación de reproducción sincronizada en bucle
   useEffect(() => {
@@ -258,8 +220,8 @@ export default function Compare() {
       {
         metric: 'Índice de Perfeccionamiento Técnico (IPT)',
         unit: 'pts',
-        before: sA.ipt.toFixed(1),
-        after: sB.ipt.toFixed(1),
+        before: formatMetric(sA.ipt,1),
+        after: formatMetric(sB.ipt,1),
         diff: `${diffIpt >= 0 ? '+' : ''}${diffIpt.toFixed(1)} pts`,
         percent: `${diffIpt >= 0 ? '+' : ''}${sA.ipt > 0 ? ((diffIpt / sA.ipt) * 100).toFixed(1) : 0}%`,
         positive: diffIpt >= 0,
@@ -269,8 +231,8 @@ export default function Compare() {
       {
         metric: 'Cadencia de Zancada',
         unit: 'Hz (pasos/s)',
-        before: `${sA.cadenceHz.toFixed(2)} Hz`,
-        after: `${sB.cadenceHz.toFixed(2)} Hz`,
+        before: `${formatMetric(sA.cadenceHz,2)} Hz`,
+        after: `${formatMetric(sB.cadenceHz,2)} Hz`,
         diff: `${diffCadence >= 0 ? '+' : ''}${diffCadence.toFixed(2)} Hz`,
         percent: `${sB.cadencePpm} ppm (antes ${sA.cadencePpm})`,
         positive: diffCadence >= 0,
@@ -280,8 +242,8 @@ export default function Compare() {
       {
         metric: 'Longitud de Zancada Estimada',
         unit: 'metros',
-        before: `${sA.strideLengthM.toFixed(2)} m`,
-        after: `${sB.strideLengthM.toFixed(2)} m`,
+        before: `${formatMetric(sA.strideLengthM,2)} m`,
+        after: `${formatMetric(sB.strideLengthM,2)} m`,
         diff: `${diffStride >= 0 ? '+' : ''}${diffStride.toFixed(2)} m`,
         percent: `${diffStride >= 0 ? '+' : ''}${sA.strideLengthM > 0 ? ((diffStride / sA.strideLengthM) * 100).toFixed(1) : 0}% amplitud`,
         positive: diffStride >= 0,
@@ -291,8 +253,8 @@ export default function Compare() {
       {
         metric: 'Velocidad de Pasada (v = Cadencia × Zancada)',
         unit: 'm/s',
-        before: `${sA.speedMs.toFixed(2)} m/s`,
-        after: `${sB.speedMs.toFixed(2)} m/s`,
+        before: `${formatMetric(sA.speedMs,2)} m/s`,
+        after: `${formatMetric(sB.speedMs,2)} m/s`,
         diff: `${diffSpeed >= 0 ? '+' : ''}${diffSpeed.toFixed(2)} m/s`,
         percent: `${(sB.speedMs * 3.6).toFixed(1)} km/h (antes ${(sA.speedMs * 3.6).toFixed(1)})`,
         positive: diffSpeed >= 0,
@@ -302,8 +264,8 @@ export default function Compare() {
       {
         metric: 'Flexión de Rodilla (Fase de Recobro)',
         unit: 'grados',
-        before: `${sA.kneeAngle.toFixed(1)}°`,
-        after: `${sB.kneeAngle.toFixed(1)}°`,
+        before: `${formatMetric(sA.kneeAngle,1)}°`,
+        after: `${formatMetric(sB.kneeAngle,1)}°`,
         diff: `${diffKnee >= 0 ? '+' : ''}${diffKnee.toFixed(1)}°`,
         percent: diffKnee >= 0 ? 'Mayor elevación de ataque' : 'Recobro más plano',
         positive: diffKnee >= 0,
@@ -313,50 +275,21 @@ export default function Compare() {
       {
         metric: 'Índice de Simetría Bilateral',
         unit: '%',
-        before: `${sA.symmetry.toFixed(1)}%`,
-        after: `${sB.symmetry.toFixed(1)}%`,
+        before: `${formatMetric(sA.symmetry,1)}%`,
+        after: `${formatMetric(sB.symmetry,1)}%`,
         diff: `${diffSym >= 0 ? '+' : ''}${diffSym.toFixed(1)}%`,
         percent: 'Equilibrio bilateral de apoyos',
         positive: diffSym >= 0,
         interpretation: 'Prevención activa de lesiones por sobrecarga asimétrica',
         icon: <GitCompare size={16} />
       }
-    ];
+    ].filter((_,i)=>[['ipt','ipt'],['cadenceHz','cadenceHz'],['strideLengthM','strideLengthM'],['speedMs','speedMs'],['kneeAngle','kneeAngle'],['symmetry','symmetry']][i].every((key,j)=>Number.isFinite((j?sB:sA)[key])));
   }, [sA, sB, hasTwoSessions]);
 
   const currentAthlete = athletesList.find(a => String(a.id) === String(selectedAthleteId));
 
-  // Dictamen técnico clínico generado a partir de los datos reales
-  const dynamicCoachVerdict = useMemo(() => {
-    if (!hasTwoSessions) return null;
-    const diffIpt = sB.ipt - sA.ipt;
-    const diffKnee = sB.kneeAngle - sA.kneeAngle;
-    const diffCadence = sB.cadenceHz - sA.cadenceHz;
-    const diffStride = sB.strideLengthM - sA.strideLengthM;
-
-    let text = `El atleta ${currentAthlete?.name || 'evaluado'} `;
-    if (diffIpt > 0) {
-      text += `evidencia una evolución técnica favorable (+${diffIpt.toFixed(1)} pts IPT), avanzando desde ${sA.ipt.toFixed(1)} hasta ${sB.ipt.toFixed(1)} pts. `;
-    } else if (diffIpt === 0) {
-      text += `mantiene una técnica estable (${sB.ipt.toFixed(1)} pts IPT) entre ambas tomas. `;
-    } else {
-      text += `presenta una disminución de ${Math.abs(diffIpt).toFixed(1)} pts en su IPT, sugiriendo fatiga o descompensación postural. `;
-    }
-
-    if (diffKnee > 0) {
-      text += `Se aprecia mayor flexión de rodilla en recobro (+${diffKnee.toFixed(1)}°), permitiendo acortar la palanca y ganar ${Math.round(diffStride * 100)} cm de zancada. `;
-    } else {
-      text += `El ángulo de recobro de rodilla requiere refuerzo para optimizar el ataque del pie. `;
-    }
-
-    if (sB.symmetry >= 92) {
-      text += `La simetría bilateral se consolida en zona óptima de prevención (${sB.symmetry.toFixed(1)}%).`;
-    } else {
-      text += `La simetría bilateral (${sB.symmetry.toFixed(1)}%) aconseja prescribir drills correctivos unipodales.`;
-    }
-
-    return text;
-  }, [hasTwoSessions, sA, sB, currentAthlete]);
+  const dynamicCoachVerdict=hasTwoSessions&&Number.isFinite(sA.ipt)&&Number.isFinite(sB.ipt)
+   ? 'Cambio observado de IPT: '+(sB.ipt-sA.ipt).toFixed(1)+' puntos. Revisa las tomas y sus condiciones de captura junto al entrenador.' : null;
 
   const getPhaseName = (val) => {
     if (val < 33) return 'Fase de Impulso / Despegue Post-Contacto';
@@ -371,7 +304,7 @@ export default function Compare() {
   const footY_A = 255 - Math.sin(t * Math.PI) * 18;
   const footX_A = 140 - Math.cos(t * Math.PI) * 25;
 
-  const kneeY_B = 195 - Math.sin(t * Math.PI) * (25 + Math.min(15, (sB.kneeAngle - sA.kneeAngle) * 2));
+  const kneeY_B = 195 - Math.sin(t * Math.PI) * (25 + Math.min(15, (Number.isFinite(sB.kneeAngle - sA.kneeAngle) ? sB.kneeAngle - sA.kneeAngle : 0) * 2));
   const kneeX_B = 160 - Math.cos(t * Math.PI) * 18;
   const footY_B = 238 - Math.sin(t * Math.PI) * 28;
   const footX_B = 185 - Math.cos(t * Math.PI) * 30;
@@ -486,7 +419,7 @@ export default function Compare() {
               onClick={handleRunRealCvAnalysis}
             >
               {isProcessingCv ? <RefreshCw size={14} className="spin" /> : <Camera size={14} />}
-              <span>{isProcessingCv ? 'Procesando en :8000...' : 'Capturar Nueva Sesión (MediaPipe)'}</span>
+              <span>{isProcessingCv ? 'Procesando en :8000...' : 'Grabar o subir carrera'}</span>
             </button>
           </div>
         </div>
@@ -522,13 +455,13 @@ export default function Compare() {
               disabled={isProcessingCv}
             >
               <Camera size={16} />
-              <span>Ejecutar Toma Real con MediaPipe Ahora</span>
+              <span>Grabar o subir carrera</span>
             </button>
             <button
               type="button"
               className="btn-outline-sm"
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'white', border: '1px solid #d97706', color: '#b45309', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
-              onClick={() => navigate('/live')}
+              onClick={() => navigate(viewerRole==='atleta'?'/upload':'/capture')}
             >
               <Video size={16} />
               <span>Ir a Captura en Terreno</span>
@@ -537,6 +470,7 @@ export default function Compare() {
         </div>
       )}
 
+      <p style={{fontSize:12,color:"#64748b"}}>Animación ilustrativa de la zancada. El movimiento del monito no reproduce las articulaciones detectadas en el video. Las mediciones disponibles corresponden a las sesiones seleccionadas.</p>
       {/* REPRODUCTOR SINCRONIZADO Y CONTROL DE FASE */}
       <div className="sync-playback-bar" style={{ display: 'flex', alignItems: 'center', gap: 16, background: '#f8fafc', padding: '14px 20px', borderRadius: 14, border: '1px solid #e2e8f0', marginBottom: 24 }}>
         <button
@@ -562,7 +496,7 @@ export default function Compare() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
             <span style={{ fontWeight: 700, color: '#10283f' }}>
-              Fase analizada: <span style={{ color: '#0284c7' }}>{getPhaseName(scrubPhase)}</span>
+              Fase ilustrada: <span style={{ color: '#0284c7' }}>{getPhaseName(scrubPhase)}</span>
             </span>
             <span style={{ color: '#64748b', fontWeight: 700, fontFamily: 'monospace' }}>
               {Math.round(scrubPhase)}% del ciclo de zancada
@@ -618,18 +552,18 @@ export default function Compare() {
             </svg>
 
             <div style={{ position: 'absolute', top: '55%', left: '22%', background: 'rgba(244,63,94,0.2)', border: '1px solid #f43f5e', color: '#fda4af', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-              Flexión: {sA.kneeAngle.toFixed(1)}°
+              Flexión: {formatMetric(sA.kneeAngle,1)}°
             </div>
 
             <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#f87171' }}>
-              Cadencia: {sA.cadenceHz.toFixed(2)} Hz ({sA.cadencePpm} ppm)
+              Cadencia: {formatMetric(sA.cadenceHz,2)} Hz ({sA.cadencePpm} ppm)
             </div>
           </div>
 
           <div className="video-mock-footer" style={{ padding: '12px 18px', background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
-            <div>IPT: <strong style={{ color: '#fca5a5' }}>{sA.ipt.toFixed(1)} pts</strong></div>
-            <div>Cadencia: <strong style={{ color: '#cbd5e1' }}>{sA.cadenceHz.toFixed(2)} Hz</strong></div>
-            <div>Zancada: <strong style={{ color: '#cbd5e1' }}>{sA.strideLengthM.toFixed(2)} m</strong></div>
+            <div>IPT: <strong style={{ color: '#fca5a5' }}>{formatMetric(sA.ipt,1)} pts</strong></div>
+            <div>Cadencia: <strong style={{ color: '#cbd5e1' }}>{formatMetric(sA.cadenceHz,2)} Hz</strong></div>
+            <div>Zancada: <strong style={{ color: '#cbd5e1' }}>{formatMetric(sA.strideLengthM,2)} m</strong></div>
           </div>
         </div>
 
@@ -670,21 +604,23 @@ export default function Compare() {
             </svg>
 
             <div style={{ position: 'absolute', top: '50%', left: '22%', background: 'rgba(16,185,129,0.2)', border: '1px solid #10b981', color: '#6ee7b7', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-              Flexión: {sB.kneeAngle.toFixed(1)}°
+              Flexión: {formatMetric(sB.kneeAngle,1)}°
             </div>
 
             <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#6ee7b7', fontWeight: 600 }}>
-              Cadencia: {sB.cadenceHz.toFixed(2)} Hz ({sB.cadencePpm} ppm)
+              Cadencia: {formatMetric(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
             </div>
           </div>
 
           <div className="video-mock-footer" style={{ padding: '12px 18px', background: 'rgba(2,132,199,0.1)', borderTop: '1px solid rgba(2,132,199,0.2)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
-            <div>IPT: <strong style={{ color: '#86efac' }}>{sB.ipt.toFixed(1)} pts</strong></div>
-            <div>Cadencia: <strong style={{ color: '#6ee7b7' }}>{sB.cadenceHz.toFixed(2)} Hz</strong></div>
-            <div>Zancada: <strong style={{ color: '#6ee7b7' }}>{sB.strideLengthM.toFixed(2)} m</strong></div>
+            <div>IPT: <strong style={{ color: '#86efac' }}>{formatMetric(sB.ipt,1)} pts</strong></div>
+            <div>Cadencia: <strong style={{ color: '#6ee7b7' }}>{formatMetric(sB.cadenceHz,2)} Hz</strong></div>
+            <div>Zancada: <strong style={{ color: '#6ee7b7' }}>{formatMetric(sB.strideLengthM,2)} m</strong></div>
           </div>
         </div>
       </div>
+
+
 
       {/* TARJETAS DE DELTAS BIOMECÁNICOS */}
       {hasTwoSessions && (
@@ -766,9 +702,9 @@ export default function Compare() {
               <CheckCircle2 size={22} color="#10b981" />
               <div>
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#10283f' }}>
-                  Dictamen Técnico Biomecánico del Entrenador (Generado desde Datos Reales)
+                  Resumen de mediciones disponibles
                 </h4>
-                <span style={{ fontSize: 12, color: '#64748b' }}>Prof. Felipe Arellano · Escuela de Atletismo UCT</span>
+                <span style={{ fontSize: 12, color: '#64748b' }}>Comparación de resultados almacenados</span>
               </div>
             </div>
 
@@ -793,7 +729,7 @@ export default function Compare() {
               <Sparkles size={14} /> Evolución IPT: {(sB.ipt - sA.ipt) >= 0 ? '+' : ''}{(sB.ipt - sA.ipt).toFixed(1)} pts
             </span>
             <span className="report-badge-pill" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#1e40af', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
-              <Timer size={14} /> Cadencia Actual: {sB.cadenceHz.toFixed(2)} Hz ({sB.cadencePpm} ppm)
+              <Timer size={14} /> Cadencia Actual: {formatMetric(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
             </span>
           </div>
         </div>

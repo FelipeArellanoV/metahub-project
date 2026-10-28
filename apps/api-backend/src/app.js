@@ -144,7 +144,7 @@ async function app(req, res) {
   }
 
   // El video llega como binario: no debe pasar por el parser JSON.
-  if (method === 'POST' && url === '/api/portal/videos') {
+  if (method === 'POST' && (url === '/api/portal/videos' || url === '/api/capture/videos')) {
     return verifyToken(req, res, () => athleteVideoController.handle(req, res));
   }
 
@@ -191,7 +191,7 @@ async function app(req, res) {
   if (url === '/api/organization') {
     return verifyToken(req, res, () => organizationController.handle(req, res));
   }
-  if (url === '/api/portal/videos' || url.startsWith('/api/portal/videos/') || url.startsWith('/api/videos/')) {
+  if (url === '/api/capture/videos' || url.startsWith('/api/capture/videos/') || url === '/api/portal/videos' || url.startsWith('/api/portal/videos/') || url.startsWith('/api/videos/')) {
     return verifyToken(req, res, () => athleteVideoController.handle(req, res));
   }
 

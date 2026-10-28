@@ -1,3 +1,4 @@
+import {ThemeSwitch} from './Theme.jsx';
 /**
  * =========================================================================================
  * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
@@ -16,6 +17,8 @@
 
 import {
   Activity,
+  Menu,
+  X,
   AlertTriangle,
   Calendar,
   CalendarDays,
@@ -33,32 +36,20 @@ import {
   Video
 } from 'lucide-react';
 
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import './navigation.css';
+import '../restored-theme.css';
 
 const coachMenuItems = [
+  { label: 'Revisar sesiones', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
+  { label: 'Mis clubes', shortLabel: 'Clubes', icon: Users, to: '/clubs' },
+  { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Users, to: '/collaboration' },
   {
     label: 'Inicio',
     shortLabel: 'Inicio',
     icon: LayoutDashboard,
     to: '/'
-  },
-  {
-    label: 'Comparador Antes/Después',
-    shortLabel: 'Comparar',
-    icon: GitCompare,
-    to: '/compare'
-  },
-  {
-    label: 'Biblioteca de drills',
-    shortLabel: 'Drills',
-    icon: Dumbbell,
-    to: '/drills'
-  },
-  {
-    label: 'Cámara en Vivo & Calibración',
-    shortLabel: 'Cámara',
-    icon: Camera,
-    to: '/capture'
   },
   {
     label: 'Mis atletas',
@@ -73,14 +64,29 @@ const coachMenuItems = [
     to: '/sessions'
   },
   {
+    label: 'Cámara en Vivo & Calibración',
+    shortLabel: 'Cámara',
+    icon: Camera,
+    to: '/capture'
+  },
+  {
     label: 'Prioridad de apoyo',
     shortLabel: 'Apoyo',
     icon: AlertTriangle,
     to: '/priority'
   },
-  { label: 'Revisar sesiones', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
-  { label: 'Mis clubes', shortLabel: 'Clubes', icon: Users, to: '/clubs' },
-  { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Users, to: '/collaboration' },
+  {
+    label: 'Comparador Antes/Después',
+    shortLabel: 'Comparar',
+    icon: GitCompare,
+    to: '/compare'
+  },
+  {
+    label: 'Biblioteca de drills',
+    shortLabel: 'Drills',
+    icon: Dumbbell,
+    to: '/drills'
+  },
   {
     label: 'Fichas de progreso',
     shortLabel: 'Fichas',
@@ -96,17 +102,47 @@ const coachMenuItems = [
 ];
 
 const athleteMenuItems = [
-  { label: 'Mi Espacio', shortLabel: 'Inicio', icon: PersonStanding, to: '/portal' },
   { label: 'Comparador Biomecánico', shortLabel: 'Comparar', icon: GitCompare, to: '/compare' },
   { label: 'Mis revisiones y plan', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
   { label: 'Subir video', shortLabel: 'Video', icon: Video, to: '/upload' },
   { label: 'Mi evolución', shortLabel: 'Evolución', icon: GitCompare, to: '/evolution' },
+  { label: 'Mi Espacio', shortLabel: 'Espacio', icon: PersonStanding, to: '/portal' },
   { label: 'Mi seguimiento', shortLabel: 'Seguimiento', icon: Dumbbell, to: '/collaboration' },
   { label: 'Mi perfil', shortLabel: 'Perfil', icon: Settings, to: '/settings' }
 ];
 
 export function Layout({ children }) {
   const navigate = useNavigate();
+  const navLocation = useLocation();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButton = useRef(null);
+  const morePanel = useRef(null);
+  useEffect(() => { setMoreOpen(false); }, [navLocation.pathname]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const panel = morePanel.current;
+    panel?.querySelector('button, a')?.focus();
+    const keydown = event => {
+      if (event.key === 'Escape') { setMoreOpen(false); return; }
+      if (event.key !== 'Tab') return;
+      const nodes = panel?.querySelectorAll('button, a[href]');
+      if (!nodes?.length) return;
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    const resized = () => { if (window.innerWidth > 780) setMoreOpen(false); };
+    document.addEventListener('keydown', keydown);
+    window.addEventListener('resize', resized);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', keydown);
+      window.removeEventListener('resize', resized);
+      moreButton.current?.focus();
+    };
+  }, [moreOpen]);
 
   let user = null;
   try {
@@ -118,7 +154,13 @@ export function Layout({ children }) {
 
   const role = user?.role?.toLowerCase() || 'entrenador';
   const isAthlete = role === 'atleta';
-  const menuItems = isAthlete ? athleteMenuItems : coachMenuItems;
+  const order = isAthlete
+    ? ['/portal','/upload','/evolution','/compare','/collaboration','/reviews','/settings']
+    : ['/','/athletes','/sessions','/capture','/collaboration','/reviews','/priority','/compare','/drills','/reports','/clubs','/settings'];
+  const menuItems = [...(isAthlete ? athleteMenuItems : coachMenuItems)].sort((a,b) => order.indexOf(a.to) - order.indexOf(b.to));
+  const primaryPaths = isAthlete ? ['/portal','/upload','/evolution'] : ['/','/athletes','/collaboration'];
+  const primaryItems = primaryPaths.map(route => menuItems.find(item => item.to === route)).filter(Boolean);
+  const moreIsActive = !primaryPaths.includes(navLocation.pathname);
   const sectionTitle = isAthlete ? 'PORTAL ATLETA' : 'PANEL ENTRENADOR';
 
   const userName = user?.name || 'Usuario';
@@ -211,7 +253,42 @@ export function Layout({ children }) {
         </div>
       </aside>
 
-      <main className="main-content">
+
+      <nav className="mobile-bottom-nav" aria-label="Navegación móvil">
+        {primaryItems.map(item => {
+          const Icon = item.icon;
+          return (
+            <NavLink key={item.to} to={item.to} end className={({isActive}) => 'mobile-nav-link' + (isActive ? ' active' : '')}>
+              <Icon size={21}/><span>{item.shortLabel}</span>
+            </NavLink>
+          );
+        })}
+        <button type="button" ref={moreButton} className={'mobile-nav-link' + (moreIsActive ? ' active' : '')}
+          aria-expanded={moreOpen} aria-controls="mobile-all-options" onClick={() => setMoreOpen(value => !value)}>
+          <Menu size={21}/><span>Más</span>
+        </button>
+      </nav>
+      {moreOpen && <div className="mobile-menu-backdrop" onMouseDown={event => {
+        if (event.target === event.currentTarget) setMoreOpen(false);
+      }}>
+        <section className="mobile-menu-sheet" ref={morePanel} role="dialog" aria-modal="true" aria-labelledby="mobile-menu-title">
+          <div className="mobile-menu-heading">
+            <div><h2 id="mobile-menu-title">Todas las opciones</h2><p>{userName} · {userRole}</p></div>
+            <button type="button" className="mobile-menu-close" aria-label="Cerrar menú" onClick={() => setMoreOpen(false)}><X size={21}/></button>
+          </div>
+          <nav id="mobile-all-options" className="mobile-menu-options" aria-label="Menú completo">
+            {menuItems.map(item => {
+              const Icon = item.icon;
+              return <NavLink key={item.to} to={item.to} end onClick={() => setMoreOpen(false)}
+                className={({isActive}) => isActive ? 'active' : ''}><Icon size={20}/><span>{item.label}</span></NavLink>;
+            })}
+          </nav>
+          <button type="button" className="mobile-menu-logout" onClick={() => { setMoreOpen(false); handleLogout(); }}><LogOut size={18}/>Cerrar sesión</button>
+        </section>
+      </div>}
+
+      <main className="main-content" key={navLocation.pathname}>
+        <ThemeSwitch/>
         {children}
       </main>
     </div>

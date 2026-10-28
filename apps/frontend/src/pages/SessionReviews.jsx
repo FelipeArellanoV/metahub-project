@@ -1,6 +1,8 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {Layout,PageHeader} from '../components/UI.jsx';
+import {ClipboardCheck} from 'lucide-react';
+import FeatureBanner from '../components/FeatureBanner.jsx';
 import {clubRequest} from '../services/roster.js';
 const labels={pending:'Pendiente de revisión',reviewed:'Revisada',requires_new_video:'Solicita nueva captura'};
 const date=v=>new Date(v).toLocaleString('es-CL');
@@ -30,9 +32,9 @@ function ReviewCard({session,tasks,canEdit,onReload}){
   }catch(e){setError(e.message);return false;}finally{working.current=false;setBusy(false);}
  }
  const exercises=session.analysis?.prescripcion_completa?.ejercicios||[];
- return <article className="panel-card">
+ return <article className="panel-card feature-review-card">
   <h2>Sesión #{session.id} · {date(session.sessionDate)}</h2>
-  <p>IPT: {session.iptScore==null?'Sin análisis':session.iptScore+' puntos'} · {labels[session.reviewStatus]}</p>
+  <div className="feature-session-meta"><span className="feature-pill">IPT: {session.iptScore==null?'Sin análisis':session.iptScore+' puntos'}</span><span className={'feature-pill '+session.reviewStatus}>{labels[session.reviewStatus]}</span></div>
   {session.reviewedAt&&<p>Última revisión: {date(session.reviewedAt)}</p>}
   {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
   {canEdit?<form onSubmit={e=>{e.preventDefault();save(false);}}>
@@ -49,7 +51,7 @@ function ReviewCard({session,tasks,canEdit,onReload}){
   <h3>Ejercicios vinculados a esta sesión</h3>
   {!tasks.length&&<p>Aún no hay ejercicios vinculados.</p>}
   <p>{tasks.filter(t=>t.done).length} completados de {tasks.length} asignados.</p>
-  <ul>{tasks.map(t=><li key={t.id}><strong>{t.title}</strong> · {t.done?'Completado':'Pendiente'}
+  <ul className="feature-linked-tasks">{tasks.map(t=><li key={t.id}><strong>{t.title}</strong> · {t.done?'Completado':'Pendiente'}
    <p style={{whiteSpace:'pre-wrap'}}>{t.details}</p>{t.dueAt&&<p>Fecha objetivo: {date(t.dueAt)}</p>}</li>)}</ul>
   {canEdit&&<form onSubmit={e=>{e.preventDefault();save(true);}}>
    {Array.isArray(exercises)&&exercises.length>0&&<label className="form-field"><span>Tomar como base una sugerencia del análisis</span>
@@ -93,9 +95,12 @@ export default function SessionReviews(){
   return()=>{clearInterval(timer);generation.current++;};
  },[reload]);
  const visible=data?.sessions.filter(s=>(filter==='all'||s.reviewStatus===filter)&&(!selectedSession||String(s.id)===selectedSession))||[];
- return <Layout><PageHeader eyebrow="CIERRE DEL CICLO" title={coach?'Revisión de sesiones':'Mis revisiones y plan'}
+ return <Layout><div className="feature-page feature-reviews"><PageHeader eyebrow="CIERRE DEL CICLO" title={coach?'Revisión de sesiones':'Mis revisiones y plan'}
  description="Observaciones del entrenador y ejercicios vinculados a cada evaluación."
  action={<button className="secondary-button" type="button" onClick={reload}>Actualizar</button>}/>
+ <FeatureBanner icon={ClipboardCheck} title={coach?'Una revisión que se convierte en progreso':'Tu entrenador acompaña cada sesión'}
+  description="Observaciones claras y ejercicios conectados con cada evaluación."
+  stats={[{label:'Sesiones',value:data?data.sessions.length:'—'},{label:'Revisadas',value:data?data.sessions.filter(s=>s.reviewStatus==='reviewed').length:'—'},{label:'Ejercicios',value:data?data.tasks.length:'—'}]}/>
  {coach&&<label className="form-field"><span>Atleta</span><select value={id} onChange={e=>{generation.current++;setData(null);setId(e.target.value);setQuery({athleteId:e.target.value});}}>
  <option value="">Seleccionar atleta</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.canEdit?' · A mi cargo':' · Club: solo lectura'}</option>)}</select></label>}
  {error&&<p role="alert">{error}</p>}
@@ -107,5 +112,5 @@ export default function SessionReviews(){
  {!visible.length&&<p>No hay sesiones para este filtro.</p>}
  {visible.map(s=><ReviewCard key={s.id} session={s} tasks={data.tasks.filter(t=>t.sessionId===s.id)} canEdit={data.athlete.canEdit} onReload={reload}/>)}
  </div></>}
- </Layout>;
+ </div></Layout>;
 }
