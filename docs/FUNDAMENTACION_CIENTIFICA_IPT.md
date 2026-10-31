@@ -42,10 +42,10 @@ Donde:
 
 ### C. Sector 3: Simetría Bilateral de Zancada ($w_3 = 0.25$ · Rango Óptimo: $\ge 92\%$)
 * **Citas Bibliográficas:**
-  * **Carpes, F. P., Mota, C. B., & Faria, I. E. (2010).** *On the significance of the evaluation of motor asymmetries in sports: A review of methodology, results, and recommendations.* Current Issues in Sports Biomechanics, 25-42.
-  * **Zifchock, R. A., Davis, I., Higginson, J., & Royer, T. (2008).** *The symmetry angle: a novel, robust measure of symmetry.* Gait & Posture, 27(4), 622-627.
+  * **Carpes, F. P., Mota, C. B., & Faria, I. E. (2010).** *On the bilateral asymmetry during running and cycling – A review considering leg preference.* Physical Therapy in Sport, 11(4), 136-142.
+  * **Zifchock, R. A., Davis, I., Higginson, J., & Royer, T. (2008).** *The symmetry angle: A novel, robust method of quantifying asymmetry.* Gait & Posture, 27(4), 622-627.
 * **Justificación Clínica y Preventiva en Escolares:**
-  Asimetrías bilaterales superiores al $8\%-10\%$ (simetría $<90\%-92\%$) generan momentos de torsión compensatorios en la pelvis y sacroilíacas. En velocistas escolares en etapa de maduración musculoesquelética, esta asimetría constituye el principal factor etiológico predictivo de distensión miofascial en el bíceps femoral (isquiotibiales).
+  Asimetrías bilaterales superiores al $8\%-10\%$ (simetría $<90\%-92\%$) se consideran en la literatura un indicador a vigilar. Carpes et al. (2010) advierten, sin embargo, que la relación entre asimetría y lesión en carrera no está claramente establecida y debe interpretarse con cautela. Los umbrales de este documento (8%-10%, 92%) son criterios de trabajo del proyecto y **no** provienen de una fuente que los valide; no se afirma que la asimetría sea un factor predictivo de lesión en escolares.
 
 ---
 
@@ -55,4 +55,4 @@ Donde:
 > *«¿Cuál es la validez del IPT? ¿Por qué no utilizar un simple promedio aritmético entre los ángulos detectados?»*
 >
 > **Respuesta recomendada:**  
-> *"Un promedio simple asignaría erróneamente el mismo peso a una fase propulsiva que a una compensación postural. En la literatura cinemática (Weyand et al., Ralph Mann), la fuerza horizontal de empuje es el principal determinante de la velocidad punta, por lo que representa el 40% del IPT. A su vez, el 35% del recobro se sustenta en la reducción cuadrática del momento de inercia según el modelo de Dillman, y el 25% restante a la simetría bilateral para salvaguardar la salud osteomuscular del estudiante frente a desgarros según los estándares de Carpes y Zifchock. Cada umbral está matemáticamente respaldado y calibrado específicamente para atletas en etapa formativa."*
+> *"Un promedio simple asignaría erróneamente el mismo peso a una fase propulsiva que a una compensación postural. En la literatura cinemática (Weyand et al., Ralph Mann), la fuerza horizontal de empuje es el principal determinante de la velocidad punta, por lo que representa el 40% del IPT. A su vez, el 35% del recobro se plantea como criterio de diseño a partir de la mecánica del recobro, y el 25% restante a la simetría bilateral, cuyo índice se discute en Carpes (2010) y Zifchock (2008). La literatura respalda los principios generales (Weyand et al., 2000; Mann y Sprague, 1980), pero los pesos (40/35/25) y los umbrales numéricos son decisiones de diseño del equipo, aún sin validación empírica ni calibración en escolares; su validación está planificada para la Etapa 4. Dillman (1975) no pudo verificarse y debe confirmarse antes de citarlo."*

@@ -500,7 +500,7 @@ export default function Compare() {
             </div>
 
             <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#f87171' }}>
-              Cadencia: {formatearMetrica(sA.cadenceHz,2)} Hz ({sA.cadencePpm} ppm)
+              Cadencia: {formatearMetrica(sA.cadenceHz,2)} Hz{Number.isFinite(sA.cadencePpm) ? ` (${sA.cadencePpm} ppm)` : ''}
             </div>
           </div>
 
@@ -552,7 +552,7 @@ export default function Compare() {
             </div>
 
             <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#6ee7b7', fontWeight: 600 }}>
-              Cadencia: {formatearMetrica(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
+              Cadencia: {formatearMetrica(sB.cadenceHz,2)} Hz{Number.isFinite(sB.cadencePpm) ? ` (${sB.cadencePpm} ppm)` : ''}
             </div>
           </div>
 
@@ -673,7 +673,7 @@ export default function Compare() {
               <Sparkles size={14} /> Evolución IPT: {(sB.ipt - sA.ipt) >= 0 ? '+' : ''}{(sB.ipt - sA.ipt).toFixed(1)} pts
             </span>
             <span className="report-badge-pill" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#1e40af', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
-              <Timer size={14} /> Cadencia Actual: {formatearMetrica(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
+              <Timer size={14} /> Cadencia Actual: {formatearMetrica(sB.cadenceHz,2)} Hz{Number.isFinite(sB.cadencePpm) ? ` (${sB.cadencePpm} ppm)` : ''}
             </span>
           </div>
         </div>
