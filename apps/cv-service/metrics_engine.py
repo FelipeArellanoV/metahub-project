@@ -17,6 +17,7 @@ Descripción: Calcula cinemática 2D a partir de puntos de referencia corporales
 """
 
 import math
+import numpy as np
 from typing import Dict, List, Any
 
 
@@ -160,11 +161,54 @@ def classify_kinematic_sector(keypoints: Dict[str, List[float]], metrics: Dict[s
         }
 
 
+MIN_MUESTRAS_POR_PIERNA = 12      # muestras mínimas por pierna para estimar su rango
+MIN_ROM_GRADOS = 15.0            # rango mínimo: por debajo no hay zancada observable
+
+
+def calcular_simetria_sesion(left_knee_series, right_knee_series):
+    """
+    Índice de simetría de SESIÓN (ADR-013).
+
+    El índice por cuadro compara el ángulo de ambas rodillas en el mismo instante. En la
+    carrera las piernas están desfasadas, de modo que esa diferencia mide la fase de la
+    zancada y no la asimetría. Aquí se resume cada pierna por separado en toda la sesión
+    (rango de movimiento = percentil 95 - percentil 5 del ángulo de rodilla, robusto a
+    valores atípicos) y luego se comparan los resúmenes de ambas piernas:
+
+        SI = 100 - |ROM_izq - ROM_der| / max(ROM_izq, ROM_der) * 100
+
+    Es independiente de la fase. Requiere varias zancadas por pierna; si no hay datos
+    suficientes devuelve valid=False y no un valor engañoso. Es un indicador preliminar
+    de la amplitud: no distingue el apoyo del vuelo ni sustituye a un análisis por ciclo.
+    """
+    def rom(series):
+        s = [float(v) for v in series]
+        if len(s) < MIN_MUESTRAS_POR_PIERNA:
+            return None
+        lo, hi = np.percentile(s, [5, 95])
+        return float(hi - lo)
+
+    r_l, r_r = rom(left_knee_series), rom(right_knee_series)
+    out = {"left_rom": r_l, "right_rom": r_r, "symmetry": None, "valid": False,
+           "method": "rom_por_pierna_en_sesion"}
+    if r_l is None or r_r is None:
+        out["reason"] = "muestras_insuficientes"
+        return out
+    if min(r_l, r_r) < MIN_ROM_GRADOS:
+        out["reason"] = "rango_insuficiente"
+        return out
+    out["symmetry"] = round(max(0.0, 100.0 - abs(r_l - r_r) / max(r_l, r_r) * 100.0), 2)
+    out["left_rom"], out["right_rom"] = round(r_l, 1), round(r_r, 1)
+    out["valid"] = True
+    return out
+
+
 def calculate_ipt_evaluation(
     peak_knee_ext: float,
     min_knee_rec: float,
     avg_symmetry: float,
-    peak_hip_drive: float = 0.0
+    peak_hip_drive: float = 0.0,
+    symmetry_available: bool = True
 ) -> Dict[str, Any]:
     """
     Calcula el Índice Propietario de Perfeccionamiento Técnico (IPT MetaHub UCT).
@@ -211,6 +255,11 @@ def calculate_ipt_evaluation(
         score_symm = round(min(100.0, 90.0 + ((avg_symmetry - 92.0) * 1.25)), 1)
     else:
         score_symm = round(max(20.0, 90.0 - ((92.0 - avg_symmetry) * 3.2)), 1)
+
+    # Si la simetría de sesión no es evaluable (pocas zancadas por pierna), no se castiga ni
+    # se premia: el sector toma el valor ponderado de los otros dos y el IPT queda provisional.
+    if not symmetry_available:
+        score_symm = round(((0.40 * score_prop) + (0.35 * score_rec)) / 0.75, 1)
 
     # 4. Fórmula Compuesta Ponderada IPT UCT
     ipt = round((0.40 * score_prop) + (0.35 * score_rec) + (0.25 * score_symm), 1)

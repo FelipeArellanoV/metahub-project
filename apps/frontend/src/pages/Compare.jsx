@@ -41,66 +41,9 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
+import { extraerMetricasSesion, formatearMetrica, compararSesiones } from '../services/metricasSesion.js';
 const poseRequest=async path=>{const r=await fetch((import.meta.env.VITE_API_BASE||'')+path,{headers:{Authorization:'Bearer '+localStorage.getItem('metahub_token')}});const data=await r.json();if(!r.ok)throw new Error(data.error||'No se pudieron cargar los datos');return data;};
 
-const formatMetric=(value,digits)=>Number.isFinite(value)?value.toFixed(digits):'Sin medición';
-
-function extractSessionMetrics(session) {
-  if (!session) {
-    return {
-      id: 'N/A',
-      date: 'Sin fecha',
-      title: 'Sesión no disponible',
-      ipt: 0,
-      kneeAngle: 0,
-      hipAngle: 0,
-      symmetry: 0,
-      trunkLean: 0,
-      cadenceHz: 0,
-      cadencePpm: 0,
-      strideLengthM: 0,
-      speedMs: 0,
-      notes: ''
-    };
-  }
-
-  const a = session.analysis || {};
-  const sm = a.summary_metrics || {};
-  const ipt = typeof session.iptScore === 'number'
-    ? session.iptScore
-    : (typeof a.ipt_score === 'number' ? a.ipt_score : NaN);
-
-  const cadenceHz = sm.cadence_hz ?? (sm.avg_cadence_hz ?? NaN);
-  const cadencePpm = sm.cadence_ppm ?? Math.round(cadenceHz * 60);
-  const strideLengthM = sm.stride_length_m ?? NaN;
-  const speedMs = sm.speed_ms ?? NaN;
-  const kneeAngle = sm.avg_knee_angle ?? sm.min_knee_flexion ?? NaN;
-  const hipAngle = sm.avg_hip_angle ?? sm.peak_hip_extension ?? NaN;
-  const symmetry = sm.avg_symmetry_score ?? NaN;
-  const trunkLean = sm.trunk_lean_angle ?? NaN;
-
-  const dateFormatted = session.sessionDate
-    ? new Date(session.sessionDate).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
-    : (session.createdAt ? new Date(session.createdAt).toLocaleDateString('es-CL') : 'Fecha registro');
-
-  return {
-    id: `SES-${String(session.id).padStart(3, '0')}`,
-    date: dateFormatted,
-    rawDate: session.sessionDate || session.createdAt,
-    title: session.notes ? session.notes.slice(0, 42) : `Sesión #${session.id}`,
-    ipt: Number(ipt),
-    kneeAngle: Number(kneeAngle),
-    hipAngle: Number(hipAngle),
-    symmetry: Number(symmetry),
-    trunkLean: Number(trunkLean),
-    cadenceHz: Number(cadenceHz),
-    cadencePpm: Number(cadencePpm),
-    strideLengthM: Number(strideLengthM),
-    speedMs: Number(speedMs),
-    notes: session.notes || '',
-    videoUrl: session.videoUrl || ''
-  };
-}
 
 export default function Compare() {
   const navigate = useNavigate();
@@ -201,27 +144,28 @@ export default function Compare() {
   const rawSessionA = athleteSessions.find(s => String(s.id) === String(selectedSessionAId));
   const rawSessionB = athleteSessions.find(s => String(s.id) === String(selectedSessionBId));
 
-  const sA = useMemo(() => extractSessionMetrics(rawSessionA), [rawSessionA]);
-  const sB = useMemo(() => extractSessionMetrics(rawSessionB), [rawSessionB]);
+  const sA = useMemo(() => extraerMetricasSesion(rawSessionA), [rawSessionA]);
+  const sB = useMemo(() => extraerMetricasSesion(rawSessionB), [rawSessionB]);
 
   const hasTwoSessions = Boolean(rawSessionA && rawSessionB && rawSessionA.id !== rawSessionB.id);
 
   // Cálculo de deltas dinámicos
   const deltas = useMemo(() => {
     if (!hasTwoSessions) return [];
-    const diffIpt = sB.ipt - sA.ipt;
-    const diffCadence = sB.cadenceHz - sA.cadenceHz;
-    const diffStride = sB.strideLengthM - sA.strideLengthM;
-    const diffSpeed = sB.speedMs - sA.speedMs;
-    const diffKnee = sB.kneeAngle - sA.kneeAngle;
-    const diffSym = sB.symmetry - sA.symmetry;
+    const cmp = compararSesiones(sA, sB);
+    const diffIpt = cmp.ipt.diff ?? NaN;
+    const diffCadence = cmp.cadenceHz.diff ?? NaN;
+    const diffStride = cmp.strideLengthM.diff ?? NaN;
+    const diffSpeed = cmp.speedMs.diff ?? NaN;
+    const diffKnee = cmp.kneeAngle.diff ?? NaN;
+    const diffSym = cmp.symmetry.diff ?? NaN;
 
     return [
       {
         metric: 'Índice de Perfeccionamiento Técnico (IPT)',
         unit: 'pts',
-        before: formatMetric(sA.ipt,1),
-        after: formatMetric(sB.ipt,1),
+        before: formatearMetrica(sA.ipt,1),
+        after: formatearMetrica(sB.ipt,1),
         diff: `${diffIpt >= 0 ? '+' : ''}${diffIpt.toFixed(1)} pts`,
         percent: `${diffIpt >= 0 ? '+' : ''}${sA.ipt > 0 ? ((diffIpt / sA.ipt) * 100).toFixed(1) : 0}%`,
         positive: diffIpt >= 0,
@@ -231,8 +175,8 @@ export default function Compare() {
       {
         metric: 'Cadencia de Zancada',
         unit: 'Hz (pasos/s)',
-        before: `${formatMetric(sA.cadenceHz,2)} Hz`,
-        after: `${formatMetric(sB.cadenceHz,2)} Hz`,
+        before: `${formatearMetrica(sA.cadenceHz,2)} Hz`,
+        after: `${formatearMetrica(sB.cadenceHz,2)} Hz`,
         diff: `${diffCadence >= 0 ? '+' : ''}${diffCadence.toFixed(2)} Hz`,
         percent: `${sB.cadencePpm} ppm (antes ${sA.cadencePpm})`,
         positive: diffCadence >= 0,
@@ -242,8 +186,8 @@ export default function Compare() {
       {
         metric: 'Longitud de Zancada Estimada',
         unit: 'metros',
-        before: `${formatMetric(sA.strideLengthM,2)} m`,
-        after: `${formatMetric(sB.strideLengthM,2)} m`,
+        before: `${formatearMetrica(sA.strideLengthM,2)} m`,
+        after: `${formatearMetrica(sB.strideLengthM,2)} m`,
         diff: `${diffStride >= 0 ? '+' : ''}${diffStride.toFixed(2)} m`,
         percent: `${diffStride >= 0 ? '+' : ''}${sA.strideLengthM > 0 ? ((diffStride / sA.strideLengthM) * 100).toFixed(1) : 0}% amplitud`,
         positive: diffStride >= 0,
@@ -253,8 +197,8 @@ export default function Compare() {
       {
         metric: 'Velocidad de Pasada (v = Cadencia × Zancada)',
         unit: 'm/s',
-        before: `${formatMetric(sA.speedMs,2)} m/s`,
-        after: `${formatMetric(sB.speedMs,2)} m/s`,
+        before: `${formatearMetrica(sA.speedMs,2)} m/s`,
+        after: `${formatearMetrica(sB.speedMs,2)} m/s`,
         diff: `${diffSpeed >= 0 ? '+' : ''}${diffSpeed.toFixed(2)} m/s`,
         percent: `${(sB.speedMs * 3.6).toFixed(1)} km/h (antes ${(sA.speedMs * 3.6).toFixed(1)})`,
         positive: diffSpeed >= 0,
@@ -264,8 +208,8 @@ export default function Compare() {
       {
         metric: 'Flexión de Rodilla (Fase de Recobro)',
         unit: 'grados',
-        before: `${formatMetric(sA.kneeAngle,1)}°`,
-        after: `${formatMetric(sB.kneeAngle,1)}°`,
+        before: `${formatearMetrica(sA.kneeAngle,1)}°`,
+        after: `${formatearMetrica(sB.kneeAngle,1)}°`,
         diff: `${diffKnee >= 0 ? '+' : ''}${diffKnee.toFixed(1)}°`,
         percent: diffKnee >= 0 ? 'Mayor elevación de ataque' : 'Recobro más plano',
         positive: diffKnee >= 0,
@@ -275,8 +219,8 @@ export default function Compare() {
       {
         metric: 'Índice de Simetría Bilateral',
         unit: '%',
-        before: `${formatMetric(sA.symmetry,1)}%`,
-        after: `${formatMetric(sB.symmetry,1)}%`,
+        before: `${formatearMetrica(sA.symmetry,1)}%`,
+        after: `${formatearMetrica(sB.symmetry,1)}%`,
         diff: `${diffSym >= 0 ? '+' : ''}${diffSym.toFixed(1)}%`,
         percent: 'Equilibrio bilateral de apoyos',
         positive: diffSym >= 0,
@@ -552,18 +496,18 @@ export default function Compare() {
             </svg>
 
             <div style={{ position: 'absolute', top: '55%', left: '22%', background: 'rgba(244,63,94,0.2)', border: '1px solid #f43f5e', color: '#fda4af', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-              Flexión: {formatMetric(sA.kneeAngle,1)}°
+              Flexión: {formatearMetrica(sA.kneeAngle,1)}°
             </div>
 
             <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#f87171' }}>
-              Cadencia: {formatMetric(sA.cadenceHz,2)} Hz ({sA.cadencePpm} ppm)
+              Cadencia: {formatearMetrica(sA.cadenceHz,2)} Hz ({sA.cadencePpm} ppm)
             </div>
           </div>
 
           <div className="video-mock-footer" style={{ padding: '12px 18px', background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
-            <div>IPT: <strong style={{ color: '#fca5a5' }}>{formatMetric(sA.ipt,1)} pts</strong></div>
-            <div>Cadencia: <strong style={{ color: '#cbd5e1' }}>{formatMetric(sA.cadenceHz,2)} Hz</strong></div>
-            <div>Zancada: <strong style={{ color: '#cbd5e1' }}>{formatMetric(sA.strideLengthM,2)} m</strong></div>
+            <div>IPT: <strong style={{ color: '#fca5a5' }}>{formatearMetrica(sA.ipt,1)} pts</strong></div>
+            <div>Cadencia: <strong style={{ color: '#cbd5e1' }}>{formatearMetrica(sA.cadenceHz,2)} Hz</strong></div>
+            <div>Zancada: <strong style={{ color: '#cbd5e1' }}>{formatearMetrica(sA.strideLengthM,2)} m</strong></div>
           </div>
         </div>
 
@@ -604,18 +548,18 @@ export default function Compare() {
             </svg>
 
             <div style={{ position: 'absolute', top: '50%', left: '22%', background: 'rgba(16,185,129,0.2)', border: '1px solid #10b981', color: '#6ee7b7', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-              Flexión: {formatMetric(sB.kneeAngle,1)}°
+              Flexión: {formatearMetrica(sB.kneeAngle,1)}°
             </div>
 
             <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#6ee7b7', fontWeight: 600 }}>
-              Cadencia: {formatMetric(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
+              Cadencia: {formatearMetrica(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
             </div>
           </div>
 
           <div className="video-mock-footer" style={{ padding: '12px 18px', background: 'rgba(2,132,199,0.1)', borderTop: '1px solid rgba(2,132,199,0.2)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
-            <div>IPT: <strong style={{ color: '#86efac' }}>{formatMetric(sB.ipt,1)} pts</strong></div>
-            <div>Cadencia: <strong style={{ color: '#6ee7b7' }}>{formatMetric(sB.cadenceHz,2)} Hz</strong></div>
-            <div>Zancada: <strong style={{ color: '#6ee7b7' }}>{formatMetric(sB.strideLengthM,2)} m</strong></div>
+            <div>IPT: <strong style={{ color: '#86efac' }}>{formatearMetrica(sB.ipt,1)} pts</strong></div>
+            <div>Cadencia: <strong style={{ color: '#6ee7b7' }}>{formatearMetrica(sB.cadenceHz,2)} Hz</strong></div>
+            <div>Zancada: <strong style={{ color: '#6ee7b7' }}>{formatearMetrica(sB.strideLengthM,2)} m</strong></div>
           </div>
         </div>
       </div>
@@ -729,7 +673,7 @@ export default function Compare() {
               <Sparkles size={14} /> Evolución IPT: {(sB.ipt - sA.ipt) >= 0 ? '+' : ''}{(sB.ipt - sA.ipt).toFixed(1)} pts
             </span>
             <span className="report-badge-pill" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#1e40af', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
-              <Timer size={14} /> Cadencia Actual: {formatMetric(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
+              <Timer size={14} /> Cadencia Actual: {formatearMetrica(sB.cadenceHz,2)} Hz ({sB.cadencePpm} ppm)
             </span>
           </div>
         </div>

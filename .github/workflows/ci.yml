@@ -10,39 +10,95 @@ jobs:
   test-api-backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install dependencies
         run: |
           cd apps/api-backend
           npm install
-
-      - name: Run Backend Tests
+      - name: Run backend integration tests
         run: |
           cd apps/api-backend
           node tests/run_tests.js
+      - name: Run backend node:test suites
+        run: |
+          cd apps/api-backend
+          node --test tests/club-access.test.js tests/collaboration.test.js tests/review-validation.test.js tests/video-capture-access.test.js tests/video-pipeline.test.js tests/panel-entrenador.test.js
+
+  test-api-postgres:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: metahub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/metahub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply database schema and migrations
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          cd apps/api-backend/src/db
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f schema.sql
+          for f in migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"; done
+      - name: Install dependencies
+        run: |
+          cd apps/api-backend
+          npm install
+      - name: Run SQL tests against real PostgreSQL
+        run: |
+          cd apps/api-backend
+          # Secuencial: ambas suites vacían las mismas tablas y no pueden correr en paralelo
+          node --test tests/panel-entrenador-pg.test.js
+          node --test tests/retencion-pg.test.js
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run pose geometry tests
+        run: |
+          cd apps/frontend
+          node --test tests/pose-geometry.test.mjs tests/comparacion-sesiones.test.mjs
 
   test-cv-service:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Install Dependencies
+      - name: Install system libraries for MediaPipe/OpenCV
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libgles2 libgl1 libglib2.0-0
+      - name: Install dependencies
         run: |
           cd apps/cv-service
-          pip install -r requirements.txt
-
-      - name: Run CV Service Tests
+          pip install -r requirements.txt httpx
+      - name: Run metric unit tests
         run: |
           cd apps/cv-service
           python test_metrics.py
+          python test_eventos_zancada.py
+      - name: Run service integration test (sample video)
+        run: |
+          cd apps/cv-service
+          python test_integration.py

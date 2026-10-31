@@ -29,7 +29,8 @@ import mediapipe as mp
 from mediapipe.tasks.python import vision
 from mediapipe.tasks import python
 
-from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, classify_kinematic_sector
+from eventos_zancada import analizar_zancadas
+from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, classify_kinematic_sector, calcular_simetria_sesion
 
 # Inicialización de la aplicación FastAPI
 app = FastAPI(
@@ -69,6 +70,8 @@ def get_detector():
 
 
 class KeypointsPayload(BaseModel):
+    image_width: Optional[float] = Field(None, description="Ancho de la imagen en px. Informar junto con image_height si las coordenadas están normalizadas (0-1); si no, se asumen coordenadas con ejes de igual escala.")
+    image_height: Optional[float] = Field(None, description="Alto de la imagen en px.")
     left_hip: List[float] = Field(..., description="[x, y] cadera izquierda")
     left_knee: List[float] = Field(..., description="[x, y] rodilla izquierda")
     left_ankle: List[float] = Field(..., description="[x, y] tobillo izquierdo")
@@ -103,6 +106,11 @@ def health_check():
 def calculate_metrics(payload: KeypointsPayload):
     try:
         datos = payload.dict(exclude_none=True)
+        width, height = datos.pop("image_width", None), datos.pop("image_height", None)
+        if (width is None) != (height is None) or (width is not None and (width <= 0 or height <= 0)):
+            raise ValueError("image_width e image_height deben informarse juntos y ser positivos.")
+        if width is not None:  # coordenadas normalizadas: convertir a píxeles antes de calcular ángulos
+            datos = to_pixel_space(datos, width, height)
         metricas = compute_biomechanical_metrics(datos)
         return {"status": "success", "metrics": metricas}
     except Exception as e:
@@ -117,6 +125,50 @@ SKELETON_CONNECTIONS = [
     (11,23),(12,24),(23,24),(23,25),(25,27),(27,29),(29,31),(27,31),
     (24,26),(26,28),(28,30),(30,32),(28,32)
 ]
+
+
+MIN_LANDMARK_CONFIDENCE = 0.4
+MIN_VALID_RATE_PCT = 80.0
+# Ángulo interno de rodilla mínimo plausible (talón al glúteo ~35-45°); valores menores son artefactos
+# de detección (propuesta inicial, a calibrar con las sesiones de validación de la Etapa 4).
+MIN_PLAUSIBLE_KNEE_DEG = 30.0
+
+
+def reliable_keypoints(lm) -> Dict[str, List[float]]:
+    """Devuelve solo los puntos clave con visibilidad y presencia suficientes y dentro del encuadre.
+
+    Un punto bajo el umbral se omite (no se interpola), de modo que ningún ángulo se calcula con
+    puntos poco fiables: compute_biomechanical_metrics solo evalúa articulaciones con sus tres puntos.
+    """
+    indices = {'left_hip': 23, 'right_hip': 24, 'left_knee': 25, 'right_knee': 26,
+               'left_ankle': 27, 'right_ankle': 28, 'left_shoulder': 11, 'right_shoulder': 12}
+    out = {}
+    for name, i in indices.items():
+        p = lm[i]
+        if (getattr(p, "visibility", 0) >= MIN_LANDMARK_CONFIDENCE
+                and getattr(p, "presence", 1) >= MIN_LANDMARK_CONFIDENCE
+                and 0 <= p.x <= 1 and 0 <= p.y <= 1):
+            out[name] = [round(p.x, 4), round(p.y, 4)]
+    return out
+
+
+def to_pixel_space(kp: Dict[str, List[float]], width: float, height: float) -> Dict[str, List[float]]:
+    """Convierte coordenadas normalizadas (0-1) a píxeles.
+
+    MediaPipe entrega x/width e y/height. Con ejes de distinta escala (p. ej. 16:9) un ángulo calculado
+    sobre coordenadas normalizadas queda distorsionado; en píxeles ambos ejes tienen la misma unidad.
+    """
+    return {name: [p[0] * width, p[1] * height] for name, p in kp.items()}
+
+
+def drop_implausible_knees(kp: Dict[str, List[float]]) -> int:
+    """Elimina la rodilla de una pierna cuyo ángulo es fisiológicamente imposible. Retorna cuántas se descartaron."""
+    dropped = 0
+    for side in ('left', 'right'):
+        names = (f'{side}_hip', f'{side}_knee', f'{side}_ankle')
+        if all(n in kp for n in names) and calculate_angle(kp[names[0]], kp[names[1]], kp[names[2]]) < MIN_PLAUSIBLE_KNEE_DEG:
+            kp.pop(names[1]); dropped += 1
+    return dropped
 
 
 def draw_skeleton_on_frame(frame: np.ndarray, landmarks, metrics: Dict[str, Any]) -> np.ndarray:
@@ -201,10 +253,14 @@ async def process_video(
         preview_frames = []
         frame_idx = 0
         frames_with_pose = 0
+        frames_valid = 0
+        implausible_dropped = 0
 
         knee_angles = []
         hip_angles = []
         symmetries = []
+        left_knees = []
+        right_knees = []
 
         # Procesar cuadros
         while cap.isOpened() and frame_idx < processing_limit:
@@ -236,27 +292,28 @@ async def process_video(
                             round(float(getattr(p,"visibility",0)),3), round(float(getattr(p,"presence",1)),3)] for p in lm]
                     frame_data["has_pose"] = True
 
-                    # Coordenadas normalizadas clave
-                    kp_dict = {
-                        'left_hip': [round(lm[23].x, 4), round(lm[23].y, 4)],
-                        'right_hip': [round(lm[24].x, 4), round(lm[24].y, 4)],
-                        'left_knee': [round(lm[25].x, 4), round(lm[25].y, 4)],
-                        'right_knee': [round(lm[26].x, 4), round(lm[26].y, 4)],
-                        'left_ankle': [round(lm[27].x, 4), round(lm[27].y, 4)],
-                        'right_ankle': [round(lm[28].x, 4), round(lm[28].y, 4)],
-                        'left_shoulder': [round(lm[11].x, 4), round(lm[11].y, 4)],
-                        'right_shoulder': [round(lm[12].x, 4), round(lm[12].y, 4)],
-                    }
+                    # Solo puntos con confianza suficiente (filtro de calidad)
+                    kp_dict = reliable_keypoints(lm)            # normalizadas (0-1), para dibujo y exportación
+                    kp_px = to_pixel_space(kp_dict, width, height)  # píxeles: ejes con la misma unidad para los ángulos
+                    implausible_dropped += drop_implausible_knees(kp_px)
+                    for name in [n for n in kp_dict if n not in kp_px]:
+                        kp_dict.pop(name)
 
                     # Cálculo cinemático real con metrics_engine
-                    metrics = compute_biomechanical_metrics(kp_dict)
+                    metrics = compute_biomechanical_metrics(kp_px)
                     frame_data["metrics"] = metrics
                     frame_data["keypoints"] = kp_dict
 
+                    if 'left_knee_angle' in metrics or 'right_knee_angle' in metrics:
+                        frames_valid += 1
+                    frame_data["valid"] = ('left_knee_angle' in metrics or 'right_knee_angle' in metrics)
+
                     if 'left_knee_angle' in metrics:
                         knee_angles.append(metrics['left_knee_angle'])
+                        left_knees.append(metrics['left_knee_angle'])
                     if 'right_knee_angle' in metrics:
                         knee_angles.append(metrics['right_knee_angle'])
+                        right_knees.append(metrics['right_knee_angle'])
                     if 'left_hip_angle' in metrics:
                         hip_angles.append(metrics['left_hip_angle'])
                     if 'symmetry_score' in metrics:
@@ -264,12 +321,9 @@ async def process_video(
 
                     # Resumen de landmarks corporales principales para la tabla
                     frame_data["landmarks_summary"] = {
-                        "left_knee_x": kp_dict['left_knee'][0],
-                        "left_knee_y": kp_dict['left_knee'][1],
-                        "left_hip_x": kp_dict['left_hip'][0],
-                        "left_hip_y": kp_dict['left_hip'][1],
-                        "left_ankle_x": kp_dict['left_ankle'][0],
-                        "left_ankle_y": kp_dict['left_ankle'][1]
+                        f"{k}_{ax}": kp_dict[k][j]
+                        for k in ('left_knee', 'left_hip', 'left_ankle') if k in kp_dict
+                        for j, ax in enumerate(('x', 'y'))
                     }
 
                     # Guardar hasta 6 fotogramas de vista previa con esqueleto superpuesto
@@ -302,8 +356,12 @@ async def process_video(
         peak_knee = max(knee_angles) if knee_angles else 0.0
         min_knee = min(knee_angles) if knee_angles else 0.0
         peak_hip = max(hip_angles) if hip_angles else 0.0
-        avg_symmetry = round(float(np.mean(symmetries)), 2) if symmetries else 0.0
-        min_symmetry = min(symmetries) if symmetries else 0.0
+        # Simetría de sesión (ADR-013): resumen por pierna, independiente de la fase.
+        # El promedio de la diferencia cuadro a cuadro se conserva solo como dato instantáneo.
+        sym = calcular_simetria_sesion(left_knees, right_knees)
+        avg_symmetry = sym["symmetry"] if sym["valid"] else 0.0
+        min_symmetry = avg_symmetry
+        instant_symmetry_mean = round(float(np.mean(symmetries)), 2) if symmetries else None
 
         # Detección de anomalías y fortalezas reales
         anomalies = []
@@ -325,11 +383,19 @@ async def process_video(
                 "color": "#ff3366"
             })
 
-        if avg_symmetry >= 92.0:
+        if not sym["valid"]:
+            anomalies.append({
+                "type": "anomaly",
+                "badge": "SIMETRÍA NO EVALUABLE",
+                "message": "No hay suficientes zancadas válidas por pierna para estimar la simetría (se excluye del IPT).",
+                "advice": "Grabar una carrera más larga con ambas piernas visibles.",
+                "color": "#8899aa"
+            })
+        elif avg_symmetry >= 92.0:
             praises.append({
                 "type": "good",
                 "badge": "SIMETRÍA EXCELENTE",
-                "message": f"Simetría bilateral media del {avg_symmetry}%. Equilibrio de zancada validado.",
+                "message": f"Simetría bilateral media del {avg_symmetry}%. Valor preliminar, aún no validado.",
                 "color": "#00f5a0"
             })
         else:
@@ -343,7 +409,23 @@ async def process_video(
 
         # Cálculo de Índice Propietario de Perfeccionamiento Técnico (IPT MetaHub UCT)
         # Autoría: Felipe Arellano Vargas & Sofía Henríquez Soto (2026)
-        ipt_eval = calculate_ipt_evaluation(peak_knee, min_knee, avg_symmetry, peak_hip)
+        # Entradas robustas (ADR-014): el máximo y el mínimo de toda la sesión dependen de un solo
+        # cuadro y de una detección errónea basta para distorsionarlos; se usan los percentiles 95 y 5.
+        rob_peak_knee = float(np.percentile(knee_angles, 95)) if knee_angles else 0.0
+        rob_min_knee = float(np.percentile(knee_angles, 5)) if knee_angles else 0.0
+        rob_peak_hip = float(np.percentile(hip_angles, 95)) if hip_angles else 0.0
+        ipt_eval = calculate_ipt_evaluation(rob_peak_knee, rob_min_knee, avg_symmetry, rob_peak_hip,
+                                            symmetry_available=sym["valid"])
+        ipt_eval["inputs_robustos"] = {"rodilla_p95": round(rob_peak_knee, 1),
+                                       "rodilla_p5": round(rob_min_knee, 1),
+                                       "cadera_p95": round(rob_peak_hip, 1)}
+        ipt_eval["symmetry_excluded"] = not sym["valid"]
+        _v = ipt_eval["ipt_score"]
+        ipt_eval["cerca_de_umbral"] = min(abs(_v - 75.0), abs(_v - 90.0)) < 5.0
+        ipt_eval["estado_validacion"] = "experimental_no_validado"
+        ipt_eval["advertencia"] = ("Índice experimental sin validación externa. Úselo como seguimiento relativo; "
+                                   "la categoría no es concluyente" +
+                                   (" porque el puntaje está a menos de 5 puntos de un umbral." if ipt_eval["cerca_de_umbral"] else "."))
 
         return {
             "status": "success",
@@ -362,7 +444,11 @@ async def process_video(
                 "duration_seconds": duration_sec,
                 "analyzed_frames": len(processed_frames),
                 "frames_with_pose": frames_with_pose,
-                "detection_rate_pct": round((frames_with_pose / max(1, len(processed_frames))) * 100, 1)
+                "detection_rate_pct": round((frames_with_pose / max(1, len(processed_frames))) * 100, 1),
+                "valid_frames": frames_valid,
+                "implausible_knees_dropped": implausible_dropped,
+                "valid_rate_pct": round((frames_valid / max(1, len(processed_frames))) * 100, 1),
+                "low_confidence": (frames_valid / max(1, len(processed_frames))) * 100 < MIN_VALID_RATE_PCT
             },
             "summary_metrics": {
                 "peak_knee_extension": peak_knee,
@@ -370,10 +456,17 @@ async def process_video(
                 "peak_hip_extension": peak_hip,
                 "avg_symmetry_score": avg_symmetry,
                 "min_symmetry_score": min_symmetry,
+                "symmetry_method": sym["method"],
+                "symmetry_valid": sym["valid"],
+                "symmetry_reason": sym.get("reason"),
+                "left_knee_rom": sym["left_rom"],
+                "right_knee_rom": sym["right_rom"],
+                "instant_symmetry_mean": instant_symmetry_mean,
                 "total_anomalies": len(anomalies),
                 "total_praises": len(praises)
             },
             "ipt_evaluation": ipt_eval,
+            "analisis_zancadas": analizar_zancadas(processed_frames),
             "ai_evaluations": {
                 "praises": praises,
                 "anomalies": anomalies

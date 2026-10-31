@@ -1,0 +1,298 @@
+{
+ "_nota": "Estructura del contrato real de /api/cv/process-video. ipt_evaluation, summary_metrics y video_info provienen de la ejecucion del 30-oct-2026 sobre un video 4K; pose_track es sintetico (2 cuadros).",
+ "status": "success",
+ "ipt_evaluation": {
+  "ipt_score": 74.8,
+  "categoria": "Fase de Corrección Requerida (Bandera Roja)",
+  "color": "#ff3366",
+  "badge": "NIVEL III · CORRECCIÓN PRIORITARIA",
+  "diagnostico": "Presencia de déficit mecánico o asimetría que compromete la velocidad terminal o eleva fatiga.",
+  "desglose_sectores": {
+   "sector_1_propulsion": {
+    "nombre": "Sector 1: Propulsión",
+    "score": 86.9,
+    "angulo_real": 178.75,
+    "rango_optimo": "165° - 175°",
+    "ponderacion": "40%"
+   },
+   "sector_2_recobro": {
+    "nombre": "Sector 2: Vuelo / Recobro",
+    "score": 100.0,
+    "angulo_real": 38.08,
+    "rango_optimo": "< 70° (Talón a glúteo)",
+    "ponderacion": "35%"
+   },
+   "simetria_bilateral": {
+    "nombre": "Sector 3: Contacto / Simetría",
+    "score": 20.0,
+    "porcentaje_real": 68.41,
+    "rango_optimo": "≥ 92.0%",
+    "ponderacion": "25%"
+   }
+  },
+  "sector_prioritario": "Sector 3: Simetría / Contacto",
+  "drill_prescrito": "Pliometría unipodal con estabilización pélvica y apoyo de metatarso",
+  "prescripcion_completa": {
+   "sector": "Sector 3: Simetría / Contacto",
+   "causa_biomecanica": "Asimetría bilateral de fuerza o aterrizaje adelantado al centro de gravedad (Overstriding), lo que genera frenado articular y sobrecarga la articulación de la rodilla.",
+   "cue_verbal": "¡Pisa firme justo debajo de tus caderas, rebotando como un resorte rígido!",
+   "ejercicios": [
+    {
+     "fase": "Fase 1 · Estabilidad",
+     "nombre": "Puente glúteo unilateral y plancha lateral con abducción",
+     "protocolo": "3 series x 12 repeticiones por pierna",
+     "foco": "Eliminar la caída pélvica dinámica (signo de Trendelenburg)."
+    },
+    {
+     "fase": "Fase 2 · Pliometría Unilateral",
+     "nombre": "Saltos unipodales sobre cajón bajo (20cm) con caída rígida",
+     "protocolo": "3 series x 6 saltos por pierna con amortiguación breve",
+     "foco": "Nivelar la rigidez articular entre ambas piernas."
+    },
+    {
+     "fase": "Fase 3 · Transferencia",
+     "nombre": "Pasadas de 30m sobre línea recta con metatarso activo",
+     "protocolo": "4 pasadas buscando contacto neutro sin cruzar pies",
+     "foco": "Igualar la longitud de zancada entre pierna izquierda y derecha."
+    }
+   ],
+   "error_evitar": "Evitar el apoyo de talón (taloneo), que frena el avance y absorbe la energía en lugar de devolverla reactivamente."
+  },
+  "metodologia": "Modelo Cinemático UCT · Arellano & Henríquez (2026)"
+ },
+ "summary_metrics": {
+  "peak_knee_extension": 178.75,
+  "min_knee_flexion": 38.08,
+  "peak_hip_extension": 179.97,
+  "avg_symmetry_score": 68.41,
+  "min_symmetry_score": 30.6,
+  "total_anomalies": 1,
+  "total_praises": 1
+ },
+ "video_info": {
+  "duration_seconds": 12.6,
+  "fps": 25.0,
+  "detection_rate_pct": 85.7,
+  "valid_frames": 87,
+  "valid_rate_pct": 82.9,
+  "low_confidence": false
+ },
+ "preview_frames": [],
+ "pose_track": {
+  "version": 1,
+  "landmark_count": 33,
+  "fps": 25.0,
+  "full_video": true,
+  "frames": [
+   {
+    "time": 0.0,
+    "frame": 0,
+    "landmarks": [
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ],
+     [
+      0.5,
+      0.5,
+      0.9,
+      0.9
+     ]
+    ]
+   },
+   {
+    "time": 0.08,
+    "frame": 2,
+    "landmarks": null
+   }
+  ]
+ }
+}
