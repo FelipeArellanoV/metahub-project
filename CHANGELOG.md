@@ -4,6 +4,8 @@ Reconstruido el 2026-10-30 a partir del historial de git (rama `main`). Los mens
 
 ## [Etapa 3] 2026-10-05 a 2026-10-30
 ### Agregado
+- Análisis multiarticular: ángulo de tobillo, inclinación de muslo, pierna y tronco, rango de movimiento y simetría por articulación (rodilla, cadera, tobillo) y simetría multiarticular en el sector 3 del IPT; 3 pruebas nuevas. Ver ADR-017 (2026-10-31).
+- Respaldo y estado de cada parámetro del IPT (`referencias` en la respuesta), flexión de cadera informada pero no puntuada (corrige un término que nunca penalizaba), contexto de simetría con la visibilidad por pierna, y análisis de sensibilidad recalculado con la configuración real de la API (2026-10-31). Ver ADR-016.
 - Detector de contactos de zancada por máximo local del tobillo, con cadencia, tiempo de zancada y simetría por ciclo; 6 pruebas y campo `stride_analysis` en la respuesta del servicio. Primera versión, sin apoyo medio ni despegue y sin validar (T-10 parcial).
 - Política de retención: purga de videos vencidos con plazo explícito (`RETENTION_DAYS`, sin valor por defecto), programada a diario y como script con simulación previa; 4 pruebas contra PostgreSQL real. Ver ADR-015 (T-12).
 - Pruebas de las consultas SQL del panel del entrenador contra PostgreSQL real (alcance propio y de club) y job de CI con TimescaleDB (`tests/panel-entrenador-pg.test.js`, T-13).

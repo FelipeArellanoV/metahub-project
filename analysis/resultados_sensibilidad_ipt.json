@@ -1,41 +1,41 @@
 {
   "entradas_robustas": {
-    "rodilla_p95": 159.9,
-    "rodilla_p5": 55.1,
-    "cadera_p95": 174.3,
-    "simetria": 67.2,
+    "rodilla_p95": 162.9,
+    "rodilla_p5": 54.1,
+    "cadera_flexion_max": 65.9,
+    "simetria": 77.4,
     "sim_valida": true
   },
-  "ipt_base": 74.2,
+  "ipt_base": 83.4,
   "scores_sector": {
-    "sector_1_propulsion": 85.6,
+    "sector_1_propulsion": 94.1,
     "sector_2_recobro": 100.0,
-    "simetria_bilateral": 20.0
+    "simetria_bilateral": 43.2
   },
   "simetria_sesion": {
-    "left_rom": 78.0,
-    "right_rom": 116.0,
-    "symmetry": 67.25,
+    "left_rom": 88.9,
+    "right_rom": 115.4,
+    "symmetry": 77.36,
     "valid": true,
-    "method": "rom_por_pierna_en_sesion"
+    "method": "promedio_multiarticular"
   },
   "sensibilidad_pesos": {
-    "media": 74.2,
-    "p5": 64.4,
-    "p95": 83.0,
+    "media": 83.4,
+    "p5": 76.1,
+    "p95": 89.8,
     "categorias_pct": {
-      "I (>=90)": 0.0,
-      "II (75-90)": 46.8,
-      "III (<75)": 53.2
+      "I (>=90)": 4.3,
+      "II (75-90)": 92.5,
+      "III (<75)": 3.2
     }
   },
   "sensibilidad_entradas_5grados": {
-    "media": 74.5,
-    "p5": 69.3,
-    "p95": 79.5,
+    "media": 82.3,
+    "p5": 76.9,
+    "p95": 87.3,
     "categorias_pct": {
-      "II (75-90)": 45.7,
-      "III (<75)": 54.3
+      "II (75-90)": 99.1,
+      "III (<75)": 0.9
     }
   },
   "n": 5000

@@ -30,7 +30,7 @@ from mediapipe.tasks.python import vision
 from mediapipe.tasks import python
 
 from eventos_zancada import analizar_zancadas
-from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, classify_kinematic_sector, calcular_simetria_sesion
+from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, classify_kinematic_sector, calcular_simetria_sesion, resumir_articulaciones
 
 # Inicialización de la aplicación FastAPI
 app = FastAPI(
@@ -141,7 +141,8 @@ def reliable_keypoints(lm) -> Dict[str, List[float]]:
     puntos poco fiables: compute_biomechanical_metrics solo evalúa articulaciones con sus tres puntos.
     """
     indices = {'left_hip': 23, 'right_hip': 24, 'left_knee': 25, 'right_knee': 26,
-               'left_ankle': 27, 'right_ankle': 28, 'left_shoulder': 11, 'right_shoulder': 12}
+               'left_ankle': 27, 'right_ankle': 28, 'left_shoulder': 11, 'right_shoulder': 12,
+               'left_foot_index': 31, 'right_foot_index': 32}
     out = {}
     for name, i in indices.items():
         p = lm[i]
@@ -261,6 +262,11 @@ async def process_video(
         symmetries = []
         left_knees = []
         right_knees = []
+        series_art = {k: [] for k in ('rodilla_izq','rodilla_der','cadera_izq','cadera_der','tobillo_izq','tobillo_der',
+                                      'muslo_inclinacion_izq','muslo_inclinacion_der','pierna_inclinacion_izq',
+                                      'pierna_inclinacion_der','tronco_inclinacion')}
+        vis_izq = []   # visibilidad media por cuadro de cadera, rodilla y tobillo izquierdos
+        vis_der = []
 
         # Procesar cuadros
         while cap.isOpened() and frame_idx < processing_limit:
@@ -287,6 +293,11 @@ async def process_video(
                 if detection.pose_landmarks and len(detection.pose_landmarks) > 0:
                     frames_with_pose += 1
                     lm = detection.pose_landmarks[0]
+                    try:
+                        vis_izq.append(float(np.mean([getattr(lm[i], 'visibility', 0) for i in (23, 25, 27)])))
+                        vis_der.append(float(np.mean([getattr(lm[i], 'visibility', 0) for i in (24, 26, 28)])))
+                    except (IndexError, TypeError):
+                        pass
                     if include_pose:
                         sample_landmarks = [[round(float(p.x),5), round(float(p.y),5),
                             round(float(getattr(p,"visibility",0)),3), round(float(getattr(p,"presence",1)),3)] for p in lm]
@@ -302,7 +313,19 @@ async def process_video(
                     # Cálculo cinemático real con metrics_engine
                     metrics = compute_biomechanical_metrics(kp_px)
                     frame_data["metrics"] = metrics
+                    for _n in ('left_foot_index', 'right_foot_index'):   # solo para el cálculo; no se exportan
+                        kp_dict.pop(_n, None)
                     frame_data["keypoints"] = kp_dict
+                    for _clave, _met in (('rodilla_izq','left_knee_angle'),('rodilla_der','right_knee_angle'),
+                                         ('cadera_izq','left_hip_angle'),('cadera_der','right_hip_angle'),
+                                         ('tobillo_izq','left_ankle_angle'),('tobillo_der','right_ankle_angle'),
+                                         ('muslo_inclinacion_izq','left_thigh_inclination'),('muslo_inclinacion_der','right_thigh_inclination'),
+                                         ('pierna_inclinacion_izq','left_shank_inclination'),('pierna_inclinacion_der','right_shank_inclination')):
+                        if _met in metrics:
+                            series_art[_clave].append(metrics[_met])
+                    for _met in ('left_trunk_inclination', 'right_trunk_inclination'):
+                        if _met in metrics:
+                            series_art['tronco_inclinacion'].append(metrics[_met])
 
                     if 'left_knee_angle' in metrics or 'right_knee_angle' in metrics:
                         frames_valid += 1
@@ -316,6 +339,8 @@ async def process_video(
                         right_knees.append(metrics['right_knee_angle'])
                     if 'left_hip_angle' in metrics:
                         hip_angles.append(metrics['left_hip_angle'])
+                    if 'right_hip_angle' in metrics:
+                        hip_angles.append(metrics['right_hip_angle'])
                     if 'symmetry_score' in metrics:
                         symmetries.append(metrics['symmetry_score'])
 
@@ -359,6 +384,7 @@ async def process_video(
         # Simetría de sesión (ADR-013): resumen por pierna, independiente de la fase.
         # El promedio de la diferencia cuadro a cuadro se conserva solo como dato instantáneo.
         sym = calcular_simetria_sesion(left_knees, right_knees)
+        analisis_articular = resumir_articulaciones(series_art)   # rodilla, cadera, tobillo, muslo, pierna y tronco (ADR-017)
         avg_symmetry = sym["symmetry"] if sym["valid"] else 0.0
         min_symmetry = avg_symmetry
         instant_symmetry_mean = round(float(np.mean(symmetries)), 2) if symmetries else None
@@ -413,13 +439,27 @@ async def process_video(
         # cuadro y de una detección errónea basta para distorsionarlos; se usan los percentiles 95 y 5.
         rob_peak_knee = float(np.percentile(knee_angles, 95)) if knee_angles else 0.0
         rob_min_knee = float(np.percentile(knee_angles, 5)) if knee_angles else 0.0
-        rob_peak_hip = float(np.percentile(hip_angles, 95)) if hip_angles else 0.0
-        ipt_eval = calculate_ipt_evaluation(rob_peak_knee, rob_min_knee, avg_symmetry, rob_peak_hip,
-                                            symmetry_available=sym["valid"])
+        # Flexión máxima de cadera = 180° - percentil 5 del ángulo hombro-cadera-rodilla (ADR-016)
+        rob_hip_flexion = float(180.0 - np.percentile(hip_angles, 5)) if hip_angles else 0.0
+        # Simetría del IPT: promedio de las articulaciones evaluables (rodilla, cadera, tobillo; ADR-017);
+        # si ninguna lo es, se excluye del índice.
+        _multi = analisis_articular["simetria_multiarticular"]
+        _sim_ipt = _multi if _multi is not None else avg_symmetry
+        _sim_disponible = _multi is not None
+        ipt_eval = calculate_ipt_evaluation(rob_peak_knee, rob_min_knee, _sim_ipt, rob_hip_flexion,
+                                            symmetry_available=_sim_disponible)
+        ipt_eval["simetria_metodo"] = "promedio_multiarticular_rodilla_cadera_tobillo"
         ipt_eval["inputs_robustos"] = {"rodilla_p95": round(rob_peak_knee, 1),
                                        "rodilla_p5": round(rob_min_knee, 1),
-                                       "cadera_p95": round(rob_peak_hip, 1)}
-        ipt_eval["symmetry_excluded"] = not sym["valid"]
+                                       "cadera_flexion_max": round(rob_hip_flexion, 1)}
+        ipt_eval["symmetry_excluded"] = not _sim_disponible
+        # Contexto de la simetría: en vista lateral la pierna lejana puede quedar ocluida y su rango de
+        # movimiento subestimarse; se informa la visibilidad media de cada pierna (sin umbral, solo contexto).
+        ipt_eval["simetria_contexto"] = {
+            "rom_izquierda": sym.get("left_rom"), "rom_derecha": sym.get("right_rom"),
+            "visibilidad_media_izquierda": round(float(np.mean(vis_izq)), 3) if vis_izq else None,
+            "visibilidad_media_derecha": round(float(np.mean(vis_der)), 3) if vis_der else None,
+            "nota": "Una diferencia grande de visibilidad entre piernas sugiere oclusión de la pierna lejana."}
         _v = ipt_eval["ipt_score"]
         ipt_eval["cerca_de_umbral"] = min(abs(_v - 75.0), abs(_v - 90.0)) < 5.0
         ipt_eval["estado_validacion"] = "experimental_no_validado"
@@ -455,6 +495,7 @@ async def process_video(
                 "min_knee_flexion": min_knee,
                 "peak_hip_extension": peak_hip,
                 "avg_symmetry_score": avg_symmetry,
+                "symmetry_multiarticular": analisis_articular["simetria_multiarticular"],
                 "min_symmetry_score": min_symmetry,
                 "symmetry_method": sym["method"],
                 "symmetry_valid": sym["valid"],
@@ -466,6 +507,7 @@ async def process_video(
                 "total_praises": len(praises)
             },
             "ipt_evaluation": ipt_eval,
+            "analisis_articular": analisis_articular,
             "analisis_zancadas": analizar_zancadas(processed_frames),
             "ai_evaluations": {
                 "praises": praises,

@@ -48,6 +48,17 @@ def calculate_angle(punto_a: List[float], punto_b: List[float], punto_c: List[fl
     return round(angulo, 2)
 
 
+def angulo_con_vertical(p_superior: List[float], p_inferior: List[float]) -> float:
+    """Inclinación (0-90°) del segmento p_superior -> p_inferior respecto a la vertical de la imagen.
+
+    Se informa en valor absoluto: desde una sola vista lateral no se conoce el sentido de avance,
+    de modo que no se distingue inclinar hacia adelante o hacia atrás.
+    """
+    dx = abs(float(p_inferior[0]) - float(p_superior[0]))
+    dy = abs(float(p_inferior[1]) - float(p_superior[1]))
+    return round(math.degrees(math.atan2(dx, dy)), 2) if (dx or dy) else 0.0
+
+
 def compute_biomechanical_metrics(keypoints: Dict[str, List[float]]) -> Dict[str, Any]:
     """
     Procesa un conjunto de puntos clave corporales y calcula el set de métricas
@@ -100,6 +111,18 @@ def compute_biomechanical_metrics(keypoints: Dict[str, List[float]]) -> Dict[str
             keypoints['right_hip'],
             keypoints['right_knee']
         )
+
+    # 4b. Mediciones complementarias por lado (ADR-017): tobillo, inclinación de muslo, pierna y tronco.
+    for lado in ('left', 'right'):
+        if all(k in keypoints for k in (f'{lado}_knee', f'{lado}_ankle', f'{lado}_foot_index')):
+            metrics[f'{lado}_ankle_angle'] = calculate_angle(
+                keypoints[f'{lado}_knee'], keypoints[f'{lado}_ankle'], keypoints[f'{lado}_foot_index'])
+        if all(k in keypoints for k in (f'{lado}_hip', f'{lado}_knee')):
+            metrics[f'{lado}_thigh_inclination'] = angulo_con_vertical(keypoints[f'{lado}_hip'], keypoints[f'{lado}_knee'])
+        if all(k in keypoints for k in (f'{lado}_knee', f'{lado}_ankle')):
+            metrics[f'{lado}_shank_inclination'] = angulo_con_vertical(keypoints[f'{lado}_knee'], keypoints[f'{lado}_ankle'])
+        if all(k in keypoints for k in (f'{lado}_shoulder', f'{lado}_hip')):
+            metrics[f'{lado}_trunk_inclination'] = angulo_con_vertical(keypoints[f'{lado}_shoulder'], keypoints[f'{lado}_hip'])
 
     # 5. Índice de Simetría Bilateral de Extensión de Rodilla
     # Evalúa la discrepancia porcentual entre ambos miembros inferiores
@@ -203,11 +226,38 @@ def calcular_simetria_sesion(left_knee_series, right_knee_series):
     return out
 
 
+def resumir_articulaciones(series: Dict[str, List[float]]) -> Dict[str, Any]:
+    """Resumen por articulación (ADR-017): rango de movimiento por pierna (percentil 95 - percentil 5) y simetría.
+
+    `series` tiene claves como 'rodilla_izq', 'rodilla_der', 'cadera_izq', ... con las series por cuadro.
+    Para cada articulación bilateral devuelve ROM por pierna y simetría de sesión (mismo método que ADR-013).
+    También devuelve la simetría multiarticular: promedio de las simetrías evaluables.
+    """
+    out: Dict[str, Any] = {"articulaciones": {}}
+    validas = []
+    for art in ("rodilla", "cadera", "tobillo", "muslo_inclinacion", "pierna_inclinacion"):
+        sim = calcular_simetria_sesion(series.get(f"{art}_izq", []), series.get(f"{art}_der", []))
+        out["articulaciones"][art] = {"rom_izquierda": sim["left_rom"], "rom_derecha": sim["right_rom"],
+                                      "simetria": sim["symmetry"], "evaluable": sim["valid"]}
+        if sim["valid"] and art in ("rodilla", "cadera", "tobillo"):
+            validas.append(sim["symmetry"])
+    out["simetria_multiarticular"] = round(float(np.mean(validas)), 2) if validas else None
+    out["articulaciones_evaluadas"] = len(validas)
+    tr = [float(v) for v in series.get("tronco_inclinacion", [])]
+    if len(tr) >= MIN_MUESTRAS_POR_PIERNA:
+        out["tronco_inclinacion"] = {"media": round(float(np.mean(tr)), 1),
+                                     "p5": round(float(np.percentile(tr, 5)), 1),
+                                     "p95": round(float(np.percentile(tr, 95)), 1)}
+    else:
+        out["tronco_inclinacion"] = None
+    return out
+
+
 def calculate_ipt_evaluation(
     peak_knee_ext: float,
     min_knee_rec: float,
     avg_symmetry: float,
-    peak_hip_drive: float = 0.0,
+    flexion_cadera: float = 0.0,
     symmetry_available: bool = True
 ) -> Dict[str, Any]:
     """
@@ -219,7 +269,8 @@ def calculate_ipt_evaluation(
         peak_knee_ext: Máximo ángulo de extensión alcanzado en propulsión (grados).
         min_knee_rec: Mínimo ángulo de flexión alcanzado en recobro (grados).
         avg_symmetry: Índice de simetría bilateral promedio (%).
-        peak_hip_drive: Máxima elevación de muslo / rodilla al frente (grados).
+        flexion_cadera: Flexión máxima de cadera (180° - mínimo del ángulo hombro-cadera-rodilla).
+            Solo se informa: no se puntúa porque no hay una referencia absoluta verificable (ADR-016).
 
     Retorna:
         Diccionario con el score IPT [0-100], desglose por sector, categoría clínica y prescripción.
@@ -234,20 +285,18 @@ def calculate_ipt_evaluation(
         score_prop = max(30.0, 100.0 - (165.0 - peak_knee_ext) * 2.8)
     score_prop = round(max(0.0, min(100.0, score_prop)), 1)
 
-    # 2. Score Sector 2: Vuelo / Recobro (Péndulo corto de rodilla: talón a glúteo + rodilla al frente)
-    # Valor objetivo de la tesis: Rodilla flexionada aguda < 65° y elevación > 85°
+    # 2. Score Sector 2: Vuelo / Recobro (flexión de rodilla en el balanceo)
+    # Referencia: Novacheck (1998) informa una flexión máxima de rodilla en el balanceo de unos 90° al correr,
+    # 105° al esprintar y hasta 130° en un velocista muy entrenado; con ángulo interior = 180° - flexión,
+    # equivale a unos 90°, 75° y 50°. El umbral de 70° corresponde a un velocista entrenado: respaldo parcial.
     if min_knee_rec <= 70.0:
         score_rec_flex = 100.0 - (max(0.0, min_knee_rec - 60.0) * 1.2)
     else:
         # Penalización proporcional por péndulo largo (talón no sube al glúteo)
         score_rec_flex = max(20.0, 100.0 - ((min_knee_rec - 70.0) * 0.95))
-
-    # Si se detectó elevación de rodilla/cadera al frente
-    if peak_hip_drive > 0:
-        score_rec_drive = 100.0 if peak_hip_drive >= 85.0 else max(30.0, 100.0 - (85.0 - peak_hip_drive) * 2.0)
-        score_rec = round((score_rec_flex * 0.6) + (score_rec_drive * 0.4), 1)
-    else:
-        score_rec = round(score_rec_flex, 1)
+    # La flexión de cadera se informa pero no se puntúa (ADR-016): antes se comparaba el percentil 95 del
+    # ángulo hombro-cadera-rodilla (que mide extensión) con un umbral de elevación, y siempre se cumplía.
+    score_rec = round(score_rec_flex, 1)
 
     # 3. Score Sector 3 / Simetría Bilateral de Apoyo
     # Valor objetivo de la tesis: Simetría bilateral >= 92% (evitar asimetrías y frenado)
@@ -397,6 +446,19 @@ def calculate_ipt_evaluation(
                 "ponderacion": "25%"
             }
         },
+        "flexion_cadera_max": round(flexion_cadera, 1),
+        "referencias": [
+            {"parametro": "Propulsión: extensión de rodilla 165°-175°", "estado": "diseno_a_calibrar",
+             "fuente": "Sin fuente verificada; calibrar con datos de validación"},
+            {"parametro": "Recobro: ángulo interior de rodilla <= 70°", "estado": "respaldo_parcial",
+             "fuente": "Novacheck (1998): flexión de balanceo ~90° correr, ~105° esprint, hasta 130° velocistas entrenados"},
+            {"parametro": "Simetría >= 92%", "estado": "diseno_a_calibrar",
+             "fuente": "Sin umbral universal; Exell et al. (2012): considerar la variabilidad intra-extremidad"},
+            {"parametro": "Pesos 0,40 / 0,35 / 0,25", "estado": "diseno_a_calibrar",
+             "fuente": "Decisión de diseño; acotada con análisis de sensibilidad"},
+            {"parametro": "Flexión máxima de cadera", "estado": "solo_informativo",
+             "fuente": "Novacheck (1998): aumenta con la velocidad; sin valor absoluto"}
+        ],
         "sector_prioritario": menor['sector'],
         "drill_prescrito": menor['drill'],
         "prescripcion_completa": {

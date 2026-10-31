@@ -13,7 +13,7 @@ $$\text{IPT} = 0.40 \cdot S_{\text{propulsión}} + 0.35 \cdot S_{\text{recobro}}
 
 Donde:
 * $\sum_{i=1}^{3} w_i = 0.40 + 0.35 + 0.25 = 1.0$ (Convexidad matemática garantizada).
-* Cada sub-score $S_i \in [0, 100]$ evalúa la desviación cinemática respecto a los intervalos angulares óptimos validados por la biomecánica del sprint.
+* Cada sub-score $S_i \in [0, 100]$ evalúa la desviación cinemática respecto a intervalos angulares de referencia. Solo el umbral de flexión de rodilla del recobro tiene respaldo parcial; el resto son decisiones de diseño a calibrar (respaldo y estado de cada parámetro en `docs/adr/ADR-016-parametros-del-ipt-y-respaldo.md`).
 
 ---
 

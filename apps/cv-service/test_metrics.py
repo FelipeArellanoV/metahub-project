@@ -72,6 +72,68 @@ def test_session_symmetry_sin_datos_suficientes():
     assert r2["valid"] is False and r2["reason"] == "rango_insuficiente"
 
 
+def test_ipt_cadera_se_informa_pero_no_se_puntua():
+    from metrics_engine import calculate_ipt_evaluation
+    a = calculate_ipt_evaluation(170.0, 60.0, 95.0, 20.0)
+    b = calculate_ipt_evaluation(170.0, 60.0, 95.0, 120.0)
+    assert a["ipt_score"] == b["ipt_score"]            # la cadera no altera el índice
+    assert a["flexion_cadera_max"] == 20.0 and b["flexion_cadera_max"] == 120.0
+
+
+def test_ipt_recobro_depende_solo_de_la_rodilla():
+    from metrics_engine import calculate_ipt_evaluation
+    bueno = calculate_ipt_evaluation(170.0, 60.0, 95.0, 60.0)
+    malo = calculate_ipt_evaluation(170.0, 100.0, 95.0, 60.0)
+    assert malo["ipt_score"] < bueno["ipt_score"]
+    assert bueno["desglose_sectores"]["sector_2_recobro"]["score"] == 100.0
+
+
+def test_ipt_informa_estado_de_cada_parametro():
+    from metrics_engine import calculate_ipt_evaluation
+    r = calculate_ipt_evaluation(170.0, 60.0, 95.0, 60.0)
+    estados = {x["parametro"]: x["estado"] for x in r["referencias"]}
+    assert "respaldo_parcial" in estados.values() and "diseno_a_calibrar" in estados.values()
+    assert len(r["referencias"]) == 5
+
+
+def test_angulo_con_vertical():
+    from metrics_engine import angulo_con_vertical
+    assert angulo_con_vertical([0, 0], [0, 100]) == 0.0
+    assert angulo_con_vertical([0, 0], [100, 100]) == 45.0
+    assert angulo_con_vertical([0, 0], [100, 0]) == 90.0
+    assert angulo_con_vertical([100, 0], [0, 100]) == 45.0        # valor absoluto: no distingue el sentido
+
+
+def test_metricas_complementarias_por_lado():
+    from metrics_engine import compute_biomechanical_metrics
+    kp = {'left_shoulder': [100, 0], 'left_hip': [100, 100], 'left_knee': [160, 200], 'left_ankle': [160, 300],
+          'left_foot_index': [260, 300], 'right_hip': [100, 100], 'right_knee': [100, 200], 'right_ankle': [100, 300]}
+    m = compute_biomechanical_metrics(kp)
+    assert m['left_ankle_angle'] == 90.0                  # pierna vertical y pie horizontal
+    assert m['left_shank_inclination'] == 0.0
+    assert 30.0 < m['left_thigh_inclination'] < 31.0     # atan(60/100)
+    assert m['left_trunk_inclination'] == 0.0
+    assert 'right_ankle_angle' not in m                   # sin punta del pie no se inventa el ángulo
+
+
+def test_resumen_por_articulacion_y_simetria_multiarticular():
+    import numpy as np
+    from metrics_engine import resumir_articulaciones
+    x = np.linspace(0, 6 * np.pi, 120)
+    series = {'rodilla_izq': 120 + 40 * np.sin(x), 'rodilla_der': 120 + 40 * np.sin(x + np.pi),   # simétrica
+              'cadera_izq': 120 + 30 * np.sin(x), 'cadera_der': 120 + 15 * np.sin(x + np.pi),     # 50 %
+              'tobillo_izq': [90.0] * 5, 'tobillo_der': [90.0] * 5,                              # insuficiente
+              'tronco_inclinacion': [5.0 + (i % 3) for i in range(30)]}
+    r = resumir_articulaciones(series)
+    assert r['articulaciones']['rodilla']['simetria'] > 95.0
+    assert 45.0 < r['articulaciones']['cadera']['simetria'] < 55.0
+    assert r['articulaciones']['tobillo']['evaluable'] is False
+    assert r['articulaciones_evaluadas'] == 2
+    assert 70.0 < r['simetria_multiarticular'] < 78.0    # promedio de las dos evaluables
+    assert r['tronco_inclinacion']['media'] == 6.0
+    assert resumir_articulaciones({})['simetria_multiarticular'] is None
+
+
 def test_ipt_excluye_simetria_si_no_es_evaluable():
     from metrics_engine import calculate_ipt_evaluation
     a = calculate_ipt_evaluation(170.0, 60.0, 0.0, 90.0, symmetry_available=False)
@@ -88,3 +150,9 @@ if __name__ == "__main__":
     test_session_symmetry_detecta_asimetria_real()
     test_session_symmetry_sin_datos_suficientes()
     test_ipt_excluye_simetria_si_no_es_evaluable()
+    test_angulo_con_vertical()
+    test_metricas_complementarias_por_lado()
+    test_resumen_por_articulacion_y_simetria_multiarticular()
+    test_ipt_cadera_se_informa_pero_no_se_puntua()
+    test_ipt_recobro_depende_solo_de_la_rodilla()
+    test_ipt_informa_estado_de_cada_parametro()

@@ -20,6 +20,7 @@ def cargar(ruta):
         if "left_knee_angle" in m: K.append(m["left_knee_angle"]); L.append(m["left_knee_angle"])
         if "right_knee_angle" in m: K.append(m["right_knee_angle"]); R.append(m["right_knee_angle"])
         if "left_hip_angle" in m: H.append(m["left_hip_angle"])
+        if "right_hip_angle" in m: H.append(m["right_hip_angle"])
     return np.array(K), L, R, np.array(H)
 
 def categoria(v):
@@ -28,10 +29,14 @@ def categoria(v):
 def main(ruta, salida=None, n=5000, seed=7):
     K, L, R, H = cargar(ruta)
     sym = calcular_simetria_sesion(L, R)
+    # La simetría del IPT es el promedio multiarticular (ADR-017) cuando la respuesta lo incluye
+    multi = (json.load(open(ruta, encoding="utf-8")).get("analisis_articular") or {}).get("simetria_multiarticular")
+    if multi is not None:
+        sym = {**sym, "symmetry": multi, "valid": True, "method": "promedio_multiarticular"}
     entradas = {"rodilla_p95": float(np.percentile(K, 95)), "rodilla_p5": float(np.percentile(K, 5)),
-                "cadera_p95": float(np.percentile(H, 95)), "simetria": sym["symmetry"], "sim_valida": sym["valid"]}
+                "cadera_flexion_max": float(180.0 - np.percentile(H, 5)), "simetria": sym["symmetry"], "sim_valida": sym["valid"]}
     base = calculate_ipt_evaluation(entradas["rodilla_p95"], entradas["rodilla_p5"],
-                                    entradas["simetria"] or 0.0, entradas["cadera_p95"],
+                                    entradas["simetria"] or 0.0, entradas["cadera_flexion_max"],
                                     symmetry_available=sym["valid"])
     sc = {k: base["desglose_sectores"][k]["score"] for k in ("sector_1_propulsion", "sector_2_recobro", "simetria_bilateral")}
     rng = np.random.default_rng(seed)
@@ -44,7 +49,7 @@ def main(ruta, salida=None, n=5000, seed=7):
     for _ in range(n):
         dk = rng.uniform(-5, 5)
         r = calculate_ipt_evaluation(entradas["rodilla_p95"] - dk, entradas["rodilla_p5"] + rng.uniform(-5, 5),
-                                     (entradas["simetria"] or 0.0) + rng.uniform(-5, 5), entradas["cadera_p95"],
+                                     (entradas["simetria"] or 0.0) + rng.uniform(-5, 5), entradas["cadera_flexion_max"],
                                      symmetry_available=sym["valid"])
         vals_u.append(r["ipt_score"])
     vals_u = np.array(vals_u)
