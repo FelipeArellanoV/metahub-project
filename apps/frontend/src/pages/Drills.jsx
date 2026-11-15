@@ -38,11 +38,13 @@ import {
   Camera
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 import { saveCollaboration } from '../services/collaboration.js';
 
+import { AnimatePresence } from 'framer-motion';
+import { EASE_OUT, cardVariants, motion } from '../components/Motion.jsx';
 const initialDrills = [
   {
     id: 'D-01',
@@ -102,7 +104,7 @@ const initialDrills = [
     id: 'D-04',
     name: 'Zancadas Reactivas en Gradas',
     category: 'Impulso & Extensión',
-    targetDeficit: 'cadence',
+    targetDeficit: 'propulsion',
     difficulty: 'avanzado',
     difficultyLabel: 'Avanzado',
     goal: 'Desarrollar la potencia del glúteo mayor y la triple extensión (tobillo, rodilla y cadera).',
@@ -172,60 +174,22 @@ const initialDrills = [
   }
 ];
 
-// Perfiles biométricos para diagnóstico automático
-const athleteBiometrics = {
-  '1': {
-    name: 'Martín San Martín',
-    category: 'Sub-16',
-    age: 15,
-    kneeAngle: 24.2, // Deficitario (< 26°)
-    symmetry: 85.2,  // Deficitario (< 90%)
-    cadenceHz: 3.10, // Mejorable (< 3.2 Hz)
-    ipt: 68.4,
-    deficits: [
-      {
-        type: 'knee_flexion',
-        title: 'Recobro de Rodilla Insuficiente (24.2°)',
-        severity: 'alta',
-        recommendation: 'Aumentar ángulo de flexión de rodilla para acortar el brazo de palanca y permitir mayor amplitud de zancada.'
-      },
-      {
-        type: 'asymmetry',
-        title: 'Asimetría Bilateral de Zancada (14.8% delta)',
-        severity: 'media',
-        recommendation: 'Reforzar apoyo unipodal izquierdo para equilibrar fuerzas de impacto.'
-      }
-    ]
-  },
-  '2': {
-    name: 'Javiera Soto',
-    category: 'Sub-16',
-    age: 16,
-    kneeAngle: 27.4,
-    symmetry: 81.5, // Muy deficitario (< 85%)
-    cadenceHz: 2.95, // Deficitario (< 3.0 Hz)
-    ipt: 64.1,
-    deficits: [
-      {
-        type: 'asymmetry',
-        title: 'Asimetría Marcada en Tobillos (18.5% disparidad)',
-        severity: 'alta',
-        recommendation: 'Trabajo correctivo unilateral de rigidez reactiva y propiocepción monopodal.'
-      },
-      {
-        type: 'cadence',
-        title: 'Baja Frecuencia Cíclica (2.95 Hz / 177 ppm)',
-        severity: 'media',
-        recommendation: 'Ejercicios de overspeed para reducir el tiempo de amortiguación en el suelo.'
-      }
-    ]
-  }
-};
+// Banda de edad de trabajo (misma regla que el servicio de visión, ADR-018). No es una categoría oficial.
+function bandaDeEdad(edad) {
+  const e = Number(edad);
+  if (!Number.isFinite(e) || e < 10 || e > 17) return null;
+  return e <= 13 ? 'Sub-14' : e <= 15 ? 'Sub-16' : 'Sub-18';
+}
+
+const TIPO_A_DEFICIT = { propulsion: 'propulsion', recobro: 'knee_flexion', simetria: 'asymmetry' };
+
+const fmt = (v, d = 1) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(d) : '—');
 
 export default function Drills() {
   const location = useLocation();
+  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
-  const initialAthleteParam = searchParams.get('athlete') || '1';
+  const initialAthleteParam = searchParams.get('athlete') || ''; // sin parámetro se usa el primer atleta propio al cargar la lista
 
   const [drills, setDrills] = useState(initialDrills);
   const [categoryFilter, setCategoryFilter] = useState('Todas');
@@ -236,8 +200,6 @@ export default function Drills() {
   const [ownedAthletes, setOwnedAthletes] = useState([]);
   const [athleteSessions, setAthleteSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  const [isProcessingCv, setIsProcessingCv] = useState(false);
-  const [cvMsg, setCvMsg] = useState('');
   const [scopeError, setScopeError] = useState('');
   const [assignBusy, setAssignBusy] = useState(false);
   const [prescriptionSuccess, setPrescriptionSuccess] = useState(false);
@@ -286,154 +248,66 @@ export default function Drills() {
     }
   }, [selectedAthlete]);
 
-  // Ejecución en vivo de análisis MediaPipe si el atleta no tiene sesiones o se desea actualizar
-  const handleRunRealCvForDrills = async () => {
-    if (!selectedAthlete) return;
-    setIsProcessingCv(true);
-    setCvMsg('Conectando a microservicio MediaPipe en puerto 8000...');
-    try {
-      const formData = new FormData();
-      formData.append('use_sample', 'true');
-      formData.append('sample_stride', '2');
-      formData.append('max_frames', '120');
-
-      setTimeout(() => setCvMsg('Evaluando 33 articulaciones corporales y ángulos IPT...'), 1200);
-
-      const result = await api.cv.processVideo(formData);
-      setCvMsg('Guardando sesión real en base de datos...');
-
-      const ipt = result.ipt_evaluation?.ipt_score || 78.5;
-      await api.sessions.create({
-        athleteId: Number(selectedAthlete),
-        sessionDate: new Date().toISOString(),
-        videoUrl: '/sample_sprint.webm',
-        notes: `Control Biomecánico MediaPipe — ${result.ipt_evaluation?.categoria || 'Evaluación Técnica Real'}`,
-        iptScore: ipt,
-        analysis: {
-          ipt_evaluation: result.ipt_evaluation,
-          summary_metrics: result.summary_metrics,
-          video_info: result.video_info
-        }
-      });
-
-      setCvMsg('¡Sesión evaluada con éxito!');
-      loadSessions(selectedAthlete);
-    } catch (err) {
-      alert(`Error en análisis MediaPipe: ${err.message}`);
-    } finally {
-      setTimeout(() => {
-        setIsProcessingCv(false);
-        setCvMsg('');
-      }, 1000);
-    }
-  };
+  // Un análisis solo existe si se sube un video real del atleta (ADR-018): no hay captura simulada.
+  const handleGoToUpload = () => navigate('/upload');
 
   const [assignedFrequency, setAssignedFrequency] = useState('2 veces por semana');
 
-  // Evaluación biomecánica automática generada desde la última sesión real
-  const currentAthleteObj = ownedAthletes.find(a => String(a.id) === String(selectedAthlete)) || {
-    name: 'Atleta',
-    category: 'Sub-16'
-  };
+  // Evaluación generada SOLO con lo medido en el último video real analizado (ADR-018).
+  const currentAthleteObj = ownedAthletes.find(a => String(a.id) === String(selectedAthlete)) || { name: 'Atleta' };
 
   const athleteEval = useMemo(() => {
-    const defaultEval = athleteBiometrics[selectedAthlete] || {
+    const base = {
       name: currentAthleteObj.name || 'Atleta',
-      category: currentAthleteObj.category || 'Sub-16',
-      kneeAngle: 24.2,
-      symmetry: 85.2,
-      cadenceHz: 3.10,
-      ipt: 68.4,
-      deficits: [
-        {
-          type: 'knee_flexion',
-          title: 'Recobro de Rodilla Insuficiente (24.2°)',
-          severity: 'alta',
-          recommendation: 'Aumentar flexión de rodilla libre para acortar el brazo de palanca y acelerar el avance pendular.'
-        },
-        {
-          type: 'asymmetry',
-          title: 'Asimetría Bilateral de Zancada (14.8% delta)',
-          severity: 'media',
-          recommendation: 'Reforzar apoyo unipodal y rigidez reactiva para balancear tiempos de contacto.'
-        }
-      ]
+      category: bandaDeEdad(currentAthleteObj.age),
+      hasRealSessions: false,
+      hasRecommendations: false,
+      deficits: [],
+      rec: null
     };
-
-    if (!athleteSessions || athleteSessions.length === 0) {
-      return {
-        ...defaultEval,
-        hasRealSessions: false
-      };
-    }
+    if (!athleteSessions || athleteSessions.length === 0) return base;
 
     const latest = athleteSessions[0]; // La más reciente
     const a = latest.analysis || {};
-    const sm = a.summary_metrics || {};
+    const rec = a.recomendaciones && typeof a.recomendaciones === 'object' ? a.recomendaciones : null;
+    const robust = a.inputs_robustos || {};
+    const art = a.analisis_articular || {};
+    const ipt = typeof latest.iptScore === 'number' ? latest.iptScore
+      : (typeof a.ipt_score === 'number' ? a.ipt_score : null);
 
-    const ipt = typeof latest.iptScore === 'number' ? latest.iptScore : (a.ipt_score || 72.0);
-    const kneeAngle = Number(sm.avg_knee_angle ?? sm.min_knee_flexion ?? 24.5);
-    const symmetry = Number(sm.avg_symmetry_score ?? 86.0);
-    const cadenceHz = Number(sm.cadence_hz ?? 3.05);
-    const trunkLean = Number(sm.trunk_lean_angle ?? -5.5);
-
-    const deficits = [];
-    if (kneeAngle < 26.0) {
-      deficits.push({
-        type: 'knee_flexion',
-        title: `Recobro de Rodilla Insuficiente (${kneeAngle.toFixed(1)}°)`,
-        severity: kneeAngle < 24.5 ? 'alta' : 'media',
-        recommendation: 'Aumentar ángulo de flexión de rodilla para acortar el brazo de palanca y permitir mayor amplitud de zancada.'
-      });
-    }
-    if (symmetry < 90.0) {
-      deficits.push({
-        type: 'asymmetry',
-        title: `Asimetría Bilateral en Apoyos (${symmetry.toFixed(1)}%)`,
-        severity: symmetry < 85.0 ? 'alta' : 'media',
-        recommendation: 'Trabajo correctivo unilateral para equilibrar tiempos de contacto y estabilidad en tobillo/rodilla.'
-      });
-    }
-    if (cadenceHz < 3.10) {
-      deficits.push({
-        type: 'cadence',
-        title: `Baja Frecuencia Cíclica (${cadenceHz.toFixed(2)} Hz / ${Math.round(cadenceHz * 60)} ppm)`,
-        severity: cadenceHz < 3.0 ? 'alta' : 'media',
-        recommendation: 'Ejercicios de overspeed y skipping en frecuencia para reducir el tiempo de amortiguación en el suelo.'
-      });
-    }
-    if (trunkLean < -6.5) {
-      deficits.push({
-        type: 'trunk_lean',
-        title: `Inclinación Excesiva de Tronco (${trunkLean.toFixed(1)}°)`,
-        severity: 'media',
-        recommendation: 'Alineación postural y trabajo de core para prevenir colapso anterior.'
-      });
-    }
-
-    if (deficits.length === 0) {
-      deficits.push({
-        type: 'cadence',
-        title: 'Técnica en Nivel Óptimo — Mantenimiento de Reactividad',
-        severity: 'baja',
-        recommendation: 'Drills de potencia y zancadas reactivas para preservar la cadencia competitiva.'
-      });
-    }
+    const deficits = (rec && rec.disponible ? rec.hallazgos || [] : []).map(h => ({
+      type: TIPO_A_DEFICIT[h.tipo] || h.tipo,
+      title: h.titulo,
+      severity: h.severidad,
+      recommendation: h.interpretacion,
+      valor: h.valor,
+      unidad: h.unidad,
+      umbral: h.umbral,
+      metrica: h.metrica,
+      estado: h.estado_respaldo,
+      fuente: h.fuente
+    }));
 
     return {
-      name: currentAthleteObj.name,
-      category: currentAthleteObj.category || 'Sub-16',
+      ...base,
+      category: (rec && rec.banda_edad && rec.banda_edad.etiqueta) || base.category,
       hasRealSessions: true,
+      hasRecommendations: Boolean(rec),
+      rec,
       ipt,
-      kneeAngle,
-      symmetry,
-      cadenceHz,
+      kneeExt: robust.rodilla_p95,
+      kneeFlex: robust.rodilla_p5,
+      hipFlex: robust.cadera_flexion_max,
+      symmetry: typeof art.simetria_multiarticular === 'number' ? art.simetria_multiarticular : null,
+      confianza: rec ? rec.confianza : null,
       deficits,
       sessionDate: latest.sessionDate || latest.createdAt
     };
   }, [selectedAthlete, currentAthleteObj, athleteSessions]);
 
-  const cat = athleteEval.category || 'Sub-16';
+  const cat = athleteEval.category; // null si la edad no está registrada o está fuera de rango
+  const dosisPara = (drill) =>
+    (cat && drill.dosingByCat?.[cat]) || 'Dosis a definir por el entrenador (edad no registrada o fuera de rango)';
 
   // Drills prescritos automáticamente según los déficits detectados de datos reales
   const prescribedDrills = useMemo(() => {
@@ -464,7 +338,7 @@ export default function Drills() {
       athleteId,
       title: targetDrill.name,
       details: [
-        targetDrill.dosingByCat?.[cat] || targetDrill.dosing,
+        dosisPara(targetDrill),
         assignedFrequency,
         targetDrill.cues,
         targetDrill.execution
@@ -502,7 +376,7 @@ export default function Drills() {
         const fields = {
           athleteId: Number(selectedAthlete),
           title: `[Prescripción Automática] ${drill.name}`,
-          details: `Dosificación ${cat}: ${drill.dosingByCat?.[cat] || drill.dosing} | Cues: ${drill.cues}`
+          details: `Dosificación ${cat}: ${dosisPara(drill)} | Cues: ${drill.cues}`
         };
         await saveCollaboration('tasks', null, { ...fields, requestId: crypto.randomUUID() }).catch(() => {});
       }
@@ -546,7 +420,7 @@ export default function Drills() {
       />
 
       {/* PANEL DE PRESCRIPCIÓN AUTOMÁTICA BASADA EN LA CINEMÁTICA */}
-      <section
+      <motion.section variants={cardVariants}
         style={{
           background: 'linear-gradient(135deg, #0b1329 0%, #112240 100%)',
           borderRadius: 18,
@@ -568,11 +442,11 @@ export default function Drills() {
                   Motor de Prescripción Automática de Atletismo
                 </h3>
                 <span style={{ background: 'rgba(56,189,248,0.2)', color: '#38bdf8', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                  Categoría Oficial {cat} FEDACHI
+                  {cat ? `Banda de edad ${cat}` : 'Edad no registrada'}
                 </span>
               </div>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#94a3b8' }}>
-                Algoritmo que correlaciona déficits cinemáticos de la sesión con ejercicios correctivos dosificados.
+                Sugerencias basadas solo en lo medido en el último video real analizado. Apoyo al entrenador, no diagnóstico.
               </p>
             </div>
           </div>
@@ -587,7 +461,7 @@ export default function Drills() {
               {ownedAthletes.length > 0 ? (
                 ownedAthletes.map(a => (
                   <option key={a.id} value={String(a.id)}>
-                    {a.name} ({a.category || `Edad ${a.age || 15}`})
+                    {a.name} ({a.age ? `${a.age} años` : 'edad no registrada'})
                   </option>
                 ))
               ) : (
@@ -597,8 +471,7 @@ export default function Drills() {
 
             <button
               type="button"
-              disabled={isProcessingCv}
-              onClick={handleRunRealCvForDrills}
+              onClick={handleGoToUpload}
               style={{
                 background: '#0284c7',
                 color: 'white',
@@ -614,65 +487,107 @@ export default function Drills() {
               }}
             >
               <Camera size={14} />
-              <span>{isProcessingCv ? 'Evaluando...' : 'Nueva Captura MediaPipe'}</span>
+              <span>Subir video real</span>
             </button>
           </div>
         </div>
 
-        {cvMsg && (
-          <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(56,189,248,0.15)', borderRadius: 8, border: '1px solid #38bdf8', color: '#7dd3fc', fontSize: 12, fontWeight: 600 }}>
-            {cvMsg}
-          </div>
-        )}
 
         {!athleteEval.hasRealSessions && (
-          <div style={{ background: 'rgba(234,179,8,0.15)', border: '1px solid #eab308', borderRadius: 10, padding: '12px 16px', color: '#fef08a', fontSize: 12, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-            <span>Este atleta aún no cuenta con sesiones de carrera analizadas en base de datos. Ejecuta una toma con MediaPipe para prescribir drills con telemetría real.</span>
+          <div style={{ background: 'rgba(234,179,8,0.15)', border: '1px solid #eab308', borderRadius: 10, padding: '12px 16px', color: '#fef08a', fontSize: 13, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span>Este atleta aún no tiene videos analizados. Sin una medición real no se generan diagnósticos ni recomendaciones.</span>
             <button
               type="button"
-              onClick={handleRunRealCvForDrills}
-              disabled={isProcessingCv}
+              onClick={handleGoToUpload}
               style={{ background: '#eab308', color: '#713f12', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 800, cursor: 'pointer' }}
             >
-              Analizar con MediaPipe Ahora
+              Subir un video
             </button>
           </div>
         )}
 
-        {/* DIAGNÓSTICO BIOMECÁNICO DEL ATLETA */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
+        {athleteEval.hasRealSessions && !athleteEval.hasRecommendations && (
+          <div style={{ background: 'rgba(234,179,8,0.15)', border: '1px solid #eab308', borderRadius: 10, padding: '12px 16px', color: '#fef08a', fontSize: 13, marginBottom: 16 }}>
+            La última sesión no incluye recomendaciones (análisis anterior a la versión actual). Vuelve a analizar el video desde el historial para obtenerlas.
+          </div>
+        )}
+
+        {athleteEval.rec && !athleteEval.rec.disponible && (
+          <div style={{ background: 'rgba(248,113,113,0.15)', border: '1px solid #f87171', borderRadius: 10, padding: '12px 16px', color: '#fecaca', fontSize: 13, marginBottom: 16 }}>
+            <strong>No se generan recomendaciones.</strong> {athleteEval.rec.motivo_no_disponible}
+          </div>
+        )}
+
+        {athleteEval.rec && athleteEval.rec.disponible && athleteEval.confianza && (
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', color: '#cbd5e1', fontSize: 12, marginBottom: 16 }}>
+            <strong>Confianza del análisis: {athleteEval.confianza.nivel}.</strong> {(athleteEval.confianza.motivos || []).join(' ')}
+            {athleteEval.confianza.como_mejorar_el_video && athleteEval.confianza.como_mejorar_el_video.length > 0 && (
+              <div style={{ marginTop: 6 }}><strong>Para un mejor video:</strong> {athleteEval.confianza.como_mejorar_el_video.join(' ')}</div>
+            )}
+          </div>
+        )}
+
+        {/* DATOS MEDIDOS EN EL ÚLTIMO VIDEO (sin valores por defecto) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
           <div style={{ background: 'rgba(255,255,255,0.04)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>IPT Actual</span>
+            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>IPT actual (experimental)</span>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#38bdf8', marginTop: 2 }}>
-              {athleteEval.ipt} <span style={{ fontSize: 12, color: '#64748b' }}>pts</span>
+              {fmt(athleteEval.ipt)} <span style={{ fontSize: 12, color: '#64748b' }}>pts</span>
             </div>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.04)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Flexión Rodilla</span>
-            <div style={{ fontSize: 20, fontWeight: 800, color: athleteEval.kneeAngle < 26 ? '#f87171' : '#34d399', marginTop: 2 }}>
-              {athleteEval.kneeAngle}° {athleteEval.kneeAngle < 26 && <span style={{ fontSize: 11, color: '#f87171' }}>(Bajo recobro)</span>}
+            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Extensión de rodilla (p95)</span>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#38bdf8', marginTop: 2 }}>
+              {fmt(athleteEval.kneeExt)}°
             </div>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.04)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Simetría Bilateral</span>
-            <div style={{ fontSize: 20, fontWeight: 800, color: athleteEval.symmetry < 90 ? '#fbbf24' : '#34d399', marginTop: 2 }}>
-              {athleteEval.symmetry}% {athleteEval.symmetry < 90 && <span style={{ fontSize: 11, color: '#fbbf24' }}>(Asimétrico)</span>}
+            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Flexión de rodilla (p5)</span>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#38bdf8', marginTop: 2 }}>
+              {fmt(athleteEval.kneeFlex)}°
             </div>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.04)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Cadencia Cíclica</span>
-            <div style={{ fontSize: 20, fontWeight: 800, color: athleteEval.cadenceHz < 3.2 ? '#f87171' : '#34d399', marginTop: 2 }}>
-              {athleteEval.cadenceHz} Hz <span style={{ fontSize: 12, color: '#94a3b8' }}>({Math.round(athleteEval.cadenceHz * 60)} ppm)</span>
+            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Flexión máx. de cadera</span>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#38bdf8', marginTop: 2 }}>
+              {fmt(athleteEval.hipFlex)}°
+            </div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.04)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+            <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Simetría multiarticular</span>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#38bdf8', marginTop: 2 }}>
+              {fmt(athleteEval.symmetry)} %
             </div>
           </div>
         </div>
+
+        {/* HALLAZGOS: cada uno con valor, umbral, fuente y estado de respaldo */}
+        {athleteEval.deficits.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <strong style={{ fontSize: 14, color: '#e2e8f0' }}>Hallazgos del último análisis</strong>
+            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+              {athleteEval.deficits.map((d, i) => (
+                <motion.div key={d.type} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EASE_OUT, delay: Math.min(i, 6) * 0.05 }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#cbd5e1' }}>
+                  <div style={{ fontWeight: 800, color: 'white', fontSize: 13 }}>{d.title} <span style={{ color: d.severity === 'alta' ? '#f87171' : '#fbbf24', fontWeight: 700 }}>({d.severity})</span></div>
+                  <div style={{ marginTop: 4 }}>Medido: <strong>{fmt(d.valor)}{d.unidad}</strong> · Referencia de diseño: {d.umbral} · Métrica: {d.metrica}</div>
+                  <div style={{ marginTop: 4 }}>{d.recommendation}</div>
+                  <div style={{ marginTop: 4, color: '#94a3b8' }}>Respaldo: {d.estado === 'respaldo_parcial' ? 'parcial' : 'por calibrar'} — {d.fuente}</div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {athleteEval.rec && athleteEval.rec.disponible && athleteEval.deficits.length === 0 && (
+          <div style={{ marginBottom: 20, fontSize: 13, color: '#86efac' }}>{athleteEval.rec.mensaje}</div>
+        )}
 
         {/* LISTA DE DRILLS RECOMENDADOS AUTOMÁTICAMENTE */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <strong style={{ fontSize: 14, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Activity size={16} color="#38bdf8" />
-              Drills Prescritos Específicamente para Corregir estos Déficits:
+              Ejercicios sugeridos para los hallazgos (a criterio del entrenador):
             </strong>
 
             <button
@@ -707,9 +622,11 @@ export default function Drills() {
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-            {prescribedDrills.map((drill) => (
-              <div
+            {prescribedDrills.map((drill, i) => (
+              <motion.div
                 key={drill.id}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.32, ease: EASE_OUT, delay: Math.min(i, 6) * 0.05 }}
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: '1px solid rgba(56,189,248,0.25)',
@@ -739,13 +656,13 @@ export default function Drills() {
                 </div>
 
                 <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 'auto', paddingTop: 6 }}>
-                  ⏱️ <strong>Dosificación {cat}:</strong> <span style={{ color: 'white', fontWeight: 700 }}>{drill.dosingByCat?.[cat] || drill.dosing}</span>
+                  ⏱️ <strong>Dosificación {cat}:</strong> <span style={{ color: 'white', fontWeight: 700 }}>{dosisPara(drill)}</span>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* BARRA DE FILTROS Y BÚSQUEDA DEL CATÁLOGO GENERAL */}
       <div
@@ -773,7 +690,7 @@ export default function Drills() {
           ))}
         </div>
 
-        <div style={{ position: 'relative', width: 280 }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 280, minWidth: 0 }}>
           <Search
             size={16}
             color="#94a3b8"
@@ -791,11 +708,16 @@ export default function Drills() {
       </div>
 
       {/* GRILLA GENERAL DE DRILLS */}
-      <div className="drills-grid">
-        {filtered.map((drill) => {
+      <motion.div className="drills-grid" layout="position">
+        <AnimatePresence mode="popLayout" initial={true}>
+        {filtered.map((drill, i) => {
           const isRecommended = prescribedDrills.some(p => p.id === drill.id);
           return (
-            <article key={drill.id} className="drill-library-card" style={isRecommended ? { borderColor: '#0284c7', boxShadow: '0 4px 14px rgba(2,132,199,0.15)' } : {}}>
+            <motion.article key={drill.id} layout="position"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0, transition: { duration: 0.34, ease: EASE_OUT, delay: Math.min(i, 8) * 0.04 } }}
+              exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.16 } }}
+              className="drill-library-card" style={isRecommended ? { borderColor: '#0284c7', boxShadow: '0 4px 14px rgba(2,132,199,0.15)' } : {}}>
               <div className="drill-card-media" style={isRecommended ? { background: 'linear-gradient(135deg, #0369a1 0%, #0c4a6e 100%)' } : {}}>
                 <span className="drill-badge-category">{drill.category}</span>
                 <span className={`drill-difficulty-pill ${drill.difficulty}`}>
@@ -838,7 +760,7 @@ export default function Drills() {
                 </div>
 
                 <div className="drill-dosing-row">
-                  <span>⏱️ Dosificación ({cat}): <strong>{drill.dosingByCat?.[cat] || drill.dosing}</strong></span>
+                  <span>⏱️ Dosificación ({cat}): <strong>{dosisPara(drill)}</strong></span>
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -853,15 +775,19 @@ export default function Drills() {
                   </button>
                 </div>
               </div>
-            </article>
+            </motion.article>
           );
         })}
-      </div>
+        </AnimatePresence>
+      </motion.div>
 
       {/* MODAL ASIGNAR EJERCICIO MANUAL */}
+      <AnimatePresence>
       {showAssignModal && targetDrill && (
-        <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <motion.div key="modal" className="modal-overlay" onClick={() => setShowAssignModal(false)}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+          <motion.div className="modal-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true"
+            initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98, transition: { duration: 0.16 } }} transition={{ duration: 0.3, ease: EASE_OUT }}>
             <div className="modal-header">
               <div>
                 <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#10283f' }}>
@@ -918,7 +844,7 @@ export default function Drills() {
                     <input
                       type="text"
                       className="form-control"
-                      defaultValue={targetDrill.dosingByCat?.[cat] || targetDrill.dosing}
+                      defaultValue={dosisPara(targetDrill)}
                     />
                   </div>
                 </div>
@@ -946,9 +872,10 @@ export default function Drills() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </Layout>
   );
 }

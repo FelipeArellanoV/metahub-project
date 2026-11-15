@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Layout,PageHeader} from '../components/UI.jsx';
 import api from '../services/api.js';
+import {SkeletonList,cardVariants,listItemVariants,motion} from '../components/Motion.jsx';
 const date=v=>new Date(v).toLocaleString('es-CL');
 const score=v=>v==null?'Sin análisis':v+' pts';
 export default function MyEvolution(){
@@ -24,8 +25,8 @@ export default function MyEvolution(){
  description="Compara únicamente las sesiones vinculadas a tu cuenta. Se actualiza cada 15 segundos."
  action={<Link className="primary-button" to="/upload">Subir video de una nueva sesión</Link>}/>
  {error&&<p role="alert">{error}</p>}
- {!portal&&!error&&<p role="status">Cargando tus sesiones…</p>}
- {portal&&<><section className="panel-card"><h2>{portal.athlete.name}</h2>
+ {!portal&&!error&&<div className="panel-card"><SkeletonList rows={3} label="Cargando tus sesiones…"/></div>}
+ {portal&&<><motion.section variants={cardVariants} className="panel-card"><h2>{portal.athlete.name}</h2>
  <p>{sessions.length} sesiones registradas · Entrenador: {portal.athlete.trainerName||'Asignado en tu ficha'}</p>
  {sessions.length<2?<p>Necesitas al menos dos sesiones para comparar tu evolución.</p>:<>
  <label className="form-field"><span>Sesión inicial</span><select value={a} onChange={e=>setA(e.target.value)}>
@@ -36,14 +37,14 @@ export default function MyEvolution(){
  {a===b?<p>Selecciona sesiones distintas.</p>:delta===null?<p>Ambas sesiones deben tener análisis para calcular la diferencia.</p>:
  <p>Diferencia: {delta>0?'+':''}{delta.toFixed(1)} puntos. {delta>0?'Tu IPT aumentó entre estas sesiones.':delta<0?'Tu IPT disminuyó entre estas sesiones.':'Tu IPT se mantuvo.'}</p>}
  {first&&last&&new Date(last.sessionDate)<new Date(first.sessionDate)&&<p>La sesión de control elegida es anterior a la inicial. Revisa el orden de comparación.</p>}
- </>}</section>
- <section className="panel-card" style={{marginTop:20}}><h2>Mi historial longitudinal</h2>
+ </>}</motion.section>
+ <motion.section variants={cardVariants} className="panel-card" style={{marginTop:20}}><h2>Mi historial longitudinal</h2>
  {!sessions.length&&<p>Aún no hay sesiones.</p>}
- {sessions.map(s=><article key={s.id} style={{padding:12,borderBottom:'1px solid #dce5f0'}}>
+ {sessions.map((s,i)=><motion.article key={s.id} custom={i} variants={listItemVariants} initial="initial" animate="animate" style={{padding:12,borderBottom:'1px solid var(--border)'}}>
  <strong>{date(s.sessionDate)}</strong><p>Sesión #{s.id} · IPT: {score(s.iptScore)}</p>
  <Link to={'/reviews?sessionId='+s.id}>Ver observación del entrenador y ejercicios</Link>
  {s.sectorPrioritario&&<p>Sector prioritario: {typeof s.sectorPrioritario==='string'?s.sectorPrioritario:JSON.stringify(s.sectorPrioritario)}</p>}
- </article>)}
- <p>Los resultados reflejan los análisis registrados. Revísalos con tu entrenador.</p></section></>}
+ </motion.article>)}
+ <p>Los resultados reflejan los análisis registrados. Revísalos con tu entrenador.</p></motion.section></>}
  </Layout>;
 }

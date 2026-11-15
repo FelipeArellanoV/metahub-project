@@ -629,7 +629,7 @@ a { color: inherit; text-decoration: none; }
   background: #f8fafc;
   font-size: 14px;
   color: #10283f;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .input-wrapper input:focus {
@@ -659,7 +659,7 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
   gap: 10px;
   box-shadow: 0 10px 22px rgba(36, 116, 210, 0.25);
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   cursor: pointer;
 }
 
@@ -715,7 +715,7 @@ a { color: inherit; text-decoration: none; }
   color: #94a3b8;
   background: transparent;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .role-pill-btn.active {
@@ -758,12 +758,12 @@ a { color: inherit; text-decoration: none; }
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .athlete-task-item:hover {
   border-color: #cbd5e1;
-  background: #fafcff;
+  background: var(--surface-raised, #fafcff);
 }
 
 .athlete-task-item.completed {
@@ -782,7 +782,7 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .checkbox-round.checked {
@@ -992,7 +992,7 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   box-shadow: 0 4px 16px rgba(16, 40, 63, 0.04);
 }
 
@@ -1234,7 +1234,7 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
   color: var(--text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .nav-arrow-btn:hover {
@@ -1269,7 +1269,7 @@ a { color: inherit; text-decoration: none; }
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .calendar-day-cell:hover {
@@ -1387,7 +1387,7 @@ a { color: inherit; text-decoration: none; }
   border-radius: 12px;
   padding: 12px 14px;
   background: #f9fbfd;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .agenda-item:hover {
@@ -1491,7 +1491,7 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   overflow: hidden;
   box-shadow: 0 4px 18px rgba(16, 40, 63, 0.04);
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .priority-card:hover {
@@ -1646,7 +1646,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   cursor: pointer;
 }
 
@@ -1667,7 +1667,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .btn-outline-sm:hover {
@@ -1693,6 +1693,7 @@ a { color: inherit; text-decoration: none; }
   width: 520px;
   max-width: 95vw;
   height: 100vh;
+  height: 100dvh; /* en celulares descuenta la barra del navegador: el pie no queda oculto */
   background: var(--surface);
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.18);
   display: flex;
@@ -1717,14 +1718,14 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fafcff;
+  background: var(--surface-raised, #fafcff);
 }
 
 .drawer-tabs-bar {
   display: flex;
   border-bottom: 1px solid var(--border);
   padding: 0 24px;
-  background: #fafcff;
+  background: var(--surface-raised, #fafcff);
 }
 
 .drawer-tab-btn {
@@ -1736,7 +1737,7 @@ a { color: inherit; text-decoration: none; }
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .drawer-tab-btn.active {
@@ -1757,7 +1758,8 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  background: #fafcff;
+  background: var(--surface-raised, #fafcff);
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
 }
 
 /* Modal Overlay Form */
@@ -1831,14 +1833,14 @@ a { color: inherit; text-decoration: none; }
   border-radius: 10px;
   font-size: 13px;
   color: var(--text);
-  background: #fbfcfd;
-  transition: all 0.2s ease;
+  background: var(--surface-raised, #fbfcfd);
+  transition: transform 0.2s ease, opacity 0.2s ease;
   outline: none;
 }
 
 .form-control:focus {
   border-color: var(--blue);
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 0 0 3px rgba(36, 116, 210, 0.12);
 }
 
@@ -1850,9 +1852,11 @@ textarea.form-control {
 
 .filter-pills-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
   padding-bottom: 4px;
 }
 
@@ -1866,7 +1870,7 @@ textarea.form-control {
   color: var(--muted);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .filter-pill:hover {

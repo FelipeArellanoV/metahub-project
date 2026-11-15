@@ -18,8 +18,10 @@ import App from './App.jsx';
 import './styles.css';
 import './professional-theme.css';
 import './motion.css';
+import './motion-ui.css';
 
 import {ThemeProvider} from './components/Theme.jsx';
+import {MotionProvider} from './components/Motion.jsx';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -44,7 +46,10 @@ class ErrorBoundary extends React.Component {
             Se detectó una interrupción en el renderizado del componente:
           </p>
           <pre style={{ background: '#0f172a', color: '#f8fafc', padding: 14, borderRadius: 10, overflowX: 'auto', fontSize: 12, lineHeight: 1.5 }}>
-            {this.state.error?.message || String(this.state.error)}
+            {/* El detalle técnico solo se muestra en desarrollo; en producción queda en la consola. */}
+            {import.meta.env.DEV
+              ? (this.state.error?.message || String(this.state.error))
+              : 'Ocurrió un error inesperado en esta vista. Recarga la página o vuelve al inicio.'}
           </pre>
           <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
             <button
@@ -69,10 +74,18 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// PWA: el service worker solo se registra en la compilación de producción
+// (en desarrollo interferiría con la recarga en caliente de Vite).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.warn('No se pudo registrar el service worker:', err));
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <ThemeProvider><App /></ThemeProvider>
+      <ThemeProvider><MotionProvider><App /></MotionProvider></ThemeProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

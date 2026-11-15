@@ -48,63 +48,37 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
+import { AnimatePresence } from 'framer-motion';
+import { EASE_OUT, SteppedProgress, motion } from '../components/Motion.jsx';
+import { createRequestId } from '../services/requestId.js';
+import { uploadVideo } from '../services/videoUpload.js';
+import { validateVideoFile } from '../services/videoValidation.js';
+
+const MAX_RECORD_SECONDS = 120;
+const RECORDER_TYPES = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
 
 export default function LiveCapture() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
-  const lastAiNotificationTimeRef = useRef(0);
+  const streamRef = useRef(null);
+  const lastRecordingRef = useRef(null);
 
   // Estados de cámara y sensores
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('environment'); // 'environment' o 'user'
-  const [demoMode, setDemoMode] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
 
-  // Estados de calibración (Giroscopio)
-  const [orientation, setOrientation] = useState({ pitch: 0.4, roll: -0.2 });
-  const [isLevel, setIsLevel] = useState(true);
+  // Inclinación real del dispositivo (null mientras no llegue ninguna lectura del sensor)
+  const [orientation, setOrientation] = useState(null);
+  const isLevel = orientation ? Math.abs(orientation.roll) < 2.5 : null;
 
-  // Estados de telemetría articular en tiempo real
-  const [metrics, setMetrics] = useState({
-    kneeAngle: 142.6,
-    peakKneeAngle: 158.4,
-    hipAngle: 168.2,
-    symmetryScore: 95.8,
-    phase: 'Recobro / Vuelo',
-    fps: 60,
-    latency: 12
-  });
-
-  // Estados del Asistente Virtual IA Biomecánico
-  const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
-  const [currentAiNotification, setCurrentAiNotification] = useState({
-    id: 1,
-    type: 'good',
-    badge: 'CALIBRACIÓN INICIAL',
-    color: '#00f5a0',
-    title: 'Asistente IA Conectado',
-    message: 'Observando cinemática sagital del atleta...',
-    advice: 'Enfoca la zancada completa de 5 a 15 metros.',
-    time: 'Ahora'
-  });
-  const [aiHistory, setAiHistory] = useState([
-    {
-      id: 0,
-      type: 'good',
-      badge: 'SISTEMA LISTO',
-      color: '#00f5a0',
-      title: 'Plano Sagital Calibrado',
-      message: 'Ángulo perpendicular a 90° respecto a pista validado.',
-      advice: 'Cámara lista para captura a 60 FPS.',
-      time: '00:01'
-    }
-  ]);
-  const [showAiDrawer, setShowAiDrawer] = useState(false);
-  const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
-  const [diagnosticReport, setDiagnosticReport] = useState(null);
+  // Cámara y subida de la grabación a la cola de análisis
+  const [cameraError, setCameraError] = useState('');
+  const [captureError, setCaptureError] = useState('');
+  const [uploadState, setUploadState] = useState({ status: 'idle', percent: 0, message: '' });
 
   // Atleta seleccionado para la toma desde la base de datos
   const [athletesList, setAthletesList] = useState([]);
@@ -136,8 +110,21 @@ export default function LiveCapture() {
   }, []);
 
   const startCountdownAndRecord = () => {
+    setCaptureError('');
     if (!selectedAthleteId) {
-      alert('Debes seleccionar un atleta antes de iniciar la captura en pista.');
+      setCaptureError('Selecciona un atleta antes de iniciar la captura.');
+      return;
+    }
+    if (!consentOk) {
+      setCaptureError('Este atleta no tiene consentimiento registrado. Regístralo en Mis atletas antes de grabar.');
+      return;
+    }
+    if (!cameraActive || !streamRef.current) {
+      setCaptureError('Primero activa la cámara.');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      setCaptureError('Este navegador no puede grabar desde la vista previa. Usa "Grabar o subir carrera" con la cámara nativa.');
       return;
     }
 
@@ -178,23 +165,59 @@ export default function LiveCapture() {
   };
 
   const startActualMediaRecording = () => {
-    setIsRecording(true);
-    recordedChunksRef.current = [];
+    const stream = streamRef.current;
+    if (!stream) { setCaptureError('La cámara se apagó antes de empezar. Actívala de nuevo.'); return; }
+    try {
+      const mime = RECORDER_TYPES.find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const athleteId = selectedAthleteId;
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onerror = () => setCaptureError('La grabación falló. Vuelve a intentarlo.');
+      recorder.onstop = () => {
+        const type = (recorder.mimeType || recordedChunksRef.current[0]?.type || 'video/webm').split(';')[0];
+        const blob = new Blob(recordedChunksRef.current, { type });
+        recordedChunksRef.current = [];
+        if (!blob.size) { setCaptureError('La grabación quedó vacía. Vuelve a intentarlo.'); return; }
+        const file = new File([blob], 'pasada-' + Date.now() + (type.includes('mp4') ? '.mp4' : '.webm'), { type });
+        const check = validateVideoFile(file);
+        if (!check.ok) { setCaptureError(check.error); return; }
+        lastRecordingRef.current = { file, requestId: createRequestId(), athleteId };
+        uploadRecording();
+      };
+      recorder.start(500);
+      mediaRecorderRef.current = recorder;
+      setUploadState({ status: 'idle', percent: 0, message: '' });
+      setIsRecording(true);
+    } catch (err) {
+      console.warn('Error iniciando MediaRecorder:', err);
+      setCaptureError('Este dispositivo no pudo iniciar la grabación. Usa "Grabar o subir carrera" con la cámara nativa.');
+    }
+  };
 
-    const stream = videoRef.current?.srcObject;
-    if (stream && typeof MediaRecorder !== 'undefined') {
-      try {
-        let mime = 'video/webm;codecs=vp8';
-        if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
-        const recorder = new MediaRecorder(stream, { mimeType: mime });
-        recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
-        };
-        recorder.start(250);
-        mediaRecorderRef.current = recorder;
-      } catch (err) {
-        console.warn('Error iniciando MediaRecorder:', err);
-      }
+  // Sube la última grabación a la misma cola que usa "Grabar o subir carrera".
+  // El requestId se conserva al reintentar, así la API no duplica el video.
+  const uploadRecording = async () => {
+    const pending = lastRecordingRef.current;
+    if (!pending) return;
+    setUploadState({ status: 'uploading', percent: 0, message: '' });
+    try {
+      const saved = await uploadVideo({
+        query: 'requestId=' + pending.requestId + '&filename=' + encodeURIComponent(pending.file.name) + '&athleteId=' + encodeURIComponent(pending.athleteId),
+        file: pending.file,
+        onProgress: (sent, total) => setUploadState(prev => ({ ...prev, percent: total ? Math.min(100, Math.round(sent / total * 100)) : 0 }))
+      });
+      lastRecordingRef.current = null;
+      setUploadState({
+        status: 'done', percent: 100, sessionId: saved.sessionId,
+        message: saved.status === 'completed'
+          ? 'Este video ya estaba analizado; no se duplicó.'
+          : 'Video guardado y en cola. MediaPipe lo analiza en segundo plano; puedes grabar otra pasada.'
+      });
+    } catch (err) {
+      setUploadState({ status: 'error', percent: 0, message: err.message || 'No se pudo subir el video.' });
     }
   };
 
@@ -206,32 +229,18 @@ export default function LiveCapture() {
   const [realAnalysisData, setRealAnalysisData] = useState(null);
   const [previewFrameIndex, setPreviewFrameIndex] = useState(0);
   const [videoError, setVideoError] = useState(null);
+  // Estado real del servicio de visión: 'checking' | 'ok' | 'down'
+  const [cvHealth, setCvHealth] = useState('checking');
 
-  const handleProcessRecordedVideo = async (file) => {
-    setIsProcessingVideo(true);
-    setVideoError(null);
-    setVideoProcessingStep('1/4: Conectando con microservicio MediaPipe (puerto :8000)...');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('use_sample', 'false');
-      formData.append('sample_stride', '2');
-      formData.append('max_frames', '240');
-
-      setTimeout(() => setVideoProcessingStep('2/4: Extrayendo fotogramas del video grabado...'), 800);
-      setTimeout(() => setVideoProcessingStep('3/4: MediaPipe detectando articulaciones reales...'), 1800);
-      setTimeout(() => setVideoProcessingStep('4/4: Evaluando Índice IPT MetaHub UCT...'), 2800);
-
-      const result = await api.cv.processVideo(formData);
-      setRealAnalysisData(result);
-      setPreviewFrameIndex(0);
-    } catch (err) {
-      setVideoError(err.message || 'Error procesando video grabado en servidor CV.');
-    } finally {
-      setIsProcessingVideo(false);
-    }
-  };
+  useEffect(() => {
+    if (activeTab !== 'video_upload') return;
+    let alive = true;
+    setCvHealth('checking');
+    fetch((import.meta.env.VITE_API_BASE || '') + '/api/cv/health', { cache: 'no-store' })
+      .then(r => { if (alive) setCvHealth(r.ok ? 'ok' : 'down'); })
+      .catch(() => { if (alive) setCvHealth('down'); });
+    return () => { alive = false; };
+  }, [activeTab]);
 
   const handleSaveRealSession = async () => {
     if (!realAnalysisData || !selectedAthleteId) return;
@@ -257,13 +266,16 @@ export default function LiveCapture() {
   const handleProcessVideoUpload = async (useSample = false) => {
     setIsProcessingVideo(true);
     setVideoError(null);
-    setVideoProcessingStep('1/4: Conectando con microservicio MediaPipe (puerto :8000)...');
+    setVideoProcessingStep('1/1: Enviando el video y esperando el análisis de MediaPipe…');
 
     try {
       const apiUrl = '/api/cv/process-video';
 
       const formData = new FormData();
-      if (useSample || !selectedVideoFile) {
+      if (!selectedVideoFile) {
+        if (!(useSample && import.meta.env.VITE_ENABLE_DEMO === 'true')) {
+          throw new Error('Selecciona un video real del atleta. El video de muestra está deshabilitado.');
+        }
         formData.append('use_sample', 'true');
       } else {
         formData.append('file', selectedVideoFile);
@@ -272,20 +284,10 @@ export default function LiveCapture() {
       formData.append('sample_stride', '3');
       formData.append('max_frames', '90');
 
-      setTimeout(() => {
-        setVideoProcessingStep('2/4: Extrayendo fotogramas con OpenCV VideoCapture...');
-      }, 1000);
-
-      setTimeout(() => {
-        setVideoProcessingStep('3/4: MediaPipe Pose detectando 33 landmarks articulares...');
-      }, 2200);
-
-      setTimeout(() => {
-        setVideoProcessingStep('4/4: Computando ángulos vectoriales y simetría bilateral (atan2)...');
-      }, 3400);
-
+      // El servicio de visión se alcanza a través de la API, que exige sesión iniciada.
       const response = await fetch(apiUrl, {
         method: 'POST',
+        headers: { Authorization: 'Bearer ' + (localStorage.getItem('metahub_token') || '') },
         body: formData
       });
 
@@ -295,10 +297,12 @@ export default function LiveCapture() {
         setPreviewFrameIndex(0);
         return;
       }
-      throw new Error(`Error en servidor CV: HTTP ${response.status}`);
+      const failure = await response.json().catch(() => ({}));
+      throw new Error(failure.error || failure.detail || `El servicio de visión respondió con error (HTTP ${response.status}).`);
     } catch (err) {
-      console.warn('Intentando fallback a datos de análisis guardados:', err);
-      try {
+      // Los datos de ejemplo solo se muestran en modo demostración (ADR-018): nunca como si fueran un análisis real.
+      if (import.meta.env.VITE_ENABLE_DEMO === 'true') try {
+        console.warn('Modo demostración: se muestran datos de análisis de ejemplo.', err);
         const fallbackResp = await fetch('/sample_analysis_result.json');
         if (fallbackResp.ok) {
           const fallbackData = await fallbackResp.json();
@@ -308,7 +312,7 @@ export default function LiveCapture() {
         }
       } catch (e2) { }
 
-      setVideoError(err.message || 'No se pudo conectar con el microservicio Python (:8000).');
+      setVideoError(err.message || 'No se pudo conectar con el servicio de visión.');
     } finally {
       setIsProcessingVideo(false);
     }
@@ -327,110 +331,110 @@ export default function LiveCapture() {
 
   // Iniciar / detener cámara real
   const startCamera = async () => {
+    setCameraError('');
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError('La cámara en vivo requiere HTTPS o localhost. Usa "Grabar o subir carrera" con la cámara nativa del celular.');
+      return;
+    }
+    // iOS solo entrega el giroscopio si se pide permiso durante un toque del usuario.
     try {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        await DeviceOrientationEvent.requestPermission();
       }
+    } catch { /* sin permiso: la pantalla indica que no hay lectura de inclinación */ }
+    try {
+      streamRef.current?.getTracks().forEach(track => track.stop());
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: false
       });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        setCameraActive(true);
-        setDemoMode(false);
+        await videoRef.current.play().catch(() => {});
       }
+      setCameraActive(true);
     } catch (err) {
-      console.warn('Cámara física no disponible, activando modo cinemático de prueba:', err);
-      setDemoMode(true);
+      streamRef.current = null;
       setCameraActive(false);
+      setCameraError(err?.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Habilítalo para este sitio en el navegador.'
+        : err?.name === 'NotFoundError' ? 'No se encontró una cámara en este dispositivo.'
+        : 'No fue posible abrir la cámara. Puede estar ocupada por otra aplicación.');
     }
   };
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
+    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     setCameraActive(false);
+    setIsRecording(false);
   };
 
-  // Giroscopio / Orientación del dispositivo móvil
+  // Apagar la cámara al salir de la pantalla o al pasar a la pestaña de subida.
+  useEffect(() => () => {
+    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+    streamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
+  useEffect(() => { if (activeTab !== 'camera' && cameraActive) stopCamera(); }, [activeTab]);
+
+  // Inclinación del dispositivo (giroscopio). En horizontal la rotación relevante es beta.
   useEffect(() => {
     const handleOrientation = (e) => {
-      if (e.beta !== null && e.gamma !== null) {
-        const pitch = Number(e.beta.toFixed(1));
-        const roll = Number(e.gamma.toFixed(1));
-        setOrientation({ pitch, roll });
-        setIsLevel(Math.abs(roll) < 2.5);
-      }
+      if (e.beta === null || e.gamma === null) return;
+      const angle = (window.screen?.orientation?.angle ?? window.orientation ?? 0);
+      const roll = angle === 90 ? -e.beta : (angle === 270 || angle === -90) ? e.beta : e.gamma;
+      setOrientation({ pitch: Number(e.beta.toFixed(1)), roll: Number(roll.toFixed(1)) });
     };
-
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  // Temporizador de grabación
+  // Temporizador de grabación con tope de duración
   useEffect(() => {
     let timer;
     if (isRecording) {
-      timer = setInterval(() => {
-        setRecordSeconds(prev => prev + 1);
-      }, 1000);
+      timer = setInterval(() => setRecordSeconds(prev => prev + 1), 1000);
     } else {
       setRecordSeconds(0);
     }
     return () => clearInterval(timer);
   }, [isRecording]);
+  useEffect(() => { if (isRecording && recordSeconds >= MAX_RECORD_SECONDS) handleFinishRecording(); }, [recordSeconds, isRecording]);
 
-  // Motor de Renderizado en Canvas (Esqueleto biomecánico + Overlay en tiempo real)
+  // Guías de encuadre y horizonte sobre la cámara. No se dibuja ningún esqueleto:
+  // la detección corporal la hace MediaPipe en el servidor, después de subir el video.
   useEffect(() => {
-    let angle = 0;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-
-    const renderLoop = () => {
-      // Ajustar resolución del canvas
+    const draw = () => {
       if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
       }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       const w = canvas.width;
       const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const tone = isLevel === null ? 'rgba(148, 163, 184, 0.6)' : isLevel ? '#00f5a0' : '#ff3366';
 
-      // 1. Dibujar Guía del Plano Sagital (Corredor de captura recomendado)
       ctx.save();
-      ctx.strokeStyle = 'rgba(0, 194, 255, 0.2)';
+      ctx.strokeStyle = 'rgba(0, 194, 255, 0.25)';
       ctx.lineWidth = 1;
       ctx.setLineDash([6, 6]);
-
-      // Líneas de encuadre sagital
       ctx.beginPath();
       ctx.moveTo(w * 0.2, 0); ctx.lineTo(w * 0.2, h);
       ctx.moveTo(w * 0.8, 0); ctx.lineTo(w * 0.8, h);
       ctx.stroke();
-
-      // Zona central de enfoque
-      ctx.strokeStyle = isLevel ? 'rgba(0, 245, 160, 0.4)' : 'rgba(255, 51, 102, 0.4)';
+      ctx.strokeStyle = isLevel === null ? 'rgba(148, 163, 184, 0.35)' : isLevel ? 'rgba(0, 245, 160, 0.4)' : 'rgba(255, 51, 102, 0.4)';
       ctx.strokeRect(w * 0.22, h * 0.12, w * 0.56, h * 0.76);
       ctx.restore();
 
-      // 2. Dibujar Horizonte Virtual (Giroscopio)
       ctx.save();
       const horizonY = h * 0.5;
-      const tiltOffset = (orientation.roll || 0) * 4;
-      ctx.strokeStyle = isLevel ? '#00f5a0' : '#ff3366';
+      const tiltOffset = (orientation?.roll || 0) * 4;
+      ctx.strokeStyle = tone;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(w * 0.1, horizonY - tiltOffset);
@@ -438,237 +442,29 @@ export default function LiveCapture() {
       ctx.moveTo(w * 0.65, horizonY + tiltOffset);
       ctx.lineTo(w * 0.9, horizonY + tiltOffset);
       ctx.stroke();
-
-      // Cruz central
       ctx.beginPath();
       ctx.arc(w * 0.5, horizonY, 8, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-
-      // 3. Simulación Cinemática de Pista (Si no hay cámara o en modo demo)
-      angle += 0.05;
-      const cycle = Math.sin(angle);
-      const kneeDeg = 135 + Math.sin(angle) * 25;
-      const hipDeg = 160 + Math.cos(angle) * 15;
-      const symm = 94.5 + Math.sin(angle * 0.5) * 2.5;
-      const currentPhase = cycle > 0.3 ? 'Recobro / Elevación' : cycle < -0.3 ? 'Propulsión / Despegue' : 'Contacto Inicial';
-
-      setMetrics({
-        kneeAngle: Number(kneeDeg.toFixed(1)),
-        peakKneeAngle: 161.2,
-        hipAngle: Number(hipDeg.toFixed(1)),
-        symmetryScore: Number(symm.toFixed(1)),
-        phase: currentPhase,
-        fps: 60,
-        latency: 11
-      });
-
-      // Dibujar esqueleto articular si estamos en demoMode o con overlay
-      const hipX = w * 0.5;
-      const hipY = h * 0.45;
-      const kneeX = hipX + Math.sin(angle) * (w * 0.12);
-      const kneeY = hipY + h * 0.18;
-      const ankleX = kneeX - Math.cos(angle) * (w * 0.08);
-      const ankleY = kneeY + h * 0.18;
-
-      const shoulderX = hipX - w * 0.03;
-      const shoulderY = hipY - h * 0.22;
-      const headX = shoulderX + w * 0.02;
-      const headY = shoulderY - h * 0.08;
-
-      // Huesos / Segmentos articulares
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-
-      // Tronco y cabeza
-      ctx.strokeStyle = '#00c2ff';
-      ctx.beginPath();
-      ctx.moveTo(shoulderX, shoulderY);
-      ctx.lineTo(hipX, hipY);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(headX, headY, 14, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Pierna derecha (Volt)
-      ctx.strokeStyle = '#00f5a0';
-      ctx.beginPath();
-      ctx.moveTo(hipX, hipY);
-      ctx.lineTo(kneeX, kneeY);
-      ctx.lineTo(ankleX, ankleY);
-      ctx.stroke();
-
-      // Pierna contralateral (Cyan translúcido)
-      const oppKneeX = hipX - Math.sin(angle) * (w * 0.1);
-      const oppKneeY = hipY + h * 0.17;
-      const oppAnkleX = oppKneeX + Math.cos(angle) * (w * 0.07);
-      const oppAnkleY = oppKneeY + h * 0.17;
-
-      ctx.strokeStyle = 'rgba(0, 194, 255, 0.6)';
-      ctx.beginPath();
-      ctx.moveTo(hipX, hipY);
-      ctx.lineTo(oppKneeX, oppKneeY);
-      ctx.lineTo(oppAnkleX, oppAnkleY);
-      ctx.stroke();
-
-      // Nodos articulares (Landmarks 33)
-      const nodes = [
-        { x: hipX, y: hipY, color: '#00c2ff' },
-        { x: kneeX, y: kneeY, color: '#00f5a0', label: `${kneeDeg.toFixed(1)}°` },
-        { x: ankleX, y: ankleY, color: '#00f5a0' },
-        { x: shoulderX, y: shoulderY, color: '#00c2ff', label: `${hipDeg.toFixed(1)}°` }
-      ];
-
-      nodes.forEach(n => {
-        ctx.fillStyle = n.color;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, 6, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Rótulo angular en pantalla
-        if (n.label) {
-          ctx.fillStyle = 'rgba(4, 18, 29, 0.85)';
-          ctx.fillRect(n.x + 8, n.y - 12, 54, 20);
-          ctx.strokeStyle = n.color;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(n.x + 8, n.y - 12, 54, 20);
-
-          ctx.fillStyle = n.color;
-          ctx.font = 'bold 11px JetBrains Mono, monospace';
-          ctx.fillText(n.label, n.x + 12, n.y + 2);
-        }
-      });
-
-      animFrameRef.current = requestAnimationFrame(renderLoop);
     };
-
-    renderLoop();
-
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [demoMode, isLevel, orientation]);
-
-  // Motor de Evaluación de Anomalías y Buenos Movimientos en Tiempo Real (AI Biomechanical Assistant)
-  useEffect(() => {
-      const now = Date.now();
-      // Evaluar cada 3.2 segundos
-      if (now - lastAiNotificationTimeRef.current < 3200) return;
-
-      let newEvent = null;
-
-      if (metrics.symmetryScore < 91) {
-        newEvent = {
-          id: now,
-          type: 'anomaly',
-          badge: '⚠️ ANOMALÍA DETECTADA',
-          color: '#ff3366',
-          title: 'Asimetría de Apoyo Bilateral',
-          message: `Disparidad de ${(100 - metrics.symmetryScore).toFixed(1)}% entre ambos hemicuerpos.`,
-          advice: 'Evita acortar la zancada izquierda. Mantén la pelvis nivelada durante el impacto.',
-          audio: 'Atención: Asimetría detectada. Nivelar zancada izquierda.',
-          time: new Date().toLocaleTimeString().slice(3, 8)
-        };
-      } else if (metrics.kneeAngle > 156) {
-        newEvent = {
-          id: now,
-          type: 'good',
-          badge: '✨ BUEN MOVIMIENTO',
-          color: '#00f5a0',
-          title: '¡Recobro de Rodilla Óptimo!',
-          message: `Ángulo de flexión ${metrics.kneeAngle}° alcanzado en fase de vuelo.`,
-          advice: 'Excelente elevación de talón al glúteo. Maximiza el tiempo de vuelo.',
-          audio: '¡Excelente elevación de rodilla, mantén el ritmo!',
-          time: new Date().toLocaleTimeString().slice(3, 8)
-        };
-      } else if (metrics.hipAngle > 172) {
-        newEvent = {
-          id: now,
-          type: 'good',
-          badge: '🚀 BUEN MOVIMIENTO',
-          color: '#00c2ff',
-          title: '¡Triple Extensión de Despegue!',
-          message: `Extensión de cadera de ${metrics.hipAngle}° en fase propulsiva.`,
-          advice: 'Transmisión lineal de fuerza perfecta hacia el tartán.',
-          audio: '¡Gran impulso y triple extensión de cadera!',
-          time: new Date().toLocaleTimeString().slice(3, 8)
-        };
-      } else if (metrics.kneeAngle < 128 && metrics.phase.includes('Recobro')) {
-        newEvent = {
-          id: now,
-          type: 'anomaly',
-          badge: '⚠️ ANOMALÍA DETECTADA',
-          color: '#ffaa00',
-          title: 'Recobro Bajo de Talón',
-          message: `Flexión de solo ${metrics.kneeAngle}° (rango óptimo >150°).`,
-          advice: 'Acelera la tracción del talón hacia el glúteo para acortar el péndulo.',
-          audio: 'Alerta: Rodilla baja. Tracciona más el talón al glúteo.',
-          time: new Date().toLocaleTimeString().slice(3, 8)
-        };
-      } else if (metrics.symmetryScore >= 96) {
-        newEvent = {
-          id: now,
-          type: 'good',
-          badge: '🎯 BUEN MOVIMIENTO',
-          color: '#00f5a0',
-          title: 'Simetría de Nivel Competitivo',
-          message: `Equilibrio del ${metrics.symmetryScore}% entre apoyos izquierdo y derecho.`,
-          advice: 'Fuerza propulsiva idéntica en ambos hemicuerpos sin sobrecargas.',
-          audio: 'Simetría excelente, zancadas equilibradas.',
-          time: new Date().toLocaleTimeString().slice(3, 8)
-        };
-      }
-
-      if (newEvent) {
-        lastAiNotificationTimeRef.current = now;
-        setCurrentAiNotification(newEvent);
-        setAiHistory(prev => [newEvent, ...prev.slice(0, 24)]);
-
-        // Audio / Sintetizador de voz
-        if (aiVoiceEnabled && 'speechSynthesis' in window) {
-          try {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(newEvent.audio);
-            utterance.lang = 'es-CL';
-            utterance.rate = 1.05;
-            window.speechSynthesis.speak(utterance);
-          } catch (e) {
-            // Ignore audio errors
-          }
-        }
-      }
-    }, [metrics, aiVoiceEnabled]);
+    draw();
+    window.addEventListener('resize', draw);
+    return () => window.removeEventListener('resize', draw);
+  }, [isLevel, orientation, cameraActive, activeTab]);
 
     const toggleFacingMode = () => {
       setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
     };
+    // Con la cámara encendida, cambiar de cámara la vuelve a abrir.
+    useEffect(() => { if (cameraActive && !isRecording) startCamera(); }, [facingMode]);
 
     const handleFinishRecording = () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
       setIsRecording(false);
-      const report = {
-        athlete: selectedAthlete,
-        duration: `${recordSeconds || 4} segundos`,
-        score: metrics.symmetryScore > 93 ? 94 : 86,
-        peakKnee: metrics.peakKneeAngle,
-        avgHip: metrics.hipAngle,
-        symmetry: metrics.symmetryScore,
-        strengths: [
-          'Excelente pico de elevación de rodilla en fase de recobro (158.4°).',
-          'Buena alineación angular en la triple extensión de impulso.'
-        ],
-        anomalyDetected: metrics.symmetryScore < 94
-          ? 'Ligera asimetría de zancada en el apoyo izquierdo (disparidad del 11%).'
-          : 'Ligera caída de pelvis en los últimos metros de la pasada.',
-        prescribedDrill: {
-          title: 'Skipping A en vallas bajas de 40cm',
-          series: '4 series x 6 vallas',
-          focus: 'Consolidar el ángulo de recobro a 90° y estabilización pélvica'
-        }
-      };
-      setDiagnosticReport(report);
-      setShowDiagnosticModal(true);
     };
+
+    const selectedAthleteRow = athletesList.find(a => String(a.id) === String(selectedAthleteId));
+    const consentOk = Boolean(selectedAthleteRow?.consent);
 
     return (
       <Layout>
@@ -680,9 +476,9 @@ export default function LiveCapture() {
             <button
               onClick={() => navigate('/sessions')}
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: 'white',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
                 borderRadius: '12px',
                 padding: '8px 14px',
                 display: 'flex',
@@ -699,9 +495,9 @@ export default function LiveCapture() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{
-                background: isLevel ? 'rgba(0, 245, 160, 0.15)' : 'rgba(255, 51, 102, 0.15)',
-                color: isLevel ? '#00f5a0' : '#ff3366',
-                border: `1px solid ${isLevel ? 'rgba(0, 245, 160, 0.3)' : 'rgba(255, 51, 102, 0.3)'}`,
+                background: isLevel === null ? 'rgba(148, 163, 184, 0.15)' : isLevel ? 'rgba(0, 245, 160, 0.15)' : 'rgba(255, 51, 102, 0.15)',
+                color: isLevel === null ? '#94a3b8' : isLevel ? '#00f5a0' : '#ff3366',
+                border: `1px solid ${isLevel === null ? 'rgba(148, 163, 184, 0.3)' : isLevel ? 'rgba(0, 245, 160, 0.3)' : 'rgba(255, 51, 102, 0.3)'}`,
                 padding: '4px 10px',
                 borderRadius: '8px',
                 fontSize: '11px',
@@ -711,7 +507,7 @@ export default function LiveCapture() {
                 gap: '6px'
               }}>
                 <Compass size={14} />
-                <span>{isLevel ? 'PLANO SAGITAL NIVELADO ✓' : `AJUSTAR INCLINACIÓN (${orientation.roll}°)`}</span>
+                <span>{isLevel === null ? 'SIN LECTURA DE INCLINACIÓN' : isLevel ? 'CELULAR NIVELADO ✓' : `AJUSTAR INCLINACIÓN (${orientation.roll}°)`}</span>
               </span>
 
               <span style={{
@@ -724,7 +520,7 @@ export default function LiveCapture() {
                 fontWeight: '800',
                 fontFamily: 'monospace'
               }}>
-                {metrics.fps} FPS · MEDIAPIPE AI
+                {isRecording ? `● GRABANDO ${recordSeconds}s / ${MAX_RECORD_SECONDS}s` : cameraActive ? 'CÁMARA ACTIVA' : 'CÁMARA APAGADA'}
               </span>
             </div>
           </div>
@@ -743,7 +539,7 @@ export default function LiveCapture() {
               onClick={() => setActiveTab('camera')}
               style={{
                 flex: 1,
-                height: '42px',
+                minHeight: '42px', padding: '6px 10px', lineHeight: 1.2,
                 background: activeTab === 'camera' ? 'linear-gradient(135deg, #0284c7 0%, #00f5a0 100%)' : 'transparent',
                 color: activeTab === 'camera' ? '#04121d' : '#94a3b8',
                 border: 'none',
@@ -756,7 +552,6 @@ export default function LiveCapture() {
                 justifyContent: 'center',
                 gap: '8px',
                 boxShadow: activeTab === 'camera' ? '0 4px 18px rgba(0, 245, 160, 0.3)' : 'none',
-                transition: 'all 0.2s ease'
               }}
             >
               <Camera size={18} />
@@ -767,7 +562,7 @@ export default function LiveCapture() {
               onClick={() => setActiveTab('video_upload')}
               style={{
                 flex: 1,
-                height: '42px',
+                minHeight: '42px', padding: '6px 10px', lineHeight: 1.2,
                 background: activeTab === 'video_upload' ? 'linear-gradient(135deg, #00f5a0 0%, #00c2ff 100%)' : 'transparent',
                 color: activeTab === 'video_upload' ? '#04121d' : '#94a3b8',
                 border: 'none',
@@ -780,7 +575,6 @@ export default function LiveCapture() {
                 justifyContent: 'center',
                 gap: '8px',
                 boxShadow: activeTab === 'video_upload' ? '0 4px 18px rgba(0, 194, 255, 0.3)' : 'none',
-                transition: 'all 0.2s ease'
               }}
             >
               <FileVideo size={18} />
@@ -814,8 +608,7 @@ export default function LiveCapture() {
                     inset: 0,
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
-                    opacity: demoMode ? 0.35 : 1
+                    objectFit: 'cover'
                   }}
                 />
 
@@ -832,8 +625,8 @@ export default function LiveCapture() {
                 />
 
                 {/* OVERLAY DE CUENTA REGRESIVA (3, 2, 1, ¡YA!) */}
-                {countdown !== null && (
-                  <div style={{
+                <AnimatePresence>{countdown !== null && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} style={{
                     position: 'absolute',
                     inset: 0,
                     background: 'rgba(4, 18, 29, 0.88)',
@@ -847,14 +640,19 @@ export default function LiveCapture() {
                     <span style={{ fontSize: '14px', fontWeight: '800', color: '#00c2ff', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
                       INICIANDO CAPTURA EN PISTA
                     </span>
-                    <span style={{ fontSize: '88px', fontWeight: '900', color: countdown === '¡YA!' ? '#00f5a0' : '#ffffff', fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 35px rgba(0, 245, 160, 0.7)' }}>
+                    <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.span key={String(countdown)}
+                      initial={{ opacity: 0, scale: 0.55 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.35 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                      style={{ display: 'inline-block', fontSize: '88px', fontWeight: '900', color: countdown === '¡YA!' ? '#00f5a0' : '#ffffff', fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 35px rgba(0, 245, 160, 0.7)' }}>
                       {countdown}
-                    </span>
+                    </motion.span>
+                    </AnimatePresence>
                     <span style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '12px' }}>
                       Atleta a registrar: <strong style={{ color: '#00f5a0' }}>{selectedAthlete}</strong>
                     </span>
-                  </div>
-                )}
+                  </motion.div>
+                )}</AnimatePresence>
 
                 {/* Overlay de Estado en Vivo (Top Inside) */}
                 <div style={{
@@ -899,88 +697,9 @@ export default function LiveCapture() {
                       )}
                     </select>
 
-                    <button
-                      onClick={() => setDemoMode(!demoMode)}
-                      style={{
-                        background: demoMode ? 'rgba(0, 245, 160, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                        border: `1px solid ${demoMode ? '#00f5a0' : 'rgba(255, 255, 255, 0.2)'}`,
-                        color: demoMode ? '#00f5a0' : 'white',
-                        padding: '6px 12px',
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        backdropFilter: 'blur(8px)'
-                      }}
-                    >
-                      {demoMode ? 'Modo Simulación de Pista' : 'Cámara en Vivo'}
-                    </button>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={() => setAiVoiceEnabled(!aiVoiceEnabled)}
-                      title={aiVoiceEnabled ? "Silenciar Voz Asistente IA" : "Activar Voz Asistente IA"}
-                      style={{
-                        height: '36px',
-                        padding: '0 10px',
-                        borderRadius: '10px',
-                        background: aiVoiceEnabled ? 'rgba(0, 245, 160, 0.2)' : 'rgba(9, 15, 28, 0.85)',
-                        border: `1px solid ${aiVoiceEnabled ? '#00f5a0' : 'rgba(255, 255, 255, 0.2)'}`,
-                        color: aiVoiceEnabled ? '#00f5a0' : '#94a3b8',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        backdropFilter: 'blur(8px)'
-                      }}
-                    >
-                      {aiVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                      <span>{aiVoiceEnabled ? 'Voz IA ON' : 'Voz IA OFF'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setShowAiDrawer(!showAiDrawer)}
-                      title="Abrir Registro del Asistente IA"
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        background: 'rgba(9, 15, 28, 0.85)',
-                        border: '1px solid rgba(0, 194, 255, 0.4)',
-                        color: '#00c2ff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        position: 'relative',
-                        backdropFilter: 'blur(8px)'
-                      }}
-                    >
-                      <Bot size={18} />
-                      {aiHistory.length > 0 && (
-                        <span style={{
-                          position: 'absolute',
-                          top: '-4px',
-                          right: '-4px',
-                          background: '#ff3366',
-                          color: 'white',
-                          borderRadius: '50%',
-                          width: '16px',
-                          height: '16px',
-                          fontSize: '9px',
-                          fontWeight: '800',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          {aiHistory.length}
-                        </span>
-                      )}
-                    </button>
-
                     <button
                       onClick={toggleFacingMode}
                       title="Cambiar Cámara (Frontal / Trasera)"
@@ -1003,123 +722,48 @@ export default function LiveCapture() {
                   </div>
                 </div>
 
-                {/* BANNER FLOTANTE DEL ASISTENTE VIRTUAL IA (CONSEJOS & ANOMALÍAS EN TIEMPO REAL) */}
-                <div style={{
-                  position: 'absolute',
-                  top: '68px',
-                  left: '16px',
-                  right: '16px',
-                  background: currentAiNotification.type === 'anomaly'
-                    ? 'linear-gradient(135deg, rgba(255, 51, 102, 0.22) 0%, rgba(9, 15, 28, 0.94) 100%)'
-                    : 'linear-gradient(135deg, rgba(0, 245, 160, 0.18) 0%, rgba(9, 15, 28, 0.94) 100%)',
-                  border: `1px solid ${currentAiNotification.color}`,
-                  borderLeft: `4px solid ${currentAiNotification.color}`,
-                  borderRadius: '14px',
-                  padding: '10px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  zIndex: 25,
-                  backdropFilter: 'blur(16px)',
-                  boxShadow: `0 8px 24px rgba(0,0,0,0.6), 0 0 15px ${currentAiNotification.color}33`,
-                  transition: 'all 0.3s ease'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: currentAiNotification.type === 'anomaly' ? 'rgba(255,51,102,0.2)' : 'rgba(0,245,160,0.2)',
-                      border: `1px solid ${currentAiNotification.color}`,
-                      color: currentAiNotification.color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <Bot size={20} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                        <span style={{
-                          fontSize: '9px',
-                          fontWeight: '800',
-                          color: currentAiNotification.color,
-                          letterSpacing: '0.8px',
-                          textTransform: 'uppercase'
-                        }}>
-                          {currentAiNotification.badge}
-                        </span>
-                        <strong style={{ fontSize: '12px', color: 'white' }}>{currentAiNotification.title}</strong>
+                {/* CÁMARA APAGADA: activarla con un toque (también pide el giroscopio en iOS) */}
+                {!cameraActive && (
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 15, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '24px', textAlign: 'center', color: '#cbd5e1' }}>
+                    <Camera size={40} color="#38bdf8" />
+                    <strong style={{ color: 'white', fontSize: '15px' }}>Encuadra la pasada con la cámara del dispositivo</strong>
+                    <span style={{ fontSize: '12px', maxWidth: '420px', lineHeight: 1.5 }}>
+                      Al detener la grabación, el video se guarda en la ficha del atleta y MediaPipe lo analiza en el servidor.
+                    </span>
+                    <button type="button" onClick={startCamera} className="primary-button" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Camera size={17} /> Activar cámara
+                    </button>
+                    {cameraError && <p role="alert" style={{ margin: 0, fontSize: '12px' }}>{cameraError}</p>}
+                  </div>
+                )}
+
+                {/* ESTADO REAL DE LA SUBIDA DE LA ÚLTIMA GRABACIÓN */}
+                {(captureError || uploadState.status !== 'idle') && (
+                  <div role="status" aria-live="polite" style={{
+                    position: 'absolute', bottom: '80px', left: '16px', right: '16px', zIndex: 20,
+                    background: 'rgba(9, 15, 28, 0.9)', backdropFilter: 'blur(16px)',
+                    border: `1px solid ${captureError || uploadState.status === 'error' ? 'rgba(255, 51, 102, 0.5)' : 'rgba(0, 245, 160, 0.35)'}`,
+                    borderRadius: '16px', padding: '12px 16px', color: '#e2e8f0', fontSize: '12px', display: 'grid', gap: '8px'
+                  }}>
+                    {captureError && <span style={{ color: '#fda4af' }}>{captureError}</span>}
+                    {uploadState.status === 'uploading' && <>
+                      <span><UploadCloud size={14} style={{ verticalAlign: '-2px' }} /> Subiendo la grabación… {uploadState.percent}%</span>
+                      <div className="mh-upload-bar" role="progressbar" aria-label="Progreso de la subida" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadState.percent}>
+                        <motion.span className="mh-upload-bar-fill" initial={{ scaleX: 0 }} animate={{ scaleX: uploadState.percent / 100 }} transition={{ duration: 0.25, ease: 'easeOut' }} />
                       </div>
-                      <p style={{ fontSize: '11px', color: '#cbd5e1', margin: 0, lineHeight: 1.3 }}>
-                        {currentAiNotification.message}
-                        <span style={{ color: currentAiNotification.color, fontWeight: '700', marginLeft: '6px' }}>
-                          💡 {currentAiNotification.advice}
-                        </span>
-                      </p>
-                    </div>
+                    </>}
+                    {uploadState.status === 'done' && <span style={{ color: '#6ee7b7' }}>
+                      <CheckCircle2 size={14} style={{ verticalAlign: '-2px' }} /> {uploadState.message}{uploadState.sessionId ? ` Sesión #${uploadState.sessionId}.` : ''}{' '}
+                      <button type="button" onClick={() => navigate('/capture')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Ver el avance del análisis</button>
+                    </span>}
+                    {uploadState.status === 'error' && <span style={{ color: '#fda4af', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      {uploadState.message}
+                      <button type="button" onClick={uploadRecording} className="secondary-button" style={{ padding: '4px 10px', fontSize: '11px' }}>
+                        <RefreshCw size={13} /> Reintentar subida
+                      </button>
+                    </span>}
                   </div>
-
-                  <button
-                    onClick={() => setShowAiDrawer(true)}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: '#cbd5e1',
-                      padding: '6px 10px',
-                      borderRadius: '8px',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    Registro IA ({aiHistory.length})
-                  </button>
-                </div>
-
-                {/* TELEMETRÍA FLOTANTE INFERIOR (HUD ARTICULAR) */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '80px',
-                  left: '16px',
-                  right: '16px',
-                  background: 'rgba(9, 15, 28, 0.88)',
-                  backdropFilter: 'blur(16px)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '18px',
-                  padding: '12px 16px',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '12px',
-                  zIndex: 20
-                }}>
-                  <div>
-                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>FLEXIÓN RODILLA</span>
-                    <strong style={{ fontSize: '20px', color: '#00f5a0', fontFamily: 'monospace' }}>{metrics.kneeAngle}°</strong>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>Pico: {metrics.peakKneeAngle}°</span>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>EXTENSIÓN CADERA</span>
-                    <strong style={{ fontSize: '20px', color: '#00c2ff', fontFamily: 'monospace' }}>{metrics.hipAngle}°</strong>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>Plano Sagital</span>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>SIMETRÍA BILATERAL</span>
-                    <strong style={{ fontSize: '20px', color: '#fde047', fontFamily: 'monospace' }}>{metrics.symmetryScore}%</strong>
-                    <span style={{ fontSize: '10px', color: '#16a34a', display: 'block' }}>Fórmula Tesis UCT</span>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>FASE DE ZANCADA</span>
-                    <strong style={{ fontSize: '13px', color: 'white', display: 'block', marginTop: '4px' }}>{metrics.phase}</strong>
-                    <span style={{ fontSize: '10px', color: '#00c2ff' }}>BlazePose Heavy</span>
-                  </div>
-                </div>
+                )}
 
                 {/* BARRA INFERIOR DE DISPARO Y GRABACIÓN */}
                 <div style={{
@@ -1136,11 +780,11 @@ export default function LiveCapture() {
                   {!isRecording ? (
                     <button
                       onClick={startCountdownAndRecord}
-                      disabled={countdown !== null}
+                      disabled={countdown !== null || !cameraActive || uploadState.status === 'uploading'}
                       style={{
                         height: '52px',
                         padding: '0 28px',
-                        background: countdown !== null ? '#475569' : 'linear-gradient(135deg, #ff3366, #e11d48)',
+                        background: countdown !== null || !cameraActive || uploadState.status === 'uploading' ? '#475569' : 'linear-gradient(135deg, #ff3366, #e11d48)',
                         color: 'white',
                         border: 'none',
                         borderRadius: '26px',
@@ -1150,11 +794,11 @@ export default function LiveCapture() {
                         alignItems: 'center',
                         gap: '10px',
                         boxShadow: '0 0 25px rgba(255, 51, 102, 0.4)',
-                        cursor: countdown !== null ? 'not-allowed' : 'pointer'
+                        cursor: countdown !== null || !cameraActive || uploadState.status === 'uploading' ? 'not-allowed' : 'pointer'
                       }}
                     >
                       <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'white' }}></div>
-                      <span>{countdown !== null ? `INICIANDO EN ${countdown}...` : 'INICIAR CAPTURA DE PASADA (3s)'}</span>
+                      <span>{countdown !== null ? `INICIANDO EN ${countdown}...` : uploadState.status === 'uploading' ? 'SUBIENDO GRABACIÓN…' : 'INICIAR CAPTURA DE PASADA (3s)'}</span>
                     </button>
                   ) : (
                     <button
@@ -1176,7 +820,7 @@ export default function LiveCapture() {
                       }}
                     >
                       <StopCircle size={20} />
-                      <span>DETENER Y PROCESAR ({recordSeconds}s)</span>
+                      <span>DETENER Y ENVIAR AL ANÁLISIS ({recordSeconds}s)</span>
                     </button>
                   )}
                 </div>
@@ -1200,7 +844,7 @@ export default function LiveCapture() {
                     <strong style={{ fontSize: '12px' }}>1. Nivelación de Horizonte</strong>
                   </div>
                   <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    El giroscopio valida que el celular esté a 90° respecto al carril para evitar distorsión de perspectiva en la cinemática 2D.
+                    El giroscopio del celular indica si la cámara está nivelada. Ubícala perpendicular al carril para evitar distorsión de perspectiva en la cinemática 2D.
                   </p>
                 </div>
 
@@ -1217,10 +861,10 @@ export default function LiveCapture() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fde047', marginBottom: '4px' }}>
                     <Sparkles size={16} />
-                    <strong style={{ fontSize: '12px' }}>3. MediaPipe BlazePose</strong>
+                    <strong style={{ fontSize: '12px' }}>3. Análisis en el servidor</strong>
                   </div>
                   <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Calcula en vivo los ángulos de rodilla (Cadera-Rodilla-Tobillo) con la fórmula trigonométrica <code>atan2</code> de la memoria de título.
+                    Al detener, el video entra a la cola y MediaPipe calcula los ángulos de rodilla (cadera-rodilla-tobillo) con <code>atan2</code>. Durante la grabación no se muestran ángulos.
                   </p>
                 </div>
               </div>
@@ -1242,23 +886,23 @@ export default function LiveCapture() {
                     width: '10px',
                     height: '10px',
                     borderRadius: '50%',
-                    background: '#00f5a0',
-                    boxShadow: '0 0 10px #00f5a0'
+                    background: cvHealth === 'ok' ? '#00f5a0' : cvHealth === 'checking' ? '#94a3b8' : '#ff3366',
+                    boxShadow: cvHealth === 'ok' ? '0 0 10px #00f5a0' : 'none'
                   }}></span>
                   <div>
-                    <strong style={{ fontSize: '13px', color: '#38bdf8', display: 'block' }}>Microservicio MediaPipe (Python 3.11)</strong>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>FastAPI + OpenCV + BlazePose en puerto :8000</span>
+                    <strong style={{ fontSize: '13px', color: '#38bdf8', display: 'block' }}>Servicio de visión (MediaPipe)</strong>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>FastAPI + OpenCV + BlazePose, a través de la API</span>
                   </div>
                 </div>
                 <span style={{
-                  background: 'rgba(0, 245, 160, 0.15)',
-                  color: '#00f5a0',
-                  border: '1px solid rgba(0, 245, 160, 0.3)',
+                  background: cvHealth === 'ok' ? 'rgba(0, 245, 160, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                  color: cvHealth === 'ok' ? '#00f5a0' : cvHealth === 'checking' ? '#94a3b8' : '#ff3366',
+                  border: `1px solid ${cvHealth === 'ok' ? 'rgba(0, 245, 160, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`,
                   padding: '4px 10px',
                   borderRadius: '8px',
                   fontSize: '11px',
                   fontWeight: '800'
-                }}>ONLINE ✓</span>
+                }}>{cvHealth === 'ok' ? 'DISPONIBLE ✓' : cvHealth === 'checking' ? 'COMPROBANDO…' : 'NO DISPONIBLE'}</span>
               </div>
 
               {/* Dropzone / Carga de Video */}
@@ -1285,7 +929,7 @@ export default function LiveCapture() {
                 </div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '16px', color: 'white' }}>Cargar Video de Carrera de Velocidad</h3>
                 <p style={{ margin: '0 auto 16px', fontSize: '12px', color: '#94a3b8', maxWidth: '460px', lineHeight: 1.4 }}>
-                  Sube un video real (.mp4 / .webm) o prueba con el video de velocista precargado. Extraerá los fotogramas y MediaPipe devolverá las coordenadas articulares reales.
+                  Sube un video del atleta (.mp4 / .webm / .mov). Se extraen los fotogramas y MediaPipe devuelve las coordenadas articulares detectadas. Este análisis rápido no guarda el video; para conservarlo usa la cámara o "Grabar o subir carrera".
                 </p>
 
                 <input
@@ -1347,6 +991,9 @@ export default function LiveCapture() {
                     </button>
                   )}
 
+                  {/* Video de muestra: solo en desarrollo (VITE_ENABLE_DEMO=true), nunca en operación real (ADR-018) */}
+                  {import.meta.env.VITE_ENABLE_DEMO === 'true' && (
+                  <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '2px 0' }}>
                     <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.1)' }}></div>
                     <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>o prueba al instante</span>
@@ -1375,33 +1022,32 @@ export default function LiveCapture() {
                     <Zap size={16} />
                     <span>⚡ Analizar Video Real de Velocista (1-Click)</span>
                   </button>
+                  </>
+                  )}
                 </div>
               </div>
 
               {/* Spinner de Carga */}
-              {isProcessingVideo && (
-                <div style={{
+              <AnimatePresence>{isProcessingVideo && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.15 } }} style={{
                   background: 'rgba(16, 26, 46, 0.95)',
                   border: '1px solid rgba(0, 245, 160, 0.4)',
                   borderRadius: '18px',
                   padding: '20px',
                   textAlign: 'center'
                 }}>
-                  <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', marginBottom: '8px' }}>
-                    <RefreshCw size={28} color="#00f5a0" />
+                  <div style={{ color: 'white', marginBottom: '10px' }}>
+                    <SteppedProgress text={videoProcessingStep} label="Avance del análisis del video" />
                   </div>
-                  <strong style={{ display: 'block', fontSize: '14px', color: 'white', marginBottom: '4px' }}>
-                    {videoProcessingStep}
-                  </strong>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>
+                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, textAlign: 'left' }}>
                     Extrayendo fotogramas con OpenCV y detectando 33 puntos anatómicos en cada cuadro con BlazePose.
                   </p>
-                </div>
-              )}
+                </motion.div>
+              )}</AnimatePresence>
 
               {/* Error si ocurre */}
               {videoError && (
-                <div style={{
+                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0, x: [0, -5, 4, -2, 0] }} transition={{ duration: 0.3, x: { duration: 0.32 } }} style={{
                   background: 'rgba(255, 51, 102, 0.15)',
                   border: '1px solid #ff3366',
                   borderRadius: '14px',
@@ -1410,12 +1056,12 @@ export default function LiveCapture() {
                   color: '#ff3366'
                 }}>
                   ⚠️ {videoError}
-                </div>
+                </motion.div>
               )}
 
               {/* CONTENEDOR DE RESULTADOS REALES */}
               {realAnalysisData && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE_OUT }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {/* Cuadro Resumen de Detección */}
                   <div style={{
                     background: 'rgba(16, 26, 46, 0.8)',
@@ -1613,7 +1259,7 @@ export default function LiveCapture() {
                             <span>Objetivo: 165° - 175°</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score}%`, height: '100%', background: 'linear-gradient(90deg, #ffaa00, #00f5a0)', transition: 'width 0.6s ease' }} />
+                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #ffaa00, #00f5a0)', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                           </div>
                         </div>
 
@@ -1630,7 +1276,7 @@ export default function LiveCapture() {
                             <span>Objetivo: &lt; 70° (Rodilla &gt; 85°)</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score}%`, height: '100%', background: 'linear-gradient(90deg, #ff3366, #00c2ff)', transition: 'width 0.6s ease' }} />
+                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #ff3366, #00c2ff)', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                           </div>
                         </div>
 
@@ -1647,7 +1293,7 @@ export default function LiveCapture() {
                             <span>Objetivo: ≥ 92.0%</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score}%`, height: '100%', background: 'linear-gradient(90deg, #00c2ff, #00f5a0)', transition: 'width 0.6s ease' }} />
+                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #00c2ff, #00f5a0)', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                           </div>
                         </div>
                       </div>
@@ -1855,19 +1501,19 @@ export default function LiveCapture() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '11px', fontFamily: 'monospace' }}>
                           <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #00c2ff' }}>
                             <span style={{ color: '#94a3b8', display: 'block' }}>Cadera Izquierda (23):</span>
-                            <strong style={{ color: 'white' }}>X: {kp?.left_hip?.[0] || '0.5598'} · Y: {kp?.left_hip?.[1] || '0.6041'}</strong>
+                            <strong style={{ color: 'white' }}>X: {kp?.left_hip?.[0] ?? '—'} · Y: {kp?.left_hip?.[1] ?? '—'}</strong>
                           </div>
                           <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #00f5a0' }}>
                             <span style={{ color: '#94a3b8', display: 'block' }}>Rodilla Izquierda (25):</span>
-                            <strong style={{ color: 'white' }}>X: {kp?.left_knee?.[0] || '0.5741'} · Y: {kp?.left_knee?.[1] || '0.8198'}</strong>
+                            <strong style={{ color: 'white' }}>X: {kp?.left_knee?.[0] ?? '—'} · Y: {kp?.left_knee?.[1] ?? '—'}</strong>
                           </div>
                           <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #fde047' }}>
                             <span style={{ color: '#94a3b8', display: 'block' }}>Tobillo Izquierdo (27):</span>
-                            <strong style={{ color: 'white' }}>X: {kp?.left_ankle?.[0] || '0.5728'} · Y: {kp?.left_ankle?.[1] || '0.9736'}</strong>
+                            <strong style={{ color: 'white' }}>X: {kp?.left_ankle?.[0] ?? '—'} · Y: {kp?.left_ankle?.[1] ?? '—'}</strong>
                           </div>
                           <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #ff3366' }}>
                             <span style={{ color: '#94a3b8', display: 'block' }}>Ángulo Vectorial Rodilla:</span>
-                            <strong style={{ color: '#00f5a0' }}>{m?.left_knee_angle ? `${m.left_knee_angle}°` : '178.1°'} (Sim: {m?.symmetry_score ? `${m.symmetry_score}%` : '96.4%'})</strong>
+                            <strong style={{ color: '#00f5a0' }}>{m?.left_knee_angle != null ? `${m.left_knee_angle}°` : '—'} (Sim: {m?.symmetry_score != null ? `${m.symmetry_score}%` : '—'})</strong>
                           </div>
                         </div>
                       );
@@ -1950,317 +1596,8 @@ export default function LiveCapture() {
                     </button>
                   </div>
 
-                </div>
+                </motion.div>
               )}
-            </div>
-          )}
-
-          {/* MODAL DEL REGISTRO CONTINUO DEL ASISTENTE VIRTUAL IA */}
-          {showAiDrawer && (
-            <div style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(4, 7, 17, 0.8)',
-              backdropFilter: 'blur(10px)',
-              zIndex: 999,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '20px'
-            }}>
-              <div style={{
-                background: '#0a101d',
-                border: '1px solid rgba(0, 194, 255, 0.3)',
-                borderRadius: '24px',
-                width: '100%',
-                maxWidth: '520px',
-                maxHeight: '85vh',
-                display: 'flex',
-                flexDirection: 'column',
-                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(0, 194, 255, 0.15)',
-                overflow: 'hidden'
-              }}>
-                {/* Header Drawer */}
-                <div style={{
-                  padding: '16px 20px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'rgba(15, 23, 42, 0.6)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: 'rgba(0, 194, 255, 0.15)',
-                      border: '1px solid rgba(0, 194, 255, 0.3)',
-                      color: '#00c2ff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Bot size={20} />
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '15px', color: 'white' }}>Registro del Asistente Virtual IA</h3>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>Detección continua de anomalías y biomecánica óptima</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setShowAiDrawer(false)}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: '#94a3b8',
-                      borderRadius: '8px',
-                      width: '32px',
-                      height: '32px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                {/* Lista Cronológica de Eventos */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {aiHistory.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        background: 'rgba(16, 26, 46, 0.6)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderLeft: `4px solid ${item.color}`,
-                        borderRadius: '12px',
-                        padding: '12px 14px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{
-                          fontSize: '9px',
-                          fontWeight: '800',
-                          color: item.color,
-                          letterSpacing: '0.8px',
-                          textTransform: 'uppercase'
-                        }}>
-                          {item.badge}
-                        </span>
-                        <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>{item.time}</span>
-                      </div>
-                      <strong style={{ fontSize: '13px', color: 'white', display: 'block', marginBottom: '3px' }}>
-                        {item.title}
-                      </strong>
-                      <p style={{ fontSize: '11px', color: '#cbd5e1', margin: '0 0 6px', lineHeight: 1.3 }}>
-                        {item.message}
-                      </p>
-                      <div style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        borderRadius: '6px',
-                        padding: '6px 10px',
-                        fontSize: '10.5px',
-                        color: item.color,
-                        fontWeight: '600'
-                      }}>
-                        💡 Consejo: {item.advice}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Footer Drawer */}
-                <div style={{
-                  padding: '12px 20px',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  background: 'rgba(15, 23, 42, 0.6)'
-                }}>
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>{aiHistory.length} observaciones registradas</span>
-                  <button
-                    onClick={() => setShowAiDrawer(false)}
-                    style={{
-                      padding: '8px 16px',
-                      background: '#00f5a0',
-                      color: '#04121d',
-                      border: 'none',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Volver a la Cámara
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL DE DIAGNÓSTICO POST-CARRERA DEL ASISTENTE IA */}
-          {showDiagnosticModal && diagnosticReport && (
-            <div style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(4, 7, 17, 0.85)',
-              backdropFilter: 'blur(12px)',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '20px'
-            }}>
-              <div style={{
-                background: '#090e1a',
-                border: '1px solid rgba(0, 245, 160, 0.4)',
-                borderRadius: '26px',
-                width: '100%',
-                maxWidth: '560px',
-                padding: '24px',
-                boxShadow: '0 30px 80px rgba(0, 0, 0, 0.95), 0 0 50px rgba(0, 245, 160, 0.2)',
-                color: 'white'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '14px',
-                      background: 'linear-gradient(135deg, #00f5a0, #00c2ff)',
-                      color: '#04121d',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Bot size={24} />
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#00f5a0', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                        INFORME BIOMECÁNICO IA
-                      </span>
-                      <h2 style={{ fontSize: '18px', margin: 0, fontWeight: '800' }}>Evaluación de Pasada: {diagnosticReport.athlete}</h2>
-                    </div>
-                  </div>
-                  <div style={{
-                    background: 'rgba(0, 245, 160, 0.15)',
-                    border: '1px solid #00f5a0',
-                    color: '#00f5a0',
-                    padding: '6px 12px',
-                    borderRadius: '12px',
-                    textAlign: 'center'
-                  }}>
-                    <strong style={{ fontSize: '18px', fontFamily: 'monospace', display: 'block' }}>{diagnosticReport.score}/100</strong>
-                    <span style={{ fontSize: '8px', fontWeight: '800', textTransform: 'uppercase' }}>PUNTAJE TÉCNICO</span>
-                  </div>
-                </div>
-
-                {/* Estadísticas de la pasada */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '8px',
-                  marginBottom: '16px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px' }}>
-                    <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>PICO RODILLA</span>
-                    <strong style={{ fontSize: '18px', color: '#00f5a0', display: 'block', fontFamily: 'monospace' }}>{diagnosticReport.peakKnee}°</strong>
-                    <span style={{ fontSize: '9px', color: '#64748b' }}>Fase Vuelo</span>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px' }}>
-                    <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>EXTENSIÓN CADERA</span>
-                    <strong style={{ fontSize: '18px', color: '#00c2ff', display: 'block', fontFamily: 'monospace' }}>{diagnosticReport.avgHip}°</strong>
-                    <span style={{ fontSize: '9px', color: '#64748b' }}>Fase Impulso</span>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px' }}>
-                    <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>SIMETRÍA BILATERAL</span>
-                    <strong style={{ fontSize: '18px', color: '#fde047', display: 'block', fontFamily: 'monospace' }}>{diagnosticReport.symmetry}%</strong>
-                    <span style={{ fontSize: '9px', color: '#16a34a' }}>Equilibrio zancada</span>
-                  </div>
-                </div>
-
-                {/* Puntos Fuertes */}
-                <div style={{
-                  background: 'rgba(0, 245, 160, 0.08)',
-                  border: '1px solid rgba(0, 245, 160, 0.25)',
-                  borderRadius: '14px',
-                  padding: '12px 14px',
-                  marginBottom: '10px'
-                }}>
-                  <span style={{ fontSize: '10px', fontWeight: '800', color: '#00f5a0', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                    ✨ BUENOS MOVIMIENTOS DETECTADOS POR IA
-                  </span>
-                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#cbd5e1', lineHeight: 1.5 }}>
-                    {diagnosticReport.strengths.map((str, i) => (
-                      <li key={i}>{str}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Anomalía Principal y Corrección */}
-                <div style={{
-                  background: 'rgba(255, 51, 102, 0.08)',
-                  border: '1px solid rgba(255, 51, 102, 0.25)',
-                  borderRadius: '14px',
-                  padding: '12px 14px',
-                  marginBottom: '12px'
-                }}>
-                  <span style={{ fontSize: '10px', fontWeight: '800', color: '#ff3366', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                    ⚠️ ANOMALÍA PRIORITARIA A CORREGIR
-                  </span>
-                  <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#cbd5e1' }}>
-                    {diagnosticReport.anomalyDetected}
-                  </p>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '8px 10px', fontSize: '11px', color: '#38bdf8' }}>
-                    <strong>Prescripción Técnica IA:</strong> {diagnosticReport.prescribedDrill.title} ({diagnosticReport.prescribedDrill.series}) — <em>{diagnosticReport.prescribedDrill.focus}</em>.
-                  </div>
-                </div>
-
-                {/* Botones de acción */}
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    onClick={() => setShowDiagnosticModal(false)}
-                    style={{
-                      flex: 1,
-                      height: '42px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: 'white',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Continuar en Cámara
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDiagnosticModal(false);
-                      navigate('/sessions');
-                    }}
-                    style={{
-                      flex: 1,
-                      height: '42px',
-                      background: 'linear-gradient(135deg, #0284c7 0%, #00f5a0 100%)',
-                      color: '#04121d',
-                      border: 'none',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Guardar en Historial de Sesiones ✓
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 

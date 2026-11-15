@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "MetaHub Performance Lab",
+  "short_name": "MetaHub",
+  "description": "Seguimiento longitudinal de la técnica de carrera en atletismo escolar: captura de video, análisis biomecánico e índice IPT.",
+  "lang": "es-CL",
+  "dir": "ltr",
+  "start_url": "/#/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#10283f",
+  "theme_color": "#10283f",
+  "categories": ["sports", "education", "health"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Subir o grabar una carrera", "short_name": "Subir video", "url": "/#/upload", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,13 +1,13 @@
 /* MetaHub — paleta y componentes de apariencia compartidos. */
-:root,[data-theme="light"]{color-scheme:light;--background:#f2f5fa;--surface:#ffffff;--surface-raised:#f7f9fd;--border:#e0e7f0;--text:#1b2e45;--muted:#687d95;--navy:#183452;--blue:#2474d2;--blue-soft:#eaf2ff;--shadow:0 8px 30px #1b365d08;--success-bg:#e9f8f1;--warning-bg:#fff5dc;--danger-bg:#fff0f0}
-[data-theme="dark"]{color-scheme:dark;--background:#0b1220;--surface:#131f30;--surface-raised:#19283c;--border:#2b3b51;--text:#e1eaf7;--muted:#9bafc8;--navy:#e0edff;--blue:#7db5ff;--blue-soft:#203655;--shadow:0 8px 30px #0002;--success-bg:#12382e;--warning-bg:#40321d;--danger-bg:#40232e}
+:root,[data-theme="light"]{color-scheme:light;--background:#f2f5fa;--surface:#ffffff;--surface-raised:#f7f9fd;--border:#e0e7f0;--text:#1b2e45;--muted:#687d95;--navy:#183452;--blue:#2474d2;--blue-soft:#eaf2ff;--shadow:0 8px 30px #1b365d08;--success-bg:#e9f8f1;--warning-bg:#fff5dc;--danger-bg:#fff0f0;--success-text:#116945;--warning-text:#925c04;--danger-text:#9f1239}
+[data-theme="dark"]{color-scheme:dark;--background:#0b1220;--surface:#131f30;--surface-raised:#19283c;--border:#2b3b51;--text:#e1eaf7;--muted:#9bafc8;--navy:#e0edff;--blue:#7db5ff;--blue-soft:#203655;--shadow:0 8px 30px #0002;--success-bg:#12382e;--warning-bg:#40321d;--danger-bg:#40232e;--success-text:#7fe0b6;--warning-text:#f3c873;--danger-text:#ffb4b4}
 html{background:var(--background)}body{background:var(--background);color:var(--text)}
 .theme-toolbar{display:flex;justify-content:flex-end;margin:0 0 20px;position:relative;z-index:2}
 .theme-switch{display:inline-flex;gap:3px;padding:4px;border:1px solid var(--border);background:var(--surface);border-radius:30px;box-shadow:var(--shadow)}
 .theme-switch button{display:flex;gap:7px;align-items:center;justify-content:center;background:transparent;border:0;color:var(--muted);padding:8px 13px;border-radius:24px;font-size:12px;font-weight:700;min-height:36px}
 .theme-switch button[aria-pressed="true"]{background:var(--blue-soft);color:var(--blue)}
 .theme-switch button:focus-visible,button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #599cf4;outline-offset:3px}
-.sidebar{background:linear-gradient(165deg,#112b47,#091a2f);border-right:1px solid #294461}.sidebar-link{transition:background .15s,color .15s;letter-spacing:.1px}.sidebar-link.active{background:linear-gradient(100deg,#2876d9,#2864ad);box-shadow:0 5px 16px #04172c40;color:#fff}.sidebar-link:hover{background-color:#ffffff12}
+.sidebar{background:linear-gradient(165deg,#112b47,#091a2f);border-right:1px solid #294461}.sidebar-link{letter-spacing:.1px}.sidebar-link.active{background:linear-gradient(100deg,#2876d9,#2864ad);box-shadow:0 5px 16px #04172c40;color:#fff}.sidebar-link:hover{background-color:#ffffff12}
 .main-content{background:var(--background)}.topbar h1{letter-spacing:-1px;line-height:1.15}.eyebrow{letter-spacing:1.7px}.topbar p{line-height:1.65}
 .panel-card,.stat-card,.athlete-card,.roster-priority-card{background:var(--surface);color:var(--text);border-color:var(--border);box-shadow:var(--shadow);border-radius:18px}
 .stat-card{border-top:3px solid #4a95ef}.stat-card:hover,.athlete-card:hover{box-shadow:0 12px 32px #10283f12}
@@ -46,3 +46,7 @@ input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),select,text
 [data-theme="light"] .highlight-card h2{color:#183452}
 [data-theme="light"] .highlight-card p{color:#526b87}
 @media(max-width:780px){.mobile-bottom-nav{box-sizing:border-box;height:auto;max-height:none}.mobile-bottom-nav .mobile-nav-link{flex-shrink:0}.mobile-bottom-nav .mobile-nav-link span{display:block;line-height:1.3}.app-shell>.main-content{padding-bottom:calc(112px + env(safe-area-inset-bottom,0px))}}
+/* Botones de ícono (cerrar ficha o formulario) en modo oscuro */
+[data-theme="dark"] .icon-button{background:var(--surface-raised);color:var(--text);border-color:var(--border)}
+/* En oscuro --navy es claro: el filtro activo necesita su propio contraste */
+[data-theme="dark"] .filter-pill.active{background:var(--blue-soft);color:var(--text);border-color:var(--blue)}

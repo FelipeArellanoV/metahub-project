@@ -1,0 +1,33 @@
+# Caddy: HTTPS automático (Let's Encrypt) y proxy hacia el frontend (nginx), que a su vez
+# reenvía /api a la API. DOMAIN y ACME_EMAIL vienen de .env.production.
+{
+	email {$ACME_EMAIL}
+	# El panel de administración solo escucha dentro del contenedor (usado por el healthcheck).
+	admin 127.0.0.1:2019
+}
+
+# http:// -> https:// lo hace Caddy automáticamente.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# Solo HTTPS durante un año (los navegadores no volverán a intentar HTTP).
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Videos de hasta 50 MB (más margen del formulario).
+	request_body {
+		max_size 60MB
+	}
+
+	reverse_proxy frontend:80 {
+		# Caddy no confía en X-Forwarded-For entrante: lo reemplaza por la IP real del cliente.
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

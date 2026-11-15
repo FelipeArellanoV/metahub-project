@@ -13,11 +13,23 @@
  */
 
 const http = require('http');
+const { assertProductionConfig } = require('./config/security');
+
+// En producción, falta de configuración crítica = la API no arranca (mejor que arrancar insegura).
+try {
+  assertProductionConfig();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+
 const app = require('./app');
 const path = require('path');
 const dbRepository = require('./db/repository');
 const { getPool } = require('./db/pgClient');
 const { purgarVideosVencidos } = require('./services/retencion');
+const { createVideoQueue } = require('./services/videoQueue');
+const athleteVideoController = require('./controllers/athleteVideoController');
 
 // Puerto de escucha del servidor (3000 por defecto para el backend de MetaHub)
 const PORT = process.env.PORT || 3000;
@@ -25,10 +37,41 @@ const PORT = process.env.PORT || 3000;
 async function bootstrap() {
   await dbRepository.seedDefaults();
   const server = http.createServer(app);
+  // Tiempos de espera: evitan conexiones lentas que retienen recursos (subidas de video incluidas).
+  server.requestTimeout = 15 * 60 * 1000;
+  server.headersTimeout = 60 * 1000;
   server.listen(PORT, () => {
     console.log(`🚀 MetaHub API Backend ejecutándose en http://localhost:${PORT}`);
   });
   scheduleRetention();
+  const queue = startVideoQueue();
+
+  const shutdown = signal => {
+    console.log(`${signal} recibido: cerrando la API.`);
+    if (queue) queue.stop();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 10000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
+
+// Cola de análisis de video en segundo plano (requiere PostgreSQL).
+function startVideoQueue() {
+  const pool = getPool();
+  if (!pool) {
+    console.log('Cola de video: desactivada (sin PostgreSQL).');
+    return null;
+  }
+  const queue = createVideoQueue({
+    pool,
+    processJob: athleteVideoController.processJob,
+    concurrency: Number(process.env.VIDEO_QUEUE_CONCURRENCY) || 1,
+    maxAttempts: Number(process.env.VIDEO_QUEUE_MAX_ATTEMPTS) || 3
+  });
+  athleteVideoController.setQueueNotifier(queue.notify);
+  queue.start();
+  return queue;
 }
 
 // CU-08 / T-12: purga diaria de videos vencidos. Solo se activa si RETENTION_DAYS está definido

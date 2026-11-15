@@ -71,14 +71,29 @@ const PoseVideo=forwardRef(function PoseVideo({sessionId,title='Video con análi
   };
   redraw();return()=>cancelAnimationFrame(frameId);
  },[track,source,showSkeleton]);
+ // El análisis corre en la cola del servidor: se pide y luego se consulta su estado sin bloquear la página.
+ const polling=useRef(null);
+ useEffect(()=>()=>clearTimeout(polling.current),[]);
  async function generate(){
   setBusy(true);setPoseError('');
   try{
    const response=await fetch(BASE+'/api/videos/'+sessionId+'/analyze-pose',{method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:'{}'});
    const data=await response.json().catch(()=>({}));
    if(!response.ok||data.status==='failed')throw new Error(data.error||'No fue posible generar el esqueleto.');
-   await loadPose();
-  }catch(e){setPoseError(e.message);}finally{setBusy(false);}
+   const started=Date.now();
+   const check=async()=>{
+    try{
+     const r=await fetch(BASE+'/api/videos/'+sessionId+'/analysis-status',{headers:headers()});
+     const s=await r.json().catch(()=>({}));
+     if(!r.ok)throw new Error(s.error||'No se pudo consultar el análisis.');
+     if(s.status==='completed'){await loadPose();setBusy(false);return;}
+     if(s.status==='failed')throw new Error(s.error||'No fue posible generar el esqueleto.');
+     if(Date.now()-started>15*60*1000)throw new Error('El análisis sigue en cola. Vuelve a abrir esta sesión más tarde.');
+     polling.current=setTimeout(check,4000);
+    }catch(e){setPoseError(e.message);setBusy(false);}
+   };
+   polling.current=setTimeout(check,2000);
+  }catch(e){setPoseError(e.message);setBusy(false);}
  }
  return <article className="pose-video-card">
   <header><Video size={17}/><strong>{title}</strong><span>Sesión #{sessionId||'—'}</span></header>
@@ -95,7 +110,7 @@ const PoseVideo=forwardRef(function PoseVideo({sessionId,title='Video con análi
   <footer>
    {error&&source&&<p role="alert">{error}</p>}
    {poseError&&<p>{poseError}</p>}
-   {source&&canAnalyze&&<button type="button" className="secondary-button" disabled={busy} onClick={generate}><RefreshCw size={15}/>{busy?'Analizando el clip…':(track?'Reanalizar clip completo':'Generar esqueleto de este video')}</button>}
+   {source&&canAnalyze&&<button type="button" className="secondary-button" disabled={busy} onClick={generate}><RefreshCw size={15}/>{busy?'En cola o analizando… puedes seguir usando la app':(track?'Reanalizar clip completo':'Generar esqueleto de este video')}</button>}
    {track&&<small>33 puntos corporales · {track.frames.length} cuadros muestreados · {track.full_video?'Muestreo de todo el clip':'Muestreo parcial'}</small>}
    {!track&&!canAnalyze&&source&&<small>El alumno o su entrenador responsable debe generar la trayectoria de esta sesión.</small>}
   </footer>

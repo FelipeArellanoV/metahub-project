@@ -15,109 +15,79 @@
 
 const dbRepository = require('../db/repository');
 const { sign } = require('../config/jwt');
+const { clientIp } = require('../config/security');
+const { limits, reject } = require('../services/rateLimit');
+const v = require('../services/validation');
+
+let bcrypt = null;
+try { bcrypt = require('bcryptjs'); } catch { bcrypt = null; }
+// Hash de relleno: si el correo no existe se compara igual contra él, para que el tiempo de
+// respuesta no revele qué correos están registrados.
+const DUMMY_HASH = bcrypt ? bcrypt.hashSync('metahub-dummy-password', 10) : null;
+
+function tokenFor(user) {
+  return sign({ id: user.id, email: user.email, role: user.role, name: user.name });
+}
 
 /**
  * Registra un nuevo entrenador en la plataforma MetaHub
  * @route POST /api/auth/register
  */
 async function register(req, res) {
+  const limited = limits.register.hit(clientIp(req));
+  if (!limited.allowed) return reject(res, limited, 'Demasiados registros desde esta conexión. Intenta más tarde.');
   try {
-    const { name, email, password, organizationName } = req.body || {};
-    if (organizationName !== undefined && (typeof organizationName !== 'string' || !organizationName.trim() || organizationName.length > 160)) {
-      return res.status(400).json({ error: 'Indica tu club o establecimiento (máximo 160 caracteres).' });
-    }
-
-    if (!name || !email || !password) {
-      res.statusCode = 400;
-      return res.json({
-        error: 'El nombre completo, correo electrónico y contraseña son obligatorios.'
-      });
-    }
-
-    if (password.length < 6) {
-      res.statusCode = 400;
-      return res.json({
-        error: 'La contraseña debe contener al menos 6 caracteres por política de seguridad.'
-      });
-    }
+    const body = req.body || {};
+    const name = v.text(body.name, { field: 'El nombre completo', min: 2, max: 100 });
+    const email = v.email(body.email);
+    const password = v.newPassword(body.password);
+    const organizationName = v.text(body.organizationName, { field: 'El club o establecimiento', min: 2, max: 160, required: false });
 
     // Por directriz de seguridad RNF03, el registro público asigna estrictamente el rol 'entrenador'
     const user = await dbRepository.createUser({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-      role: 'entrenador',
-      organizationName: (organizationName || '').trim()
-    });
-
-    // Emisión de token JWT con tiempo de vida estricto (15 minutos)
-    const token = sign({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name
+      name, email, password, role: 'entrenador', organizationName: organizationName || ''
     });
 
     res.statusCode = 201;
-    return res.json({
-      message: 'Entrenador registrado exitosamente en MetaHub.',
-      user,
-      token
-    });
+    return res.json({ message: 'Entrenador registrado exitosamente en MetaHub.', user, token: tokenFor(user) });
   } catch (err) {
-    res.statusCode = err.statusCode || 500;
-    return res.json({ error: err.message });
+    return res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'No se pudo completar el registro.' });
   }
 }
 
 /**
- * Autentica un entrenador existente mediante credenciales y emite token JWT
+ * Autentica una cuenta mediante credenciales y emite token JWT
  * @route POST /api/auth/login
  */
 async function login(req, res) {
+  const ip = clientIp(req);
+  const byIp = limits.loginIp.hit(ip);
+  if (!byIp.allowed) return reject(res, byIp, 'Demasiados intentos de inicio de sesión. Espera unos minutos.');
   try {
-    const { email, password } = req.body || {};
-
-    if (!email || !password) {
-      res.statusCode = 400;
-      return res.json({
-        error: 'El correo electrónico y la contraseña son requeridos.'
-      });
+    const body = req.body || {};
+    if (typeof body.email !== 'string' || !body.email.trim() || body.email.length > 150) {
+      throw v.invalid('El correo electrónico y la contraseña son requeridos.');
     }
+    const email = body.email.trim().toLowerCase();
+    const password = v.loginPassword(body.password);
 
-    const user = await dbRepository.findUserByEmail(email.trim().toLowerCase());
-    if (!user) {
-      res.statusCode = 401;
-      return res.json({
-        error: 'Credenciales inválidas. Comprueba el correo o contraseña ingresada.'
-      });
-    }
+    const accountKey = ip + '|' + email;
+    const byAccount = limits.loginAccount.hit(accountKey);
+    if (!byAccount.allowed) return reject(res, byAccount, 'Demasiados intentos para esta cuenta. Espera unos minutos.');
 
-    const isValid = await dbRepository.validatePassword(user, password);
+    const user = await dbRepository.findUserByEmail(email);
+    const isValid = user
+      ? await dbRepository.validatePassword(user, password)
+      : (DUMMY_HASH ? (await bcrypt.compare(password, DUMMY_HASH), false) : false);
     if (!isValid) {
-      res.statusCode = 401;
-      return res.json({
-        error: 'Credenciales inválidas. Comprueba el correo o contraseña ingresada.'
-      });
+      return res.status(401).json({ error: 'Credenciales inválidas. Comprueba el correo o contraseña ingresada.' });
     }
 
+    limits.loginAccount.clear(accountKey);
     const safeUser = dbRepository.sanitizeUser(user);
-    const token = sign({
-      id: safeUser.id,
-      email: safeUser.email,
-      role: safeUser.role,
-      name: safeUser.name
-    });
-
-    res.statusCode = 200;
-    return res.json({
-      message: 'Inicio de sesión exitoso en MetaHub Performance Lab.',
-      user: safeUser,
-      token
-    });
+    return res.status(200).json({ message: 'Inicio de sesión exitoso en MetaHub Performance Lab.', user: safeUser, token: tokenFor(safeUser) });
   } catch (err) {
-    res.statusCode = 500;
-    return res.json({ error: err.message });
+    return res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'No se pudo iniciar sesión. Intenta nuevamente.' });
   }
 }
 
@@ -128,14 +98,10 @@ async function login(req, res) {
 async function getProfile(req, res) {
   try {
     const user = await dbRepository.findUserById(req.user.id);
-    if (!user) {
-      res.statusCode = 404;
-      return res.json({ error: 'Perfil de entrenador no encontrado.' });
-    }
+    if (!user) return res.status(404).json({ error: 'Perfil no encontrado.' });
     return res.json({ user });
   } catch (err) {
-    res.statusCode = 500;
-    return res.json({ error: err.message });
+    return res.status(500).json({ error: 'No se pudo cargar el perfil.' });
   }
 }
 

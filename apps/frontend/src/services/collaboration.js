@@ -1,5 +1,5 @@
-const BASE = import.meta.env.VITE_API_BASE ||
-  (window.location.hostname === 'localhost' ? 'http://localhost:3000' : '');
+// Mismo origen: nginx (o el proxy de Vite en desarrollo) reenvía /api a la API.
+const BASE = import.meta.env.VITE_API_BASE || '';
 
 async function request(path, method = 'GET', body, signal) {
   const token = localStorage.getItem('metahub_token');
@@ -15,7 +15,7 @@ async function request(path, method = 'GET', body, signal) {
     if (response.status === 401) {
       localStorage.removeItem('metahub_token');
       localStorage.removeItem('metahub_user');
-      window.location.assign('/app.html#/login');
+      window.location.assign('/#/login');
     }
     throw error;
   }

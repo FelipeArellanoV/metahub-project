@@ -2,6 +2,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {Layout,PageHeader} from '../components/UI.jsx';
 import {ClipboardCheck} from 'lucide-react';
+import {SkeletonList,cardVariants,listItemVariants,motion} from '../components/Motion.jsx';
 import FeatureBanner from '../components/FeatureBanner.jsx';
 import {clubRequest} from '../services/roster.js';
 const labels={pending:'Pendiente de revisión',reviewed:'Revisada',requires_new_video:'Solicita nueva captura'};
@@ -32,7 +33,7 @@ function ReviewCard({session,tasks,canEdit,onReload}){
   }catch(e){setError(e.message);return false;}finally{working.current=false;setBusy(false);}
  }
  const exercises=session.analysis?.prescripcion_completa?.ejercicios||[];
- return <article className="panel-card feature-review-card">
+ return <motion.article className="panel-card feature-review-card" layout="position" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:.32}}>
   <h2>Sesión #{session.id} · {date(session.sessionDate)}</h2>
   <div className="feature-session-meta"><span className="feature-pill">IPT: {session.iptScore==null?'Sin análisis':session.iptScore+' puntos'}</span><span className={'feature-pill '+session.reviewStatus}>{labels[session.reviewStatus]}</span></div>
   {session.reviewedAt&&<p>Última revisión: {date(session.reviewedAt)}</p>}
@@ -67,7 +68,7 @@ function ReviewCard({session,tasks,canEdit,onReload}){
    <label className="form-field"><span>Fecha objetivo (opcional, hora local)</span><input disabled={busy} type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/></label>
    <button disabled={busy} className="primary-button">Asignar ejercicio vinculado</button>
   </form>}
- </article>;
+ </motion.article>;
 }
 export default function SessionReviews(){
  let coach=false;try{coach=JSON.parse(localStorage.getItem('metahub_user')||'{}').role==='entrenador';}catch{}
@@ -104,11 +105,12 @@ export default function SessionReviews(){
  {coach&&<label className="form-field"><span>Atleta</span><select value={id} onChange={e=>{generation.current++;setData(null);setId(e.target.value);setQuery({athleteId:e.target.value});}}>
  <option value="">Seleccionar atleta</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.canEdit?' · A mi cargo':' · Club: solo lectura'}</option>)}</select></label>}
  {error&&<p role="alert">{error}</p>}
- {data&&<><section className="panel-card" style={{margin:'20px 0'}}><h2>{data.athlete.name}</h2>
+ {!data&&!error&&(!coach||id)&&<div className="panel-card" style={{margin:'20px 0'}}><SkeletonList rows={2} label="Cargando revisiones…"/></div>}
+ {data&&<><motion.section variants={cardVariants} className="panel-card" style={{margin:'20px 0'}}><h2>{data.athlete.name}</h2>
  {coach&&!data.athlete.canEdit&&<p>Solo lectura. El entrenador responsable realiza las revisiones y asignaciones.</p>}
  <p>{data.sessions.filter(s=>s.reviewStatus==='pending').length} pendientes · {data.sessions.filter(s=>s.reviewStatus==='reviewed').length} revisadas · {data.sessions.filter(s=>s.reviewStatus==='requires_new_video').length} con nueva captura solicitada.</p>
  <label className="form-field"><span>Filtrar revisión</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Todas</option>{Object.entries(labels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
- </section><div style={{display:'grid',gap:20}}>
+ </motion.section><div style={{display:'grid',gap:20}}>
  {!visible.length&&<p>No hay sesiones para este filtro.</p>}
  {visible.map(s=><ReviewCard key={s.id} session={s} tasks={data.tasks.filter(t=>t.sessionId===s.id)} canEdit={data.athlete.canEdit} onReload={reload}/>)}
  </div></>}

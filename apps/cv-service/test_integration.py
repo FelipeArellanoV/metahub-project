@@ -4,12 +4,20 @@ Ejecuta el endpoint real /api/cv/process-video con el video de muestra del repos
 (MediaPipe PoseLandmarker real) y verifica contrato, cobertura y rangos físicos.
 Uso: python test_integration.py
 """
+import hashlib
+import os
 import sys
 import traceback
 from fastapi.testclient import TestClient
 import main
 
+os.environ['ALLOW_SAMPLE_VIDEO'] = 'true'   # solo para estas pruebas (ADR-018)
 client = TestClient(main.app)
+
+
+def _sample_bytes():
+    with open(main.SAMPLE_VIDEO_PATH, 'rb') as f:
+        return f.read()
 
 
 def test_health():
@@ -72,6 +80,42 @@ def test_sample_summary_has_no_nonphysical_values():
     assert j['video_info']['valid_frames'] > 0
     assert j['summary_metrics']['min_knee_flexion'] >= main.MIN_PLAUSIBLE_KNEE_DEG
     assert j['video_info']['low_confidence'] is False
+
+
+def test_video_de_muestra_deshabilitado_por_defecto():
+    previo = os.environ.pop('ALLOW_SAMPLE_VIDEO', None)
+    try:
+        assert client.post('/api/cv/process-video', data={'use_sample': 'true'}).status_code == 403
+        assert client.post('/api/cv/process-video').status_code == 422       # sin archivo y sin muestra
+    finally:
+        if previo is not None:
+            os.environ['ALLOW_SAMPLE_VIDEO'] = previo
+        os.environ['ALLOW_SAMPLE_VIDEO'] = 'true'
+
+
+def test_video_subido_queda_trazado_y_genera_recomendaciones():
+    os.environ.pop('ALLOW_SAMPLE_VIDEO', None)                                # operación real: sin muestra
+    try:
+        datos = _sample_bytes()
+        r = client.post('/api/cv/process-video', files={'file': ('mi_video.mp4', datos, 'video/mp4')},
+                        data={'scan_full_video': 'true', 'athlete_age': '15'})
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert j['video_info']['filename'] == 'mi_video.mp4'
+        assert j['video_info']['sha256'] == hashlib.sha256(datos).hexdigest()
+        assert j['video_info']['size_bytes'] == len(datos)
+        assert j['video_info']['source'] == 'video_subido'
+        cvq = j['video_info']['calidad_video']
+        assert cvq['nivel'] in ('adecuada', 'limitada', 'insuficiente') and cvq['chequeos']
+        assert 'calidad_datos' in j['video_info']
+        rec = j['recomendaciones']
+        assert rec['banda_edad']['etiqueta'] == 'Sub-16' and rec['estado_validacion'] == 'experimental_no_validado'
+        assert rec['confianza']['nivel'] in ('alta', 'media', 'baja')
+        # sin edad: no se dosifica por edad
+        j2 = client.post('/api/cv/process-video', files={'file': ('otro.mp4', datos, 'video/mp4')}).json()
+        assert j2['recomendaciones']['banda_edad']['etiqueta'] is None
+    finally:
+        os.environ['ALLOW_SAMPLE_VIDEO'] = 'true'
 
 
 def test_angle_is_independent_of_image_aspect_ratio():

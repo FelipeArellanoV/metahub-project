@@ -18,6 +18,8 @@ import { useEffect, useState } from 'react';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 import OrganizationProfile from '../components/OrganizationProfile.jsx';
+import { AnimatePresence } from 'framer-motion';
+import { cardVariants, motion } from '../components/Motion.jsx';
 
 export default function Settings() {
   const [saved, setSaved] = useState(false);
@@ -64,7 +66,7 @@ export default function Settings() {
 
       <OrganizationProfile />
       <form className="settings-grid" onSubmit={handleSubmit}>
-        <section className="panel-card">
+        <motion.section variants={cardVariants} className="panel-card">
           <div className="panel-heading">
             <div>
               <span className="eyebrow">PERFIL</span>
@@ -89,9 +91,9 @@ export default function Settings() {
               onChange={(event) => updateField('email', event.target.value)}
             />
           </label>
-        </section>
+        </motion.section>
 
-        <section className="panel-card">
+        <motion.section variants={cardVariants} className="panel-card">
           <div className="panel-heading">
             <div>
               <span className="eyebrow">AVISOS</span>
@@ -123,9 +125,9 @@ export default function Settings() {
               onChange={(event) => updateField('qualityAlerts', event.target.checked)}
             />
           </label>
-        </section>
+        </motion.section>
 
-        <section className="panel-card device-card">
+        <motion.section variants={cardVariants} className="panel-card device-card">
           <div className="device-icon">
             <Smartphone size={24} />
           </div>
@@ -137,15 +139,18 @@ export default function Settings() {
               La captura de video se conectará en el siguiente avance.
             </p>
           </div>
-        </section>
+        </motion.section>
 
         <div className="settings-actions">
+          <AnimatePresence>
           {saved && (
-            <span className="saved-message">
+            <motion.span className="saved-message" role="status"
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <CheckCircle2 size={18} />
               Configuración guardada localmente.
-            </span>
+            </motion.span>
           )}
+          </AnimatePresence>
 
           <button className="primary-button" type="submit">
             <Save size={18} />

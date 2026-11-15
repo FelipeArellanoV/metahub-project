@@ -1,75 +1,85 @@
-version: '3.8'
+# MetaHub — entorno de DESARROLLO local.
+# Producción: docker-compose.prod.yml (HTTPS con Caddy, sin valores por defecto). Ver docs/despliegue.md.
+#
+#   cp .env.example .env
+#   docker compose up --build -d
+#   App: http://localhost   ·   API: http://localhost/api/health
+#
+# Los puertos de base de datos, API y visión se publican solo en 127.0.0.1 (no quedan
+# accesibles desde otros equipos de la red) para depurar desde este computador.
 
 services:
   # 1. Base de datos TimescaleDB / PostgreSQL
   db:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:2.28.3-pg15
     container_name: metahub-timescaledb
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-metahub_db}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./apps/api-backend/src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./apps/api-backend/src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # 2. API Backend (Node.js REST API)
+  # 2. API Backend (Node.js REST API + cola de análisis de video)
   api-backend:
     build:
       context: ./apps/api-backend
       dockerfile: Dockerfile
     container_name: metahub-api-backend
-    restart: always
+    restart: unless-stopped
     environment:
+      NODE_ENV: development
       VIDEO_STORAGE_DIR: /app/uploads
       CV_SERVICE_URL: http://cv-service:8000
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en el archivo .env (copie .env.example)}
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-metahub_db}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-metahub_db}
+      # Un proxy propio delante (nginx del frontend): permite leer la IP real para los límites de tasa.
+      TRUST_PROXY_HOPS: 1
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:5173,http://127.0.0.1:5173}
+      ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy
-
     volumes:
       - athlete_videos:/app/uploads
 
-  # 3. Servicio de Visión por Computador (Python FastAPI + MediaPipe)
+  # 3. Servicio de Visión por Computador (Python FastAPI + MediaPipe). Solo lo llama la API.
   cv-service:
     build:
       context: ./apps/cv-service
       dockerfile: Dockerfile
     container_name: metahub-cv-service
-    restart: always
+    restart: unless-stopped
+    environment:
+      ALLOW_SAMPLE_VIDEO: ${ALLOW_SAMPLE_VIDEO:-false}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
-  # 4. Frontend (React PWA + Nginx)
+  # 4. Frontend (React PWA + Nginx): única puerta de entrada del navegador
   frontend:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
+      args:
+        VITE_ENABLE_DEMO: ${VITE_ENABLE_DEMO:-false}
     container_name: metahub-frontend
-    restart: always
+    restart: unless-stopped
     ports:
       - "80:80"
     depends_on:
       - api-backend
-      - cv-service
 
 volumes:
   athlete_videos:

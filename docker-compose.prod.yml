@@ -1,0 +1,202 @@
+# MetaHub — PRODUCCIÓN.
+#
+#   cp .env.production.example .env.production   # y completar TODAS las variables
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# - HTTPS automático con Caddy + Let's Encrypt (puertos 80/443). Ningún otro servicio se publica.
+# - Variables críticas obligatorias (${VAR:?…}): sin ellas Docker Compose se niega a arrancar.
+# - Migraciones idempotentes antes de iniciar la API (servicio db-migrate).
+# - Respaldo diario de la base de datos con retención (servicio backup).
+# - Healthcheck en cada servicio.
+# Paso a paso completo: docs/despliegue.md
+
+name: metahub
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  # ------------------------------------------------------------------ base de datos
+  db:
+    image: timescale/timescaledb:2.28.3-pg15
+    <<: [*restart, *logging]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER en .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:?Defina POSTGRES_DB en .env.production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./apps/api-backend/src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  # Aplica el esquema y las migraciones (todas idempotentes) en cada despliegue y termina.
+  db-migrate:
+    image: timescale/timescaledb:2.28.3-pg15
+    <<: *logging
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:?Defina POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:?Defina POSTGRES_DB}
+    volumes:
+      - ./apps/api-backend/src/db/schema.sql:/migrations/schema.sql:ro
+    entrypoint: ["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "/migrations/schema.sql"]
+    networks: [backend]
+
+  # ------------------------------------------------------------------ API
+  api-backend:
+    build:
+      context: ./apps/api-backend
+    <<: [*restart, *logging]
+    user: node
+    depends_on:
+      db:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      cv-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET (openssl rand -hex 32)}
+      DATABASE_URL: postgres://${POSTGRES_USER:?Defina POSTGRES_USER}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:?Defina POSTGRES_DB}
+      CORS_ORIGINS: https://${DOMAIN:?Defina DOMAIN (ej. metahub.ejemplo.cl)}
+      # Caddy -> nginx -> API: dos proxies propios delante.
+      TRUST_PROXY_HOPS: 2
+      CV_SERVICE_URL: http://cv-service:8000
+      VIDEO_STORAGE_DIR: /app/uploads
+      # Plazo de conservación de videos de menores (días). Lo fija la institución: es obligatorio.
+      RETENTION_DAYS: ${RETENTION_DAYS:?Defina RETENTION_DAYS (plazo de conservación de videos, en días)}
+      VIDEO_QUEUE_CONCURRENCY: ${VIDEO_QUEUE_CONCURRENCY:-1}
+      ALLOW_DEMO_SEED: "false"
+    volumes:
+      - athlete_videos:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    networks: [backend, frontend]
+
+  # ------------------------------------------------------------------ visión por computador
+  cv-service:
+    build:
+      context: ./apps/cv-service
+    <<: [*restart, *logging]
+    environment:
+      ALLOW_SAMPLE_VIDEO: "false"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    # MediaPipe es intensivo en CPU: se acota para que no deje sin recursos a la base de datos.
+    deploy:
+      resources:
+        limits:
+          cpus: "${CV_CPUS:-2}"
+          memory: 3g
+    networks: [backend]
+
+  # ------------------------------------------------------------------ interfaz web (nginx)
+  frontend:
+    build:
+      context: ./apps/frontend
+      args:
+        VITE_ENABLE_DEMO: "false"
+    <<: [*restart, *logging]
+    depends_on:
+      api-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [frontend]
+
+  # ------------------------------------------------------------------ HTTPS (Let's Encrypt)
+  caddy:
+    image: caddy:2.8.4-alpine
+    <<: [*restart, *logging]
+    depends_on:
+      frontend:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?Defina DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Defina ACME_EMAIL (aviso de vencimiento de certificados)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [frontend]
+
+  # ------------------------------------------------------------------ respaldo diario
+  backup:
+    image: timescale/timescaledb:2.28.3-pg15
+    <<: [*restart, *logging]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:?Defina POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:?Defina POSTGRES_DB}
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:?Defina BACKUP_HOUR_UTC (hora UTC del respaldo diario, 0-23)}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:?Defina BACKUP_KEEP_DAYS (días que se conservan los respaldos)}
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+    volumes:
+      - ./deploy/backup/backup.sh:/usr/local/bin/metahub-backup.sh:ro
+      - ${BACKUP_DIR:?Defina BACKUP_DIR (carpeta del servidor para los respaldos)}:/backups
+    entrypoint: ["sh", "/usr/local/bin/metahub-backup.sh"]
+    healthcheck:
+      # Sano si existe un respaldo de menos de 26 horas.
+      test: ["CMD-SHELL", "find /backups -name 'metahub-*.dump' -mmin -1560 | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      start_period: 10m
+      retries: 2
+    # egress: solo para avisar al monitoreo externo (BACKUP_PING_URL).
+    networks: [backend, egress]
+
+networks:
+  # La base de datos y el servicio de visión solo son alcanzables desde la API.
+  backend:
+    internal: true
+  frontend:
+  egress:
+
+volumes:
+  pgdata:
+  athlete_videos:
+  caddy_data:
+  caddy_config:

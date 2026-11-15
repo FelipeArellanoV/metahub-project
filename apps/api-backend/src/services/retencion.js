@@ -23,7 +23,7 @@ async function purgarVideosVencidos({ pool, rootDir, retentionDays, now = new Da
   const { rows } = await pool.query(
     `SELECT id, session_id AS "sessionId", stored_name AS "storedName", created_at AS "createdAt"
      FROM athlete_video_uploads
-     WHERE created_at < $1 AND status IN ('uploaded','completed','failed')
+     WHERE created_at < $1 AND status IN ('uploaded','queued','completed','failed')
      ORDER BY created_at, id`, [cutoff]);
   const result = { dryRun, retentionDays, cutoff: cutoff.toISOString(), candidates: rows.length, purged: 0, filesDeleted: 0, errors: [] };
   for (const row of rows) {

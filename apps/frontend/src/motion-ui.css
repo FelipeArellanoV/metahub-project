@@ -1,0 +1,80 @@
+/* Piezas visuales de components/Motion.jsx y de las pantallas modernizadas.
+   Regla: solo se animan opacity y transform. */
+
+.mh-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ---------- Esqueletos de carga ---------- */
+.mh-skeleton{position:relative;display:block;overflow:hidden;background:var(--border);opacity:.7;isolation:isolate}
+.mh-skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+ background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--surface) 70%,transparent),transparent)}
+@media(prefers-reduced-motion:no-preference){.mh-skeleton::after{animation:mh-skeleton-shine 1.35s ease-in-out infinite}}
+@keyframes mh-skeleton-shine{to{transform:translateX(100%)}}
+.mh-skeleton-list{display:grid;gap:10px;margin:4px 0 12px}
+.mh-skeleton-row{display:grid;gap:9px;padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:var(--surface-raised)}
+.mh-skeleton-row-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:3px}
+.mh-skeleton-field{display:grid;gap:8px}
+
+/* ---------- Indicador de avance del análisis ---------- */
+.mh-analysis{display:grid;gap:6px;margin:6px 0 2px}
+.mh-analysis-track{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.mh-analysis-seg{position:relative;height:6px;border-radius:999px;overflow:hidden;background:var(--border);isolation:isolate}
+.mh-analysis-fill{position:absolute;inset:0;transform-origin:left center;border-radius:inherit;background:var(--blue)}
+.mh-analysis-shine{position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:inherit;
+ background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--blue) 75%,white),transparent)}
+.mh-analysis-queued .mh-seg-active .mh-analysis-fill{background:#c9952f}
+.mh-analysis-queued .mh-analysis-shine{background:linear-gradient(90deg,transparent,#e8c27a,transparent)}
+.mh-analysis-completed .mh-analysis-fill{background:#1f9d6a}
+.mh-analysis-failed .mh-analysis-fill{background:#d05555}
+.mh-analysis-labels{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-size:11px;font-weight:700;color:var(--muted)}
+.mh-analysis-labels span:nth-child(2){text-align:center}.mh-analysis-labels span:nth-child(3){text-align:right}
+.mh-analysis-labels .mh-label-active{color:var(--text)}
+.mh-analysis-labels .mh-label-done{color:var(--text);opacity:.75}
+.mh-analysis-failed .mh-analysis-labels .mh-label-error{color:var(--danger-text,#b23b3b)}
+
+/* ---------- Barra de subida (reemplaza la animación de width de <progress>) ---------- */
+.mh-upload-bar{position:relative;height:10px;border-radius:999px;overflow:hidden;background:var(--surface)}
+.mh-upload-bar-fill{position:absolute;inset:0;transform-origin:left center;border-radius:inherit;background:var(--blue)}
+
+/* ---------- Login ---------- */
+.mh-role-switch{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:18px;padding:4px;border-radius:12px;background:var(--surface-raised);border:1px solid var(--border)}
+.mh-role-switch button{position:relative;z-index:1;padding:9px 12px;border:none;border-radius:9px;background:transparent;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;min-height:40px}
+.mh-role-switch button[aria-pressed="true"]{color:#fff}
+.mh-role-indicator{position:absolute;z-index:0;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:9px;overflow:hidden}
+.mh-role-indicator span{position:absolute;inset:0}
+.mh-role-indicator .mh-role-coach{background:#10283f}
+.mh-role-indicator .mh-role-athlete{background:#2474d2}
+[data-theme="dark"] .mh-role-indicator .mh-role-coach{background:#2b4a6e}
+.mh-auth-title{display:block}
+.submit-btn[aria-busy="true"]{cursor:progress}
+.mh-spinner{width:18px;height:18px;border-radius:50%;border:2.5px solid #ffffff55;border-top-color:#fff}
+@media(prefers-reduced-motion:no-preference){.mh-spinner{animation:mh-spin .8s linear infinite}}
+@keyframes mh-spin{to{transform:rotate(360deg)}}
+.login-card .form-field{margin-bottom:20px}
+
+/* ---------- Inicio / panel del entrenador (ScopedRoster) ---------- */
+.mh-roster-detail{display:contents}
+.mh-grid-item{display:grid;min-width:0}
+.mh-inline-block{display:inline-block}
+.mh-roster-skeleton{display:contents}
+.mh-skeleton-stack{display:grid;gap:9px;align-content:start}
+.mh-skeleton-card{display:flex;align-items:center;gap:14px}
+.mh-skeleton-card .mh-skeleton-stack{flex:1}
+.mh-skeleton-identity{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+.mh-skeleton-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(min-width:781px){.mh-skeleton-facts{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* ---------- Mis atletas ---------- */
+/* Drawer y modal animados con Framer Motion: se apaga la animación CSS (otras pantallas aún la usan). */
+.drawer-backdrop.mh-motion,.drawer-panel.mh-motion{animation:none}
+.drawer-tab-btn.mh-motion-tab{position:relative;transition:none;border-bottom-color:transparent}
+.mh-tab-underline{position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--blue)}
+
+/* ---------- Avance por pasos (laboratorio de captura) ---------- */
+.mh-stepped{display:grid;gap:10px;text-align:left}
+.mh-stepped-label{display:block;font-size:13px;line-height:1.45}
+
+/* ---------- Portal del atleta ---------- */
+/* Antes era un estilo en línea (1fr 340px) que desbordaba a 390 px de ancho. */
+.mh-portal-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.mh-portal-layout>*{min-width:0}
+@media(max-width:1024px){.mh-portal-layout{grid-template-columns:minmax(0,1fr)}}

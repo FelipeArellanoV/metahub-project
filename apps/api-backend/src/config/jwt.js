@@ -21,8 +21,16 @@ try {
   jwt = null;
 }
 
-// Clave secreta para la firma criptográfica de tokens (configurable mediante variable de entorno)
-const JWT_SECRET = process.env.JWT_SECRET || 'metahub_secret_key_change_in_production';
+// Clave secreta para la firma de tokens. En producción es obligatoria (ver config/security.js,
+// que impide arrancar sin ella). Fuera de producción se usa una clave de desarrollo y se avisa.
+const DEV_SECRET = 'metahub_secret_key_change_in_production';
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET es obligatorio en producción.');
+}
+if (!process.env.JWT_SECRET && process.env.NODE_ENV !== 'test') {
+  console.warn('Aviso: JWT_SECRET no definido; se usa una clave de desarrollo. No use esta configuración en producción.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || DEV_SECRET;
 
 // Ventana de expiración estricta de 15 minutos para salvaguardar sesiones deportivas (RNF03)
 const EXPIRES_IN = '15m';
@@ -78,15 +86,19 @@ function sign(payload, secret = JWT_SECRET) {
  */
 function verify(token, secret = JWT_SECRET) {
   if (jwt) {
-    return jwt.verify(token, secret);
+    // Se fija el algoritmo para impedir tokens con alg "none" u otros algoritmos.
+    return jwt.verify(token, secret, { algorithms: ['HS256'] });
   }
 
   // Fallback nativo mediante módulo crypto
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('El formato del token JWT es estructuralmente inválido.');
   const [encodedHeader, encodedPayload, signature] = parts;
+  const header = JSON.parse(base64UrlDecode(encodedHeader));
+  if (header.alg !== 'HS256') throw new Error('Algoritmo JWT no permitido.');
   const expectedSignature = crypto.createHmac('sha256', secret).update(`${encodedHeader}.${encodedPayload}`).digest('base64url');
-  if (signature !== expectedSignature) throw new Error('Firma criptográfica JWT inválida.');
+  const a = Buffer.from(signature), b = Buffer.from(expectedSignature);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error('Firma criptográfica JWT inválida.');
   const payload = JSON.parse(base64UrlDecode(encodedPayload));
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp && payload.exp < now) throw new Error('El token de sesión JWT ha expirado.');

@@ -333,7 +333,7 @@ def calculate_ipt_evaluation(
     # 6. Identificación del Sector Deficitario y Generación de Prescripción Inteligente
     planes_entrenamiento = {
         "Sector 1: Propulsión": {
-            "causa_biomecanica": "Despegue prematuro o incompleto de la pierna de empuje (<160° o >175°). El estudiante trunca la fuerza horizontal reactiva generada por la cadena extensora (glúteo mayor, cuádriceps y tríceps sural).",
+            "causa_biomecanica": "Hipótesis a verificar por el entrenador: la rodilla de la pierna de empuje queda fuera de la ventana de diseño (165°-175°), lo que puede indicar una extensión incompleta del empuje. La medición 2D puede alterar este valor.",
             "cue_verbal": "¡Empuja el suelo hacia atrás como si quisieras deslizar la pista hacia atrás!",
             "ejercicios": [
                 {
@@ -358,7 +358,7 @@ def calculate_ipt_evaluation(
             "error_evitar": "Evitar inclinar el torso excesivamente hacia adelante, lo que quiebra la línea de transmisión de fuerza lumbo-pélvica."
         },
         "Sector 2: Recobro": {
-            "causa_biomecanica": "Péndulo largo de rodilla (>75°) durante el vuelo. El talón queda rezagado y no sube hacia el glúteo, lo que cuadruplica el momento de inercia y ralentiza la cadencia de zancada.",
+            "causa_biomecanica": "Hipótesis a verificar por el entrenador: el ángulo interior de rodilla en el recobro supera el valor de diseño (70°), lo que puede indicar que el talón sube poco hacia el glúteo.",
             "cue_verbal": "¡Talón instantáneo al glúteo, como si pisaras asfalto ardiendo!",
             "ejercicios": [
                 {
@@ -383,7 +383,7 @@ def calculate_ipt_evaluation(
             "error_evitar": "Evitar 'patear hacia atrás' antes de recoger la pierna; la trayectoria del talón debe ser circular y hacia adelante."
         },
         "Sector 3: Simetría / Contacto": {
-            "causa_biomecanica": "Asimetría bilateral de fuerza o aterrizaje adelantado al centro de gravedad (Overstriding), lo que genera frenado articular y sobrecarga la articulación de la rodilla.",
+            "causa_biomecanica": "Hipótesis a verificar por el entrenador: una pierna recorre menos rango de movimiento que la otra. La causa no se determina con este análisis y la perspectiva 2D puede generar asimetrías aparentes.",
             "cue_verbal": "¡Pisa firme justo debajo de tus caderas, rebotando como un resorte rígido!",
             "ejercicios": [
                 {

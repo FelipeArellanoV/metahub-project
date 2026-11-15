@@ -24,6 +24,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
+import { Skeleton, cardVariants, motion } from '../components/Motion.jsx';
 
 export default function AthletePortal() {
   const navigate = useNavigate();
@@ -63,9 +64,14 @@ export default function AthletePortal() {
   if (loading) {
     return (
       <Layout>
-        <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
-          <Activity size={36} className="animate-spin" style={{ margin: '0 auto 12px', color: '#2474d2' }} />
-          <p style={{ fontWeight: 600 }}>Cargando ficha del atleta desde MetaHub Lab...</p>
+        <div className="mh-skeleton-stack" role="status" aria-busy="true" style={{ gap: 20 }}>
+          <span className="mh-visually-hidden">Cargando ficha del atleta desde MetaHub Lab...</span>
+          <div className="mh-skeleton-stack"><Skeleton width="45%" height={11} /><Skeleton width="75%" height={30} radius={10} /><Skeleton width="90%" height={13} /></div>
+          <div className="panel-card mh-skeleton-stack">
+            <div className="mh-skeleton-identity"><Skeleton width={64} height={64} radius={18} /><div className="mh-skeleton-stack" style={{ flex: 1 }}><Skeleton width="55%" height={20} /><Skeleton width="35%" height={12} /></div></div>
+            <div className="mh-skeleton-facts">{[0, 1, 2, 3].map(i => <div className="mh-skeleton-stack" key={i}><Skeleton width="70%" height={10} /><Skeleton width="45%" height={18} /></div>)}</div>
+          </div>
+          <div className="panel-card mh-skeleton-stack"><Skeleton width="40%" height={16} /><Skeleton height={12} /><Skeleton width="80%" height={12} /></div>
         </div>
       </Layout>
     );
@@ -100,7 +106,7 @@ export default function AthletePortal() {
       />
 
       {/* ATHLETE HERO CARD */}
-      <div className="athlete-hero-card" style={{ marginBottom: 24 }}>
+      <motion.div variants={cardVariants} className="athlete-hero-card" style={{ marginBottom: 24 }}>
         <div className="athlete-hero-bg-accent" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
           <div
@@ -163,9 +169,9 @@ export default function AthletePortal() {
             <Flame size={15} /> {progress?.xp || 0} XP
           </span>
         </div>
-      </div>
+      </motion.div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
+      <motion.div variants={cardVariants} className="mh-portal-layout">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <section className="panel-card">
             <h3>Mis sesiones y seguimiento</h3>
@@ -283,7 +289,7 @@ export default function AthletePortal() {
             </p>
           </div>
         </div>
-      </div>
+      </motion.div>
     </Layout>
   );
 }

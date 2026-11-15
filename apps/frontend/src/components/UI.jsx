@@ -1,4 +1,5 @@
 import {ThemeSwitch} from './Theme.jsx';
+import {motion, pageVariants} from './Motion.jsx';
 /**
  * =========================================================================================
  * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
@@ -287,10 +288,11 @@ export function Layout({ children }) {
         </section>
       </div>}
 
-      <main className="main-content" key={navLocation.pathname}>
+      <motion.main className="main-content" key={navLocation.pathname}
+        variants={pageVariants} initial="initial" animate="animate">
         <ThemeSwitch/>
         {children}
-      </main>
+      </motion.main>
     </div>
   );
 }

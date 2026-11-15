@@ -13,21 +13,27 @@ MetaHub permite registrar videos de carrera (vista lateral), estimar la postura 
 
 | Servicio | Tecnología | Puerto | Responsabilidad |
 |---|---|---|---|
-| `frontend` | React + Vite (PWA), Nginx | 80 | Interfaz de entrenador, atleta y club; reproductor con esqueleto |
-| `api-backend` | Node.js + Express | 3000 | Autenticación JWT, roles, atletas, sesiones, consentimientos, carga y análisis de videos |
-| `cv-service` | Python + FastAPI + MediaPipe + OpenCV | 8000 | Estimación de pose y métricas biomecánicas |
-| `db` | PostgreSQL + TimescaleDB | 5432 | Persistencia |
+| `frontend` | React + Vite (PWA instalable), Nginx | 80 | Única entrada del navegador (`/`); interfaz de entrenador, atleta y club; reenvía `/api` |
+| `api-backend` | Node.js | 3000 (solo local) | Autenticación JWT, roles, atletas, consentimientos, carga de videos y **cola de análisis en segundo plano**; puerta autenticada a `/api/cv` |
+| `cv-service` | Python + FastAPI + MediaPipe + OpenCV | 8000 (solo local) | Estimación de pose y métricas biomecánicas; solo lo llama la API |
+| `db` | PostgreSQL + TimescaleDB | 5432 (solo local) | Persistencia |
 
-Las decisiones de arquitectura están en [`docs/adr/`](docs/adr) (ADR-001 a ADR-012). El historial de cambios está en [`CHANGELOG.md`](CHANGELOG.md).
+En desarrollo, los puertos 3000, 8000 y 5432 se publican solo en `127.0.0.1`. La aplicación se usa
+desde `http://localhost`. Los prototipos HTML anteriores quedaron en `apps/frontend/legacy/` y ya no se publican.
+
+**Producción** (HTTPS con Let's Encrypt, variables obligatorias, respaldos diarios y healthchecks):
+ver [`docs/despliegue.md`](docs/despliegue.md).
+
+Las decisiones de arquitectura están en [`docs/adr/`](docs/adr) (ADR-001 a ADR-020). El historial de cambios está en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Puesta en marcha
 
 ```bash
 cp .env.example .env            # y reemplace JWT_SECRET y la clave de la base de datos
-docker-compose up --build        # levanta los cuatro servicios
+docker compose up --build -d     # levanta los cuatro servicios; app en http://localhost
 ```
 
-`JWT_SECRET` es obligatorio (el compose no arranca sin él); `POSTGRES_USER` y `POSTGRES_PASSWORD` tienen valores por defecto solo para desarrollo. Sin PostgreSQL la API usa un archivo JSON (`apps/api-backend/data/database.json`) con datos de demostración; **la carga de videos requiere PostgreSQL**.
+`JWT_SECRET` es obligatorio (el compose no arranca sin él); `POSTGRES_USER` y `POSTGRES_PASSWORD` tienen valores por defecto solo para desarrollo. Sin PostgreSQL la API usa un archivo JSON (`apps/api-backend/data/database.json`); los datos de demostración solo se crean con `ALLOW_DEMO_SEED=true` (ADR-018); **la carga de videos requiere PostgreSQL**.
 
 ## Flujo de análisis
 
@@ -41,11 +47,11 @@ docker-compose up --build        # levanta los cuatro servicios
 
 | Suite | Comando |
 |---|---|
-| API (integración) | `cd apps/api-backend && node tests/run_tests.js` |
-| API (permisos, flujo de video) | `cd apps/api-backend && node --test tests/*.test.js` (`auth.test.js` requiere `supertest`) |
-| Geometría de pose | `cd apps/frontend && node --test tests/pose-geometry.test.mjs` |
-| Métricas | `cd apps/cv-service && python test_metrics.py` |
-| Servicio de visión (integración) | `cd apps/cv-service && python test_integration.py` |
+| API (integración, permisos, cola de video, seguridad, Jest) | `cd apps/api-backend && npm test` |
+| API contra PostgreSQL real | `cd apps/api-backend && DATABASE_URL=postgres://… npm run test:pg` |
+| Frontend (geometría, comparación, validación de video) | `cd apps/frontend && npm test && npm run build` |
+| Servicio de visión | `cd apps/cv-service && python test_metrics.py` (y `test_eventos_zancada`, `test_calidad_video`, `test_referencias`, `test_recomendaciones`, `test_integration`) |
+| Despliegue en producción | `sh deploy/verificar-despliegue.sh <dominio>` |
 | Rendimiento | `python analysis/medir_rendimiento_cv.py VIDEO 5` |
 | Carga | `python analysis/prueba_carga_cv.py http://localhost:8000 VIDEO 1,3,5` |
 

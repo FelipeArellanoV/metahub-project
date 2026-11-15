@@ -102,7 +102,7 @@ describe('T-04 Autenticación JWT, CRUD Atletas y Gestión de Sesiones', () => {
     await request(app)
       .post('/api/athletes')
       .set('Authorization', `Bearer ${tokenA}`)
-      .send({ name: 'Martín Atleta', age: 15, consent: true });
+      .send({ name: 'Martín Atleta', age: 15, consent: true, guardianName: 'Apoderada de Prueba' });
 
     const regB = await request(app).post('/api/auth/register').send({
       name: 'Entrenador B',
@@ -139,7 +139,7 @@ describe('T-04 Autenticación JWT, CRUD Atletas y Gestión de Sesiones', () => {
     const updateRes = await request(app)
       .put(`/api/athletes/${athleteId}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Atleta Actualizado', age: 15, consent: true });
+      .send({ name: 'Atleta Actualizado', age: 15, consent: true, guardianName: 'Apoderada de Prueba' });
 
     expect(updateRes.statusCode).toBe(200);
     expect(updateRes.body.athlete.name).toBe('Atleta Actualizado');
@@ -172,7 +172,7 @@ describe('T-04 Autenticación JWT, CRUD Atletas y Gestión de Sesiones', () => {
     const athleteRes = await request(app)
       .post('/api/athletes')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Tomas Muñoz', age: 16, consent: true });
+      .send({ name: 'Tomas Muñoz', age: 16, consent: true, guardianName: 'Apoderada de Prueba' });
 
     const athleteId = athleteRes.body.athlete.id;
 

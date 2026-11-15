@@ -13,8 +13,6 @@
  * =========================================================================================
  */
 
-const fs = require('fs');
-const path = require('path');
 const authController = require('./controllers/authController');
 const athleteController = require('./controllers/athleteController');
 const sessionController = require('./controllers/sessionController');
@@ -24,52 +22,15 @@ const athleteVideoController = require('./controllers/athleteVideoController');
 const organizationController = require('./controllers/organizationController');
 const clubController = require('./controllers/clubController');
 const collaborationController = require('./controllers/collaborationController');
+const cvProxyController = require('./controllers/cvProxyController');
 const { verifyToken, requireRole } = require('./middleware/authMiddleware');
+const { applyCors, applySecurityHeaders } = require('./config/security');
+const { limits, reject } = require('./services/rateLimit');
 
-// Directorio raíz de la interfaz web frontend para entrega estática
-const FRONTEND_DIR = path.resolve(__dirname, '../../frontend');
+// Tamaño máximo de un cuerpo JSON. Los videos no pasan por aquí (se transmiten como binario).
+const JSON_LIMIT = 2 * 1024 * 1024;
 
-// Mapeo de extensiones a tipos MIME estándar
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.jsx': 'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.ico': 'image/x-icon'
-};
-
-/**
- * Despachador de archivos estáticos para servir la interfaz web PWA
- */
-function serveStatic(req, res, targetUrl) {
-  let relativePath = targetUrl === '/' ? '/preview.html' : targetUrl;
-  const filePath = path.join(FRONTEND_DIR, relativePath);
-
-  // Verificación de seguridad para prevenir ataques de Directory Traversal
-  if (!filePath.startsWith(FRONTEND_DIR)) {
-    res.statusCode = 403;
-    res.end('Acceso denegado: ruta no permitida.');
-    return true;
-  }
-
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    res.statusCode = 200;
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    const content = fs.readFileSync(filePath);
-    res.end(content);
-    return true;
-  }
-
-  return false;
-}
+// La interfaz web la sirve nginx (apps/frontend). La API ya no entrega archivos estáticos.
 
 /**
  * Función auxiliar para parsear de forma asíncrona cuerpos de solicitud en formato JSON
@@ -82,9 +43,9 @@ function parseJsonBody(req) {
     req.on('error', reject);
     req.on('data', chunk => {
       size += Buffer.byteLength(chunk);
-      if (size > 10 * 1024 * 1024) {
+      if (size > JSON_LIMIT) {
         exceeded = true;
-        const error = new Error('El cuerpo JSON supera el máximo de 10 MiB.');
+        const error = new Error('El cuerpo JSON supera el máximo de 2 MiB.');
         error.statusCode = 413;
         reject(error);
         return;
@@ -110,42 +71,70 @@ function parseJsonBody(req) {
  * Despachador central de peticiones HTTP de la API de MetaHub
  */
 async function app(req, res) {
+  try {
+    return await dispatch(req, res);
+  } catch (err) {
+    // Último recurso: nunca devolver trazas ni mensajes internos.
+    console.error('[api] error no controlado en', req.method, req.url.split('?')[0], err);
+    if (res.headersSent) return res.destroy();
+    res.statusCode = err.statusCode && err.statusCode < 500 ? err.statusCode : 500;
+    return res.json({ error: err.statusCode && err.statusCode < 500 ? err.message : 'Error interno del servidor.' });
+  }
+}
+
+async function dispatch(req, res) {
   const url = req.url.split('?')[0];
   const method = req.method.toUpperCase();
 
-  // Helper de serialización y cabeceras de respuesta JSON
+  // Helper de serialización JSON. Las respuestas 5xx nunca exponen el mensaje interno.
   res.json = function(data) {
     if (!res.statusCode) res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    if (res.statusCode >= 500 && data && typeof data.error === 'string' && !GENERIC_5XX.has(data.error)) {
+      console.error('[api] error', res.statusCode, 'en', method, url + ':', data.error);
+      data = { ...data, error: 'Error interno del servidor. Intenta nuevamente en unos minutos.' };
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify(data));
   };
-  
+
   res.status = function(code) {
     res.statusCode = code;
     return res;
   };
 
+  applySecurityHeaders(res);
+  const corsAllowed = applyCors(req, res);
+
   // Manejo de peticiones preflight CORS (OPTIONS)
   if (method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.statusCode = corsAllowed ? 204 : 403;
     return res.end();
   }
+  if (!corsAllowed) {
+    req.resume();
+    return res.status(403).json({ error: 'Origen no permitido.' });
+  }
 
-  // Entrega de interfaz web estática si la ruta no pertenece al prefijo '/api'
-  if (method === 'GET' && !url.startsWith('/api')) {
-    const served = serveStatic(req, res, url);
-    if (served) return;
+  if (!url.startsWith('/api')) {
+    req.resume();
+    return res.status(404).json({ error: 'Ruta no encontrada. La interfaz web se sirve desde el frontend.' });
+  }
+
+  // Servicio de visión: autenticado y con límite de tasa (el cuerpo es multipart, no JSON).
+  if (url === '/api/cv' || url.startsWith('/api/cv/')) {
+    return cvProxyController.handle(req, res);
   }
 
   // El video llega como binario: no debe pasar por el parser JSON.
   if (method === 'POST' && (url === '/api/portal/videos' || url === '/api/capture/videos')) {
-    return verifyToken(req, res, () => athleteVideoController.handle(req, res));
+    return verifyToken(req, res, () => {
+      const limited = limits.upload.hit('usuario:' + req.user.id);
+      if (!limited.allowed) {
+        req.resume();
+        return reject(res, limited, 'Has alcanzado el máximo de videos por hora. Intenta más tarde.');
+      }
+      return athleteVideoController.handle(req, res);
+    });
   }
 
   // Parsear cuerpo de la petición si es POST o PUT
@@ -299,7 +288,14 @@ async function app(req, res) {
 
   // Ruta 404 por defecto
   res.statusCode = 404;
-  return res.json({ error: `Ruta no encontrada en MetaHub: ${method} ${url}` });
+  return res.json({ error: 'Ruta no encontrada en la API de MetaHub.' });
 }
+
+// Mensajes genéricos que ya son seguros (no se reemplazan ni se vuelven a registrar).
+const GENERIC_5XX = new Set([
+  'Error interno del servidor.',
+  'Error interno del servidor. Intenta nuevamente en unos minutos.',
+  'La carga de videos requiere PostgreSQL.'
+]);
 
 module.exports = app;

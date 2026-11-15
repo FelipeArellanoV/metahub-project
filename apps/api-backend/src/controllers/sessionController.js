@@ -42,11 +42,25 @@ function buildAnalysisSummary(raw) {
     summary.summary_metrics = ipt.summary_metrics;
   }
   if (raw.video_info && typeof raw.video_info === 'object') {
-    const { duration_seconds, fps, detection_rate_pct } = raw.video_info;
-    summary.video_info = { duration_seconds, fps, detection_rate_pct };
+    const { duration_seconds, fps, detection_rate_pct, filename, sha256, size_bytes, source,
+      analyzed_frames, valid_frames, valid_rate_pct, low_confidence, resolution,
+      calidad_video, calidad_datos } = raw.video_info;
+    // Trazabilidad y calidad de la detección: permiten demostrar qué video se analizó y con qué confianza.
+    summary.video_info = { duration_seconds, fps, detection_rate_pct, filename, sha256, size_bytes, source,
+      analyzed_frames, valid_frames, valid_rate_pct, low_confidence, resolution, calidad_video, calidad_datos };
   } else if (ipt.video_info && typeof ipt.video_info === 'object') {
     summary.video_info = ipt.video_info;
   }
+  // Resultados por articulación y recomendaciones generadas por el motor real (ADR-018)
+  if (raw.analisis_articular && typeof raw.analisis_articular === 'object') {
+    summary.analisis_articular = raw.analisis_articular;
+  }
+  if (raw.recomendaciones && typeof raw.recomendaciones === 'object') {
+    summary.recomendaciones = raw.recomendaciones;
+  }
+  if (ipt.inputs_robustos) summary.inputs_robustos = ipt.inputs_robustos;
+  if (ipt.estado_validacion) summary.estado_validacion = ipt.estado_validacion;
+  if (ipt.advertencia) summary.advertencia = ipt.advertencia;
   if (Array.isArray(raw.preview_frames) && raw.preview_frames.length > 0) {
     // Mantener hasta 2 preview frames en base64 para visualización instantánea
     summary.preview_frames = raw.preview_frames.slice(0, 2);

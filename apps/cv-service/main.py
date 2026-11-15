@@ -13,10 +13,12 @@ Descripción: Servidor FastAPI con MediaPipe PoseLandmarker y OpenCV para proces
 =========================================================================================
 """
 
+import hashlib
 import os
 import io
 import cv2
 import base64
+import logging
 import tempfile
 import math
 import numpy as np
@@ -30,6 +32,8 @@ from mediapipe.tasks.python import vision
 from mediapipe.tasks import python
 
 from eventos_zancada import analizar_zancadas
+from recomendaciones import generar_recomendaciones
+from calidad_video import medidas_cuadro, evaluar_calidad_video, evaluar_datos_obtenidos
 from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, classify_kinematic_sector, calcular_simetria_sesion, resumir_articulaciones
 
 # Inicialización de la aplicación FastAPI
@@ -39,13 +43,19 @@ app = FastAPI(
     version="1.2.0"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# El servicio de visión no se expone al navegador: la API lo llama por la red interna de Docker.
+# CORS solo se habilita para los orígenes listados en CORS_ORIGINS (útil en desarrollo local).
+_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip() and o.strip() != "*"]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "Authorization"],
+    )
+
+logger = logging.getLogger("metahub.cv")
 
 # Inicialización de MediaPipe PoseLandmarker
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "pose_landmarker_lite.task")
@@ -113,8 +123,11 @@ def calculate_metrics(payload: KeypointsPayload):
             datos = to_pixel_space(datos, width, height)
         metricas = compute_biomechanical_metrics(datos)
         return {"status": "success", "metrics": metricas}
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Fallo al calcular métricas")
+        raise HTTPException(status_code=400, detail="Los puntos corporales enviados no son válidos.")
 
 
 # Conexiones óseas estándar de MediaPipe Pose para renderizar el esqueleto
@@ -202,7 +215,8 @@ async def process_video(
     max_frames: int = Form(150),
     scan_full_video: bool = Form(False),
     include_pose: bool = Form(False),
-    max_samples: int = Form(4500)
+    max_samples: int = Form(4500),
+    athlete_age: Optional[int] = Form(None)
 ):
     """
     Recibe un archivo de video (.mp4, .webm, .mov) o usa el video de muestra de velocista.
@@ -214,7 +228,15 @@ async def process_video(
         raise HTTPException(status_code=422, detail="Parámetros de muestreo fuera de rango.")
     try:
         # Determinar fuente del video
+        video_sha256 = None
+        video_size = None
+        if file is None and not use_sample:
+            raise HTTPException(status_code=422, detail="Falta el archivo de video a analizar.")
         if use_sample or file is None:
+            # El video de muestra es solo para desarrollo y pruebas (ADR-018): en operación real
+            # ningún análisis puede basarse en él ni guardarse a nombre de un atleta.
+            if os.getenv("ALLOW_SAMPLE_VIDEO", "false").lower() != "true":
+                raise HTTPException(status_code=403, detail="El video de muestra está deshabilitado. Sube un video real.")
             if not os.path.exists(SAMPLE_VIDEO_PATH):
                 raise HTTPException(status_code=404, detail="Video de muestra no encontrado en el servidor.")
             video_source = SAMPLE_VIDEO_PATH
@@ -223,6 +245,8 @@ async def process_video(
             suffix = os.path.splitext(file.filename)[1] or ".mp4"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 content = await file.read()
+                video_sha256 = hashlib.sha256(content).hexdigest()
+                video_size = len(content)
                 tmp.write(content)
                 temp_path = tmp.name
             video_source = temp_path
@@ -267,6 +291,7 @@ async def process_video(
                                       'pierna_inclinacion_der','tronco_inclinacion')}
         vis_izq = []   # visibilidad media por cuadro de cadera, rodilla y tobillo izquierdos
         vis_der = []
+        medidas_calidad = []   # nitidez, luz, encuadre y plano por cuadro muestreado (ADR-019)
 
         # Procesar cuadros
         while cap.isOpened() and frame_idx < processing_limit:
@@ -280,6 +305,8 @@ async def process_video(
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
                 detection = pose_detector.detect(mp_image)
+                _lm_cal = detection.pose_landmarks[0] if (detection.pose_landmarks and len(detection.pose_landmarks) > 0) else None
+                medidas_calidad.append(medidas_cuadro(frame, _lm_cal, width, height))
 
                 frame_data = {
                     "frame_index": frame_idx,
@@ -467,17 +494,19 @@ async def process_video(
                                    "la categoría no es concluyente" +
                                    (" porque el puntaje está a menos de 5 puntos de un umbral." if ipt_eval["cerca_de_umbral"] else "."))
 
-        return {
-            "status": "success",
-            "pose_track": {
-                "version": 1, "landmark_count": 33, "width": width, "height": height,
-                "fps": fps, "duration": duration_sec, "sample_stride": effective_stride,
-                "sample_interval": round(effective_stride / fps, 5),
-                "full_video": scan_full_video, "connections": SKELETON_CONNECTIONS,
-                "frames": pose_frames
-            } if include_pose else None,
-            "video_info": {
+        _zancadas = analizar_zancadas(processed_frames)
+        _tasa_pose = (frames_with_pose / max(1, len(processed_frames))) * 100
+        calidad_video = evaluar_calidad_video(
+            {"width": width, "height": height, "fps": fps,
+             "fps_valido": bool(raw_fps and 1.0 <= raw_fps <= 240.0), "duracion_s": duration_sec},
+            medidas_calidad, _tasa_pose)
+        calidad_datos = evaluar_datos_obtenidos(left_knees, right_knees, vis_izq, vis_der, _zancadas)
+
+        video_info_resp = {
                 "filename": video_filename,
+                "sha256": video_sha256,
+                "size_bytes": video_size,
+                "source": "muestra_desarrollo" if video_sha256 is None else "video_subido",
                 "resolution": f"{width}x{height}",
                 "fps": round(fps, 1),
                 "total_video_frames": total_frames,
@@ -488,8 +517,21 @@ async def process_video(
                 "valid_frames": frames_valid,
                 "implausible_knees_dropped": implausible_dropped,
                 "valid_rate_pct": round((frames_valid / max(1, len(processed_frames))) * 100, 1),
-                "low_confidence": (frames_valid / max(1, len(processed_frames))) * 100 < MIN_VALID_RATE_PCT
-            },
+                "low_confidence": (frames_valid / max(1, len(processed_frames))) * 100 < MIN_VALID_RATE_PCT,
+                "calidad_video": calidad_video,
+                "calidad_datos": calidad_datos
+            }
+
+        return {
+            "status": "success",
+            "pose_track": {
+                "version": 1, "landmark_count": 33, "width": width, "height": height,
+                "fps": fps, "duration": duration_sec, "sample_stride": effective_stride,
+                "sample_interval": round(effective_stride / fps, 5),
+                "full_video": scan_full_video, "connections": SKELETON_CONNECTIONS,
+                "frames": pose_frames
+            } if include_pose else None,
+            "video_info": video_info_resp,
             "summary_metrics": {
                 "peak_knee_extension": peak_knee,
                 "min_knee_flexion": min_knee,
@@ -508,7 +550,8 @@ async def process_video(
             },
             "ipt_evaluation": ipt_eval,
             "analisis_articular": analisis_articular,
-            "analisis_zancadas": analizar_zancadas(processed_frames),
+            "recomendaciones": generar_recomendaciones(ipt_eval, analisis_articular, video_info_resp, athlete_age),
+            "analisis_zancadas": _zancadas,
             "ai_evaluations": {
                 "praises": praises,
                 "anomalies": anomalies
@@ -519,8 +562,10 @@ async def process_video(
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error procesando video: {str(e)}")
+    except Exception:
+        # El detalle queda en el registro del servicio; al cliente no se le exponen rutas ni trazas.
+        logger.exception("Fallo inesperado procesando video")
+        raise HTTPException(status_code=500, detail="Error interno procesando el video.")
     finally:
         if temp_path and os.path.exists(temp_path):
             try:

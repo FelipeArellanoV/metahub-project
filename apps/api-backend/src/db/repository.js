@@ -29,6 +29,9 @@ const { getPool } = require('./pgClient');
 // Ruta del archivo persistente JSON para almacenamiento durable sin necesidad de Docker
 const DATA_DIR = path.resolve(__dirname, '../../data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
+// En pruebas (Jest fija NODE_ENV=test; node --test define NODE_TEST_CONTEXT) el almacén es solo
+// en memoria: las pruebas no deben leer ni sobrescribir el archivo versionado.
+const PERSIST = process.env.NODE_ENV !== 'test' && !process.env.NODE_TEST_CONTEXT;
 
 // Costo de salting robusto para mitigar ataques de fuerza bruta (RNF03)
 const BCRYPT_SALT_ROUNDS = 12;
@@ -104,7 +107,7 @@ class Repository {
   constructor() {
     this.reset();
     const loaded = this.loadFromFile();
-    if (!loaded) {
+    if (!loaded && process.env.ALLOW_DEMO_SEED === 'true') {
       this.seedDefaults().then(() => this.saveToFile()).catch(() => {});
     }
   }
@@ -113,7 +116,7 @@ class Repository {
    * Persiste el estado actual a disco en formato JSON para durabilidad estricta
    */
   saveToFile() {
-    if (this.isPgActive()) return;
+    if (this.isPgActive() || !PERSIST) return;
     try {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -138,7 +141,7 @@ class Repository {
    * Carga el estado existente desde disco si existe
    */
   loadFromFile() {
-    if (this.isPgActive()) return false;
+    if (this.isPgActive() || !PERSIST) return false;
     try {
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
@@ -180,6 +183,8 @@ class Repository {
    */
   async seedDefaults() {
     if (this.isPgActive()) return;
+    // Datos y cuentas de demostración: solo si se habilitan explícitamente (ADR-018).
+    if (process.env.ALLOW_DEMO_SEED !== 'true') return;
     try {
       const coach = await this.createUser({
         name: 'Felipe Arellano (Entrenador UCT)',
@@ -487,7 +492,8 @@ class Repository {
    * Compara la contraseña provista en texto plano con el hash almacenado
    */
   async validatePassword(user, password) {
-    if (password === '123456' || password === 'password123') return true;
+    // Solo se acepta la contraseña real de la cuenta (no hay contraseñas maestras).
+    if (!user || !user.passwordHash) return false;
     return verifyPassword(password, user.passwordHash);
   }
 
@@ -550,7 +556,9 @@ class Repository {
    * Si se entrega 'account' ({ email, password }) se crea además una cuenta con rol 'atleta'
    * vinculada a la ficha. Por privacidad de menores, requiere consentimiento parental registrado.
    */
-  async createAthlete({ name, age, birthDate = null, consent = false, trainerId, account = null, organizationName = '' }) {
+  async createAthlete({ name, age, birthDate = null, consent = false, trainerId, account = null, organizationName = '', consentRecord = null }) {
+    // consentRecord: datos del consentimiento formal (apoderado, vencimiento…). Si viene, la ficha nace con consentimiento.
+    if (consentRecord) consent = true;
     if (!trainerId) {
       const error = new Error('Se requiere asociar un entrenador.');
       error.statusCode = 400;
@@ -609,7 +617,9 @@ class Repository {
           athleteId: createdAthlete.id,
           consentType: 'grabacion_biomecanica',
           status: 'granted',
-          notes: 'Consentimiento registrado al crear la ficha escolar'
+          notes: 'Consentimiento registrado al crear la ficha escolar',
+          ...(consentRecord || {}),
+          recordedBy: (consentRecord && consentRecord.recordedBy) || trainerId
         });
       }
 
@@ -763,15 +773,20 @@ class Repository {
   /**
    * Asienta o actualiza un consentimiento parental para un atleta escolar
    */
-  async createConsent({ athleteId, guardianId = null, consentType = 'grabacion_biomecanica', status = 'granted', expiresAt = null, notes = '' }) {
+  async createConsent({ athleteId, guardianId = null, consentType = 'grabacion_biomecanica', status = 'granted', expiresAt = null, notes = '',
+    guardianName = null, guardianRelationship = null, guardianPhone = null, recordedBy = null }) {
+    const revokedAt = status === 'revoked' ? new Date().toISOString() : null;
     if (this.isPgActive()) {
       const pool = getPool();
       const res = await pool.query(
-        `INSERT INTO consents (athlete_id, guardian_id, consent_type, status, expires_at, notes)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO consents (athlete_id, guardian_id, consent_type, status, expires_at, notes, guardian_name, guardian_relationship, recorded_by, revoked_at, guardian_phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING id, athlete_id as "athleteId", guardian_id as "guardianId", consent_type as "consentType",
-                   status, granted_at as "grantedAt", expires_at as "expiresAt", notes`,
-        [Number(athleteId), guardianId ? Number(guardianId) : null, consentType, status, expiresAt, notes]
+                   status, granted_at as "grantedAt", revoked_at as "revokedAt", expires_at as "expiresAt", notes,
+                   guardian_name as "guardianName", guardian_relationship as "guardianRelationship", guardian_phone as "guardianPhone",
+                   recorded_by as "recordedBy"`,
+        [Number(athleteId), guardianId ? Number(guardianId) : null, consentType, status, expiresAt, notes,
+          guardianName, guardianRelationship, recordedBy ? Number(recordedBy) : null, revokedAt, guardianPhone]
       );
       // Sincronizar flag booleano en la tabla athletes
       await pool.query('UPDATE athletes SET consent = $1 WHERE id = $2', [status === 'granted', Number(athleteId)]);
@@ -785,8 +800,13 @@ class Repository {
       consentType,
       status,
       grantedAt: new Date().toISOString(),
+      revokedAt,
       expiresAt: expiresAt || null,
-      notes: notes || ''
+      notes: notes || '',
+      guardianName,
+      guardianRelationship,
+      guardianPhone,
+      recordedBy: recordedBy ? Number(recordedBy) : null
     };
     this.consents.push(consentEntry);
     this.saveToFile();
@@ -807,7 +827,9 @@ class Repository {
       const pool = getPool();
       const res = await pool.query(
         `SELECT id, athlete_id as "athleteId", guardian_id as "guardianId", consent_type as "consentType",
-                status, granted_at as "grantedAt", revoked_at as "revokedAt", expires_at as "expiresAt", notes
+                status, granted_at as "grantedAt", revoked_at as "revokedAt", expires_at as "expiresAt", notes,
+                guardian_name as "guardianName", guardian_relationship as "guardianRelationship", guardian_phone as "guardianPhone",
+                recorded_by as "recordedBy"
          FROM consents
          WHERE athlete_id = $1
          ORDER BY id DESC`,
@@ -934,7 +956,8 @@ class Repository {
       const res = await pool.query(
         `SELECT s.id, s.athlete_id as "athleteId", a.name as "athleteName", s.trainer_id as "trainerId",
                 s.session_date as "sessionDate", s.video_url as "videoUrl", s.notes,
-                s.ipt_score as "iptScore", s.created_at as "createdAt"
+                s.ipt_score as "iptScore", s.created_at as "createdAt",
+                (s.analysis - 'preview_frames') as analysis
          FROM sessions s
          JOIN athletes a ON s.athlete_id = a.id
          WHERE s.athlete_id = $1 AND s.trainer_id = $2

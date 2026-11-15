@@ -17,19 +17,14 @@
 
 import {
   Activity,
-  ArrowRight,
   CheckCircle2,
   ChevronRight,
   Dumbbell,
   Gauge,
   GitCompare,
   Layers,
-  Pause,
-  Play,
-  RotateCcw,
   Sparkles,
   Timer,
-  TrendingUp,
   User,
   Zap,
   Video,
@@ -37,10 +32,12 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
+import { SkeletonList, cardVariants, motion } from '../components/Motion.jsx';
+import PoseComparison from '../components/PoseComparison.jsx';
 import { extraerMetricasSesion, formatearMetrica, compararSesiones } from '../services/metricasSesion.js';
 const poseRequest=async path=>{const r=await fetch((import.meta.env.VITE_API_BASE||'')+path,{headers:{Authorization:'Bearer '+localStorage.getItem('metahub_token')}});const data=await r.json();if(!r.ok)throw new Error(data.error||'No se pudieron cargar los datos');return data;};
 
@@ -57,9 +54,6 @@ export default function Compare() {
   const [isProcessingCv, setIsProcessingCv] = useState(false);
   const [cvStatusMessage, setCvStatusMessage] = useState('');
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [scrubPhase, setScrubPhase] = useState(55);
-  const animFrameRef = useRef(null);
   const [showSkeleton, setShowSkeleton] = useState(true);
 
   // 1. Cargar lista real de atletas desde el backend
@@ -113,32 +107,6 @@ export default function Compare() {
   }, [selectedAthleteId]);
 
   const handleRunRealCvAnalysis=()=>navigate(viewerRole==='atleta'?'/upload':'/capture');
-
-  // 4. Animación de reproducción sincronizada en bucle
-  useEffect(() => {
-    if (!isPlaying) {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      return;
-    }
-
-    let lastTime = performance.now();
-    const cycleDuration = 1800; // 1.8 segundos por zancada en cámara lenta para análisis
-
-    const tick = (now) => {
-      const elapsed = now - lastTime;
-      setScrubPhase(prev => {
-        const next = prev + (elapsed / cycleDuration) * 100;
-        return next >= 100 ? 0 : next;
-      });
-      lastTime = now;
-      animFrameRef.current = requestAnimationFrame(tick);
-    };
-
-    animFrameRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [isPlaying]);
 
   // Sesiones seleccionadas para la comparativa
   const rawSessionA = athleteSessions.find(s => String(s.id) === String(selectedSessionAId));
@@ -235,23 +203,21 @@ export default function Compare() {
   const dynamicCoachVerdict=hasTwoSessions&&Number.isFinite(sA.ipt)&&Number.isFinite(sB.ipt)
    ? 'Cambio observado de IPT: '+(sB.ipt-sA.ipt).toFixed(1)+' puntos. Revisa las tomas y sus condiciones de captura junto al entrenador.' : null;
 
-  const getPhaseName = (val) => {
-    if (val < 33) return 'Fase de Impulso / Despegue Post-Contacto';
-    if (val < 66) return 'Fase de Vuelo / Recobro Alto y Ataque';
-    return 'Fase de Amortiguación y Contacto Inicial';
-  };
-
-  // Coordenadas dinámicas de cinemática para el esqueleto
-  const t = scrubPhase / 100;
-  const kneeY_A = 215 - Math.sin(t * Math.PI) * 22;
-  const kneeX_A = 165 - Math.cos(t * Math.PI) * 15;
-  const footY_A = 255 - Math.sin(t * Math.PI) * 18;
-  const footX_A = 140 - Math.cos(t * Math.PI) * 25;
-
-  const kneeY_B = 195 - Math.sin(t * Math.PI) * (25 + Math.min(15, (Number.isFinite(sB.kneeAngle - sA.kneeAngle) ? sB.kneeAngle - sA.kneeAngle : 0) * 2));
-  const kneeX_B = 160 - Math.cos(t * Math.PI) * 18;
-  const footY_B = 238 - Math.sin(t * Math.PI) * 28;
-  const footX_B = 185 - Math.cos(t * Math.PI) * 30;
+  // Mediciones almacenadas de cada sesión, mostradas bajo los videos reales.
+  const conUnidad = (value, digits, unit) => Number.isFinite(value) ? formatearMetrica(value, digits) + unit : formatearMetrica(value, digits);
+  const sessionSummary = (s, label, accent) => (
+    <div className="compare-session-summary" style={{ borderTop: `3px solid ${accent}` }}>
+      <span className="compare-session-label">{label}</span>
+      <strong>{s.title}</strong>
+      <small>{s.id} · {s.date}</small>
+      <dl>
+        <div><dt>IPT</dt><dd>{conUnidad(s.ipt,1,' pts')}</dd></div>
+        <div><dt>Cadencia</dt><dd>{conUnidad(s.cadenceHz,2,' Hz')}</dd></div>
+        <div><dt>Zancada</dt><dd>{conUnidad(s.strideLengthM,2,' m')}</dd></div>
+        <div><dt>Flexión rodilla</dt><dd>{conUnidad(s.kneeAngle,1,'°')}</dd></div>
+      </dl>
+    </div>
+  );
 
   return (
     <Layout>
@@ -283,7 +249,7 @@ export default function Compare() {
       />
 
       {/* BARRA DE SELECCIÓN DE ATLETA Y SESIONES REALES */}
-      <div className="comparator-header-bar" style={{ background: 'white', padding: '16px 20px', borderRadius: 14, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+      <motion.div variants={cardVariants} className="comparator-header-bar" style={{ background: 'white', padding: '16px 20px', borderRadius: 14, border: '1px solid #e2e8f0', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -298,7 +264,7 @@ export default function Compare() {
             >
               {athletesList.map(a => (
                 <option key={a.id} value={String(a.id)}>
-                  {a.name} ({a.category || `Edad ${a.age || 15}`})
+                  {a.name}{a.category ? ` (${a.category})` : a.age ? ` (Edad ${a.age})` : ''}
                 </option>
               ))}
             </select>
@@ -374,10 +340,13 @@ export default function Compare() {
             <span>{cvStatusMessage}</span>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* CASO: Menos de 2 sesiones registradas para este atleta */}
-      {!hasTwoSessions && (
+      {loadingSessions && !hasTwoSessions && (
+        <div className="panel-card" style={{ marginBottom: 24 }}><SkeletonList rows={2} label="Cargando sesiones del atleta…" /></div>
+      )}
+      {!hasTwoSessions && !loadingSessions && (
         <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 14, padding: '24px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <AlertCircle size={32} color="#d97706" />
@@ -414,161 +383,20 @@ export default function Compare() {
         </div>
       )}
 
-      <p style={{fontSize:12,color:"#64748b"}}>Animación ilustrativa de la zancada. El movimiento del monito no reproduce las articulaciones detectadas en el video. Las mediciones disponibles corresponden a las sesiones seleccionadas.</p>
-      {/* REPRODUCTOR SINCRONIZADO Y CONTROL DE FASE */}
-      <div className="sync-playback-bar" style={{ display: 'flex', alignItems: 'center', gap: 16, background: '#f8fafc', padding: '14px 20px', borderRadius: 14, border: '1px solid #e2e8f0', marginBottom: 24 }}>
-        <button
-          type="button"
-          className="btn-schedule-sm"
-          style={{ width: 140, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#0284c7', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}
-          onClick={() => setIsPlaying(!isPlaying)}
-        >
-          {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-          <span>{isPlaying ? 'Pausar Sincro' : 'Reproducir'}</span>
-        </button>
-
-        <button
-          type="button"
-          className="btn-outline-sm"
-          style={{ height: 40, padding: '0 14px', background: 'white', border: '1px solid #cbd5e1', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          title="Reiniciar ciclo"
-          onClick={() => setScrubPhase(0)}
-        >
-          <RotateCcw size={16} />
-        </button>
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-            <span style={{ fontWeight: 700, color: '#10283f' }}>
-              Fase ilustrada: <span style={{ color: '#0284c7' }}>{getPhaseName(scrubPhase)}</span>
-            </span>
-            <span style={{ color: '#64748b', fontWeight: 700, fontFamily: 'monospace' }}>
-              {Math.round(scrubPhase)}% del ciclo de zancada
-            </span>
+      {/* VIDEOS REALES CON EL ESQUELETO DETECTADO POR MEDIAPIPE, SINCRONIZADOS */}
+      {hasTwoSessions && (
+        <motion.div variants={cardVariants} style={{ marginBottom: 26 }}>
+          <PoseComparison sessionA={rawSessionA} sessionB={rawSessionB} showSkeleton={showSkeleton} canAnalyze />
+          <div className="compare-session-summaries">
+            {sessionSummary(sA, 'ANTES · LÍNEA BASE', '#94a3b8')}
+            {sessionSummary(sB, 'DESPUÉS · CONTROL POSTERIOR', '#0284c7')}
           </div>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={scrubPhase}
-            onChange={(e) => setScrubPhase(parseInt(e.target.value, 10))}
-            style={{ width: '100%', cursor: 'pointer', accentColor: '#0284c7' }}
-          />
-        </div>
-      </div>
-
-      {/* VISTA SPLIT-SCREEN LADO A LADO */}
-      <div className="split-screen-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 26 }}>
-        {/* LADO IZQUIERDO: TOMA INICIAL (SESIÓN A) */}
-        <div className="video-mock-card" style={{ background: '#0b1329', borderRadius: 16, overflow: 'hidden', border: '1px solid #1e293b', color: 'white', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-          <div className="video-mock-header" style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', letterSpacing: 1 }}>
-                ANTES · LÍNEA BASE
-              </span>
-              <strong style={{ display: 'block', fontSize: 15, marginTop: 2 }}>
-                {sA.title}
-              </strong>
-            </div>
-            <span style={{ fontSize: 12, color: '#94a3b8', background: 'rgba(255,255,255,0.08)', padding: '3px 8px', borderRadius: 6 }}>
-              {sA.id} · {sA.date}
-            </span>
-          </div>
-
-          <div className="video-canvas-viewport" style={{ position: 'relative', height: 280, background: 'radial-gradient(circle at center, #111e38 0%, #060b18 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 400 300" style={{ width: '100%', height: '100%' }}>
-              <line x1="20" y1="260" x2="380" y2="260" stroke="#334155" strokeWidth="2" strokeDasharray="4 4" />
-              
-              {showSkeleton && (
-                <g stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" opacity="0.9">
-                  <circle cx="200" cy="70" r="13" fill="#0284c7" />
-                  <line x1="200" y1="83" x2="190" y2="160" />
-                  <line x1="190" y1="160" x2={kneeX_A} y2={kneeY_A} stroke="#f43f5e" strokeWidth="4" />
-                  <line x1={kneeX_A} y1={kneeY_A} x2={footX_A} y2={footY_A} stroke="#f43f5e" strokeWidth="4" />
-                  <line x1="190" y1="160" x2="225" y2="210" />
-                  <line x1="225" y1="210" x2="235" y2="258" />
-                  <line x1="198" y1="105" x2="170" y2="140" />
-                  <line x1="198" y1="105" x2="230" y2="135" />
-                  <circle cx={kneeX_A} cy={kneeY_A} r="5" fill="#f43f5e" />
-                  <circle cx="190" cy="160" r="5" fill="#38bdf8" />
-                </g>
-              )}
-            </svg>
-
-            <div style={{ position: 'absolute', top: '55%', left: '22%', background: 'rgba(244,63,94,0.2)', border: '1px solid #f43f5e', color: '#fda4af', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-              Flexión: {formatearMetrica(sA.kneeAngle,1)}°
-            </div>
-
-            <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#f87171' }}>
-              Cadencia: {formatearMetrica(sA.cadenceHz,2)} Hz{Number.isFinite(sA.cadencePpm) ? ` (${sA.cadencePpm} ppm)` : ''}
-            </div>
-          </div>
-
-          <div className="video-mock-footer" style={{ padding: '12px 18px', background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
-            <div>IPT: <strong style={{ color: '#fca5a5' }}>{formatearMetrica(sA.ipt,1)} pts</strong></div>
-            <div>Cadencia: <strong style={{ color: '#cbd5e1' }}>{formatearMetrica(sA.cadenceHz,2)} Hz</strong></div>
-            <div>Zancada: <strong style={{ color: '#cbd5e1' }}>{formatearMetrica(sA.strideLengthM,2)} m</strong></div>
-          </div>
-        </div>
-
-        {/* LADO DERECHO: CONTROL POSTERIOR (SESIÓN B) */}
-        <div className="video-mock-card" style={{ background: '#0b1329', borderRadius: 16, overflow: 'hidden', border: '2px solid #0284c7', color: 'white', boxShadow: '0 12px 30px rgba(2,132,199,0.2)' }}>
-          <div className="video-mock-header" style={{ padding: '14px 18px', background: 'rgba(2,132,199,0.15)', borderBottom: '1px solid rgba(2,132,199,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ fontSize: 10, fontWeight: 800, color: '#38bdf8', letterSpacing: 1 }}>
-                DESPUÉS · CONTROL POSTERIOR
-              </span>
-              <strong style={{ display: 'block', fontSize: 15, marginTop: 2, color: 'white' }}>
-                {sB.title}
-              </strong>
-            </div>
-            <span style={{ fontSize: 12, color: '#38bdf8', background: 'rgba(2,132,199,0.25)', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-              {sB.id} · {sB.date}
-            </span>
-          </div>
-
-          <div className="video-canvas-viewport" style={{ position: 'relative', height: 280, background: 'radial-gradient(circle at center, #0e294b 0%, #060b18 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 400 300" style={{ width: '100%', height: '100%' }}>
-              <line x1="20" y1="260" x2="380" y2="260" stroke="#334155" strokeWidth="2" strokeDasharray="4 4" />
-              
-              {showSkeleton && (
-                <g stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" opacity="0.95">
-                  <circle cx="205" cy="65" r="13" fill="#0284c7" />
-                  <line x1="205" y1="78" x2="198" y2="155" />
-                  <line x1="198" y1="155" x2={kneeX_B} y2={kneeY_B} stroke="#10b981" strokeWidth="4" />
-                  <line x1={kneeX_B} y1={kneeY_B} x2={footX_B} y2={footY_B} stroke="#10b981" strokeWidth="4" />
-                  <line x1="198" y1="155" x2="235" y2="205" />
-                  <line x1="235" y1="205" x2="248" y2="258" />
-                  <line x1="203" y1="100" x2="165" y2="135" />
-                  <line x1="203" y1="100" x2="242" y2="130" />
-                  <circle cx={kneeX_B} cy={kneeY_B} r="5" fill="#10b981" />
-                  <circle cx="198" cy="155" r="5" fill="#38bdf8" />
-                </g>
-              )}
-            </svg>
-
-            <div style={{ position: 'absolute', top: '50%', left: '22%', background: 'rgba(16,185,129,0.2)', border: '1px solid #10b981', color: '#6ee7b7', padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-              Flexión: {formatearMetrica(sB.kneeAngle,1)}°
-            </div>
-
-            <div style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#6ee7b7', fontWeight: 600 }}>
-              Cadencia: {formatearMetrica(sB.cadenceHz,2)} Hz{Number.isFinite(sB.cadencePpm) ? ` (${sB.cadencePpm} ppm)` : ''}
-            </div>
-          </div>
-
-          <div className="video-mock-footer" style={{ padding: '12px 18px', background: 'rgba(2,132,199,0.1)', borderTop: '1px solid rgba(2,132,199,0.2)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
-            <div>IPT: <strong style={{ color: '#86efac' }}>{formatearMetrica(sB.ipt,1)} pts</strong></div>
-            <div>Cadencia: <strong style={{ color: '#6ee7b7' }}>{formatearMetrica(sB.cadenceHz,2)} Hz</strong></div>
-            <div>Zancada: <strong style={{ color: '#6ee7b7' }}>{formatearMetrica(sB.strideLengthM,2)} m</strong></div>
-          </div>
-        </div>
-      </div>
-
-
+        </motion.div>
+      )}
 
       {/* TARJETAS DE DELTAS BIOMECÁNICOS */}
       {hasTwoSessions && (
-        <div style={{ marginBottom: 28 }}>
+        <motion.div style={{ marginBottom: 28 }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: '#10283f', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Activity size={18} color="#0284c7" />
@@ -626,12 +454,12 @@ export default function Compare() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* DICTAMEN TÉCNICO Y ACCIÓN FORMATIVA */}
       {dynamicCoachVerdict && (
-        <div
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
           style={{
             background: 'white',
             border: '1px solid #e2e8f0',
@@ -676,7 +504,7 @@ export default function Compare() {
               <Timer size={14} /> Cadencia Actual: {formatearMetrica(sB.cadenceHz,2)} Hz{Number.isFinite(sB.cadencePpm) ? ` (${sB.cadencePpm} ppm)` : ''}
             </span>
           </div>
-        </div>
+        </motion.div>
       )}
     </Layout>
   );

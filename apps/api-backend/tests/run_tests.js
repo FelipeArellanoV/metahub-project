@@ -16,10 +16,12 @@
  * =========================================================================================
  */
 
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 const assert = require('assert');
 const { EventEmitter } = require('events');
 const app = require('../src/app');
 const dbRepository = require('../src/db/repository');
+const rateLimit = require('../src/services/rateLimit');
 
 function makeRequest(app, method, url, headers = {}, body = null) {
   return new Promise((resolve) => {
@@ -70,6 +72,7 @@ async function runTests() {
 
   async function test(name, fn) {
     dbRepository.reset();
+    rateLimit.resetAll();
     try {
       await fn();
       console.log(`  ✅ PASÓ: ${name}`);
@@ -147,7 +150,7 @@ async function runTests() {
 
     await makeRequest(app, 'POST', '/api/athletes', {
       'authorization': `Bearer ${regA.body.token}`
-    }, { name: 'Martín Atleta', age: 15, consent: true });
+    }, { name: 'Martín Atleta', age: 15, consent: true, guardianName: 'Apoderada de Prueba' });
 
     const regB = await makeRequest(app, 'POST', '/api/auth/register', {}, {
       name: 'Entrenador B',
@@ -181,7 +184,7 @@ async function runTests() {
     // Actualizar (PUT)
     const updateRes = await makeRequest(app, 'PUT', `/api/athletes/${athleteId}`, {
       'authorization': `Bearer ${token}`
-    }, { name: 'Atleta Editado', age: 15, consent: true });
+    }, { name: 'Atleta Editado', age: 15, consent: true, guardianName: 'Apoderada de Prueba' });
 
     assert.strictEqual(updateRes.statusCode, 200);
     assert.strictEqual(updateRes.body.athlete.name, 'Atleta Editado');
@@ -212,7 +215,7 @@ async function runTests() {
 
     const athleteRes = await makeRequest(app, 'POST', '/api/athletes', {
       'authorization': `Bearer ${token}`
-    }, { name: 'Javiera Soto', age: 16, consent: true });
+    }, { name: 'Javiera Soto', age: 16, consent: true, guardianName: 'Apoderada de Prueba' });
 
     const athleteId = athleteRes.body.athlete.id;
 
@@ -242,11 +245,11 @@ async function runTests() {
 
     const ath1 = await makeRequest(app, 'POST', '/api/athletes', {
       'authorization': `Bearer ${token}`
-    }, { name: 'Atleta Uno', age: 15, consent: true });
+    }, { name: 'Atleta Uno', age: 15, consent: true, guardianName: 'Apoderada de Prueba' });
 
     const ath2 = await makeRequest(app, 'POST', '/api/athletes', {
       'authorization': `Bearer ${token}`
-    }, { name: 'Atleta Dos', age: 16, consent: true });
+    }, { name: 'Atleta Dos', age: 16, consent: true, guardianName: 'Apoderada de Prueba' });
 
     await makeRequest(app, 'POST', '/api/sessions', {
       'authorization': `Bearer ${token}`
@@ -302,10 +305,33 @@ async function runTests() {
     };
   }
 
+  await test('Prueba 10b: El resumen guarda recomendaciones, análisis articular y la trazabilidad del video (ADR-018)', async () => {
+    const { buildAnalysisSummary } = require('../src/controllers/sessionController');
+    const raw = {
+      ...fakeCvResult(80),
+      video_info: { duration_seconds: 3, fps: 30, detection_rate_pct: 100, filename: 'mi.mp4', sha256: 'a'.repeat(64),
+        size_bytes: 1234, source: 'video_subido', analyzed_frames: 90, valid_frames: 80, valid_rate_pct: 88.9, low_confidence: false,
+        resolution: '1280x720', calidad_video: { nivel: 'limitada', chequeos: [{ id: 'fps', estado: 'aviso' }] },
+        calidad_datos: { nivel: 'coherente', chequeos: [] } },
+      analisis_articular: { simetria_multiarticular: 77.4, articulaciones_evaluadas: 3 },
+      recomendaciones: { disponible: true, hallazgos: [], confianza: { nivel: 'alta', motivos: [] } }
+    };
+    const s = buildAnalysisSummary(raw);
+    assert.strictEqual(s.video_info.sha256, 'a'.repeat(64));
+    assert.strictEqual(s.video_info.source, 'video_subido');
+    assert.strictEqual(s.video_info.valid_rate_pct, 88.9);
+    assert.strictEqual(s.video_info.calidad_video.nivel, 'limitada');
+    assert.strictEqual(s.video_info.calidad_datos.nivel, 'coherente');
+    assert.strictEqual(s.video_info.resolution, '1280x720');
+    assert.strictEqual(s.analisis_articular.simetria_multiarticular, 77.4);
+    assert.strictEqual(s.recomendaciones.disponible, true);
+    assert.strictEqual(s.frames, undefined, 'No debe persistir los cuadros pesados');
+  });
+
   await test('Prueba 11: El entrenador crea un atleta con cuenta y este puede iniciar sesión como rol atleta', async () => {
     const coach = await registerCoach();
     const res = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Martin Real', age: 15, consent: true, email: 'martin.real@uct.cl', password: 'temporal123'
+      name: 'Martin Real', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'martin.real@uct.cl', password: 'temporal123'
     });
     assert.strictEqual(res.statusCode, 201);
     assert.strictEqual(res.body.athlete.hasAccount, true);
@@ -331,10 +357,10 @@ async function runTests() {
   await test('Prueba 13: Correo duplicado rechazado sin dejar ficha creada', async () => {
     const coach = await registerCoach();
     await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Uno', age: 15, consent: true, email: 'dup@uct.cl', password: 'temporal123'
+      name: 'Uno', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'dup@uct.cl', password: 'temporal123'
     });
     const dup = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Dos', age: 15, consent: true, email: 'dup@uct.cl', password: 'temporal123'
+      name: 'Dos', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'dup@uct.cl', password: 'temporal123'
     });
     assert.strictEqual(dup.statusCode, 400);
     const list = await makeRequest(app, 'GET', '/api/athletes', bearer(coach));
@@ -344,7 +370,7 @@ async function runTests() {
   await test('Prueba 14: El token de atleta no accede a rutas del entrenador (403) ni el de entrenador al portal (403)', async () => {
     const coach = await registerCoach();
     await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Ana', age: 15, consent: true, email: 'ana@uct.cl', password: 'temporal123'
+      name: 'Ana', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'ana@uct.cl', password: 'temporal123'
     });
     const athTok = (await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'ana@uct.cl', password: 'temporal123' })).body.token;
 
@@ -358,7 +384,7 @@ async function runTests() {
   await test('Prueba 15: Una sesión guarda el IPT y un resumen sin los cuadros del video', async () => {
     const coach = await registerCoach();
     const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Beto', age: 15, consent: true, email: 'beto@uct.cl', password: 'temporal123'
+      name: 'Beto', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'beto@uct.cl', password: 'temporal123'
     });
     const created = await makeRequest(app, 'POST', '/api/sessions', bearer(coach), {
       athleteId: ath.body.athlete.id, analysis: fakeCvResult(79.84)
@@ -381,10 +407,10 @@ async function runTests() {
   await test('Prueba 16: Cada atleta ve únicamente sus propios datos en el portal', async () => {
     const coach = await registerCoach();
     const a = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Atleta A', age: 15, consent: true, email: 'a@uct.cl', password: 'temporal123'
+      name: 'Atleta A', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'a@uct.cl', password: 'temporal123'
     });
     const b = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Atleta B', age: 16, consent: true, email: 'b@uct.cl', password: 'temporal123'
+      name: 'Atleta B', age: 16, consent: true, guardianName: 'Apoderada de Prueba', email: 'b@uct.cl', password: 'temporal123'
     });
     await makeRequest(app, 'POST', '/api/sessions', bearer(coach), { athleteId: a.body.athlete.id, analysis: fakeCvResult(70) });
     await makeRequest(app, 'POST', '/api/sessions', bearer(coach), { athleteId: a.body.athlete.id, analysis: fakeCvResult(80) });
@@ -406,7 +432,7 @@ async function runTests() {
   await test('Prueba 17: Eliminar al atleta elimina también su cuenta de acceso', async () => {
     const coach = await registerCoach();
     const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
-      name: 'Temporal', age: 15, consent: true, email: 'tmp@uct.cl', password: 'temporal123'
+      name: 'Temporal', age: 15, consent: true, guardianName: 'Apoderada de Prueba', email: 'tmp@uct.cl', password: 'temporal123'
     });
     await makeRequest(app, 'DELETE', `/api/athletes/${ath.body.athlete.id}`, bearer(coach));
     const login = await makeRequest(app, 'POST', '/api/auth/login', {}, { email: 'tmp@uct.cl', password: 'temporal123' });
@@ -439,7 +465,7 @@ async function runTests() {
     const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
       name: 'Estudiante Biomecánico',
       birthDate: '2011-04-18',
-      consent: true
+      consent: true, guardianName: 'Apoderada de Prueba'
     });
     assert.strictEqual(ath.statusCode, 201);
     assert.strictEqual(ath.body.athlete.birthDate, '2011-04-18');
@@ -458,7 +484,7 @@ async function runTests() {
     const ath = await makeRequest(app, 'POST', '/api/athletes', bearer(coach), {
       name: 'Atleta con Consentimiento',
       age: 14,
-      consent: true
+      consent: true, guardianName: 'Apoderada de Prueba'
     });
     const athleteId = ath.body.athlete.id;
 

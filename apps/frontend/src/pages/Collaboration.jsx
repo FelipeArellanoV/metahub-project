@@ -6,6 +6,7 @@ import { Layout, PageHeader } from '../components/UI.jsx';
 import { clubRequest } from '../services/roster.js';
 import useCollaboration from '../hooks/useCollaboration.js';
 import '../collaboration.css';
+import { Skeleton, SkeletonList, cardVariants, listItemVariants, motion } from '../components/Motion.jsx';
 
 function currentUser() {
   try { return JSON.parse(localStorage.getItem('metahub_user') || '{}'); }
@@ -93,7 +94,7 @@ export default function Collaboration() {
     <FeatureBanner icon={Users} title="Entrenador y alumno, en el mismo equipo"
       description="Ejercicios, citas y mensajes conectados a una sola ficha."
       stats={[{label:'Ejercicios',value:data?data.tasks.length:'—'},{label:'Citas',value:data?data.appointments.length:'—'},{label:'Mensajes',value:data?data.messages.length:'—'}]}/>
-    <section className="collaboration" aria-busy={busy || loading}>
+    <motion.section variants={cardVariants} className="collaboration" aria-busy={busy || loading}>
       {coach && <label className="form-field">
         <span>Alumno bajo seguimiento</span>
         <select value={athleteId} disabled={busy || listLoading} onChange={e => {
@@ -106,11 +107,11 @@ export default function Collaboration() {
           {athletes.map(a => <option key={a.id} value={a.id}>{a.name}{a.canEdit ? ' · A mi cargo' : ' · Club, solo lectura'}</option>)}
         </select>
       </label>}
-      {listLoading && <p role="status">Cargando alumnos…</p>}
+      {listLoading && <div className="mh-skeleton-field" role="status" aria-busy="true"><span className="mh-visually-hidden">Cargando alumnos…</span><Skeleton width="40%" height={12}/><Skeleton height={44} radius={12}/></div>}
       {listError && <p role="alert" className="collab-error">{listError} Recarga la página para reintentar.</p>}
       {coach && !listLoading && !listError && !athletes.length &&
         <p>No hay alumnos registrados. Crea una ficha y su cuenta desde Mis atletas.</p>}
-      {loading && (!coach || athleteId) && <p role="status">Consultando datos compartidos…</p>}
+      {loading && !data && (!coach || athleteId) && <SkeletonList rows={3} label="Consultando datos compartidos…"/>}
       {(error || dateError) && <p role="alert" className="collab-error">{dateError || error}</p>}
       {notice && <p role="status" className="collab-success">{notice}</p>}
       {data && <>
@@ -126,7 +127,7 @@ export default function Collaboration() {
         </p>}
 
         <div className="collab-grid">
-          <section className="panel-card">
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="panel-card">
             <h2 className="feature-title"><Dumbbell size={21}/>Ejercicios asignados</h2>
             <p>{data.tasks.filter(t => t.done).length} completados de {data.tasks.length} registros mostrados.</p>
             {coach && !readOnly && <form onSubmit={createTask} className="collab-form">
@@ -147,9 +148,9 @@ export default function Collaboration() {
                   onChange={e => update('tasks', item, { done: e.target.checked })} /> Completado</label>}
               <small>Actualizado {time(item.updated_at)} · versión {item.version}</small>
             </li>)}</ul>
-          </section>
+          </motion.section>
 
-          <section className="panel-card">
+          <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="panel-card">
             <h2 className="feature-title"><CalendarDays size={21}/>Citas en pista</h2>
             <p>Las fechas se muestran en la zona horaria de este dispositivo.</p>
             {coach && !readOnly && <form onSubmit={createAppointment} className="collab-form">
@@ -177,10 +178,10 @@ export default function Collaboration() {
                     onClick={() => update('appointments', item, { attendance: 'declined' })}>No asistiré</button></>}
               </div>}
             </li>)}</ul>
-          </section>
+          </motion.section>
         </div>
 
-        <section className="panel-card">
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="panel-card">
           <h2 className="feature-title"><MessageSquare size={21}/>Mensajes de seguimiento</h2>
           {!readOnly && <form className="collab-form" onSubmit={sendMessage}>
             <label>Mensaje para {coach ? 'el alumno' : 'tu entrenador'}
@@ -192,15 +193,15 @@ export default function Collaboration() {
             <strong>{item.author_role === 'entrenador' ? 'Entrenador' : 'Alumno'}</strong>
             <p className="collab-pre">{item.body}</p><small>{time(item.created_at)}</small>
           </li>)}</ul>
-        </section>
-        <details className="panel-card">
+        </motion.section>
+        <motion.details initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="panel-card">
           <summary>Actividad reciente</summary>
           <ul className="collab-list">{data.events.map(item => <li key={item.id}>
             <span>{eventLabels[item.kind] || item.kind}</span><small>{time(item.created_at)}</small>
           </li>)}</ul>
-        </details>
+        </motion.details>
         <p className="collab-limit">Se muestran hasta 200 ejercicios, 100 citas, 100 mensajes y 50 eventos recientes por alumno.</p>
       </>}
-    </section>
+    </motion.section>
   </div></Layout>;
 }

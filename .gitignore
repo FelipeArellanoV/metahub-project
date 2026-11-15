@@ -26,3 +26,10 @@ Thumbs.db
 # Database / Volumes
 *.sqlite3
 postgres-data/
+
+# Videos subidos por usuarios (datos de menores): nunca se versionan
+apps/api-backend/uploads/
+
+# Configuración y respaldos de producción (contienen secretos y datos personales)
+.env.production
+backups/

@@ -48,7 +48,7 @@ async function request(url, options = {}) {
         localStorage.removeItem('metahub_token');
         localStorage.removeItem('metahub_user');
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = '/app.html#/login';
+          window.location.href = '/#/login';
         }
       }
       const errorMsg = data.error || data.detail || `Error del servidor (${response.status})`;
@@ -96,7 +96,7 @@ export const api = {
       localStorage.removeItem('metahub_token');
       localStorage.removeItem('metahub_user');
       if (typeof window !== 'undefined') {
-        window.location.href = '/app.html#/login';
+        window.location.href = '/#/login';
       }
     }
   },
@@ -132,6 +132,19 @@ export const api = {
     async delete(id) {
       return request(`${API_BASE}/api/athletes/${id}`, {
         method: 'DELETE'
+      });
+    },
+
+    // Historial formal de consentimientos informados (apoderado, fechas, revocaciones)
+    async getConsents(id) {
+      return request(`${API_BASE}/api/athletes/${id}/consents`);
+    },
+
+    // Registra, renueva o revoca el consentimiento ({ status: 'granted' | 'revoked', guardianName, ... })
+    async createConsent(id, data) {
+      return request(`${API_BASE}/api/athletes/${id}/consents`, {
+        method: 'POST',
+        body: JSON.stringify(data)
       });
     }
   },
@@ -172,8 +185,10 @@ export const api = {
     },
 
     async processVideo(formData) {
+      const token = localStorage.getItem('metahub_token');
       const res = await fetch(`${CV_BASE}/api/cv/process-video`, {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData
       });
       if (!res.ok) {
