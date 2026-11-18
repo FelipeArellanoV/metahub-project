@@ -1,4 +1,3 @@
-import {ThemeSwitch} from './Theme.jsx';
 import {motion, pageVariants} from './Motion.jsx';
 /**
  * =========================================================================================
@@ -18,23 +17,25 @@ import {motion, pageVariants} from './Motion.jsx';
 
 import {
   Activity,
-  Menu,
-  X,
   AlertTriangle,
-  Calendar,
-  CalendarDays,
-  Camera,
+  Building2,
   ChevronRight,
+  CircleDot,
+  ClipboardList,
   Dumbbell,
   FileText,
   GitCompare,
-  LayoutDashboard,
+  Handshake,
+  Home,
   LogOut,
-  PersonStanding,
+  MoreHorizontal,
   Settings,
   Trash2,
+  TrendingUp,
+  Upload,
   Users,
-  Video
+  Video,
+  X
 } from 'lucide-react';
 
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
@@ -42,75 +43,54 @@ import { useEffect, useRef, useState } from 'react';
 import './navigation.css';
 import '../restored-theme.css';
 
-const coachMenuItems = [
-  { label: 'Revisar sesiones', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
-  { label: 'Mis clubes', shortLabel: 'Clubes', icon: Users, to: '/clubs' },
-  { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Users, to: '/collaboration' },
-  {
-    label: 'Inicio',
-    shortLabel: 'Inicio',
-    icon: LayoutDashboard,
-    to: '/'
-  },
-  {
-    label: 'Mis atletas',
-    shortLabel: 'Atletas',
-    icon: Users,
-    to: '/athletes'
-  },
-  {
-    label: 'Sesiones de pista',
-    shortLabel: 'Sesiones',
-    icon: Video,
-    to: '/sessions'
-  },
-  {
-    label: 'Cámara en Vivo & Calibración',
-    shortLabel: 'Cámara',
-    icon: Camera,
-    to: '/capture'
-  },
-  {
-    label: 'Prioridad de apoyo',
-    shortLabel: 'Apoyo',
-    icon: AlertTriangle,
-    to: '/priority'
-  },
-  {
-    label: 'Comparador Antes/Después',
-    shortLabel: 'Comparar',
-    icon: GitCompare,
-    to: '/compare'
-  },
-  {
-    label: 'Biblioteca de drills',
-    shortLabel: 'Drills',
-    icon: Dumbbell,
-    to: '/drills'
-  },
-  {
-    label: 'Fichas de progreso',
-    shortLabel: 'Fichas',
-    icon: FileText,
-    to: '/reports'
-  },
-  {
-    label: 'Configuración',
-    shortLabel: 'Ajustes',
-    icon: Settings,
-    to: '/settings'
-  }
-];
+/**
+ * Menú agrupado por tarea. `tabs` son las 4 pestañas de la barra inferior del celular
+ * (la quinta es "Más"); la marcada con `accent` es la acción principal (grabar o subir).
+ */
+const coachNav = {
+  groups: [
+    { title: 'Equipo', items: [
+      { label: 'Inicio', icon: Home, to: '/' },
+      { label: 'Atletas', icon: Users, to: '/athletes' },
+      { label: 'Prioridad de apoyo', icon: AlertTriangle, to: '/priority' }
+    ] },
+    { title: 'Análisis', items: [
+      { label: 'Grabar o subir', shortLabel: 'Grabar', icon: CircleDot, to: '/capture', accent: true },
+      { label: 'Sesiones', icon: Video, to: '/sessions' },
+      { label: 'Revisiones', icon: FileText, to: '/reviews' },
+      { label: 'Comparar', icon: GitCompare, to: '/compare' }
+    ] },
+    { title: 'Entrenamiento', items: [
+      { label: 'Ejercicios', icon: Dumbbell, to: '/drills' },
+      { label: 'Seguimiento compartido', shortLabel: 'Seguimiento', icon: Handshake, to: '/collaboration' },
+      { label: 'Fichas de progreso', shortLabel: 'Fichas', icon: ClipboardList, to: '/reports' }
+    ] },
+    { title: 'Organización', items: [
+      { label: 'Clubes', icon: Building2, to: '/clubs' },
+      { label: 'Ajustes', icon: Settings, to: '/settings' }
+    ] }
+  ],
+  tabs: ['/', '/athletes', '/capture', '/sessions']
+};
 
-const athleteMenuItems = [
-  { label: 'Comparador Biomecánico', shortLabel: 'Comparar', icon: GitCompare, to: '/compare' },
-  { label: 'Mis revisiones y plan', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
-  { label: 'Subir video', shortLabel: 'Video', icon: Video, to: '/upload' },
-  { label: 'Mi evolución', shortLabel: 'Evolución', icon: GitCompare, to: '/evolution' },
-  { label: 'Mi Espacio', shortLabel: 'Espacio', icon: PersonStanding, to: '/portal' },
-  { label: 'Mi seguimiento', shortLabel: 'Seguimiento', icon: Dumbbell, to: '/collaboration' },
-  { label: 'Mi perfil', shortLabel: 'Perfil', icon: Settings, to: '/settings' }
-];
+const athleteNav = {
+  groups: [
+    { title: 'Mi espacio', items: [
+      { label: 'Inicio', icon: Home, to: '/portal' },
+      { label: 'Subir video', shortLabel: 'Subir', icon: Upload, to: '/upload', accent: true },
+      { label: 'Evolución', icon: TrendingUp, to: '/evolution' },
+      { label: 'Comparar sesiones', shortLabel: 'Comparar', icon: GitCompare, to: '/compare' }
+    ] },
+    { title: 'Entrenamiento', items: [
+      { label: 'Revisiones y plan', shortLabel: 'Revisiones', icon: FileText, to: '/reviews' },
+      { label: 'Seguimiento', icon: Handshake, to: '/collaboration' }
+    ] },
+    { title: 'Cuenta', items: [
+      { label: 'Ajustes', icon: Settings, to: '/settings' }
+    ] }
+  ],
+  tabs: ['/portal', '/reviews', '/upload', '/evolution']
+};
 
 export function Layout({ children }) {
   const navigate = useNavigate();
@@ -155,14 +135,11 @@ export function Layout({ children }) {
 
   const role = user?.role?.toLowerCase() || 'entrenador';
   const isAthlete = role === 'atleta';
-  const order = isAthlete
-    ? ['/portal','/upload','/evolution','/compare','/collaboration','/reviews','/settings']
-    : ['/','/athletes','/sessions','/capture','/collaboration','/reviews','/priority','/compare','/drills','/reports','/clubs','/settings'];
-  const menuItems = [...(isAthlete ? athleteMenuItems : coachMenuItems)].sort((a,b) => order.indexOf(a.to) - order.indexOf(b.to));
-  const primaryPaths = isAthlete ? ['/portal','/upload','/evolution'] : ['/','/athletes','/collaboration'];
-  const primaryItems = primaryPaths.map(route => menuItems.find(item => item.to === route)).filter(Boolean);
-  const moreIsActive = !primaryPaths.includes(navLocation.pathname);
-  const sectionTitle = isAthlete ? 'PORTAL ATLETA' : 'PANEL ENTRENADOR';
+  const nav = isAthlete ? athleteNav : coachNav;
+  const allItems = nav.groups.flatMap(group => group.items);
+  const tabItems = nav.tabs.map(route => allItems.find(item => item.to === route)).filter(Boolean);
+  const moreIsActive = !nav.tabs.includes(navLocation.pathname);
+  const isHome = to => to === '/' || to === '/portal';
 
   const userName = user?.name || 'Usuario';
   const userInitials = userName
@@ -180,93 +157,59 @@ export function Layout({ children }) {
     navigate('/login');
   };
 
+  const linkClass = item => ({ isActive }) =>
+    'sidebar-link' + (isActive ? ' active' : '') + (item.accent ? ' is-accent' : '');
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
-
         <div className="brand">
-          <div className="brand-icon">
-            <Activity size={23} />
-          </div>
-
-          <div>
-            <strong>MetaHub</strong>
-            <span>Performance Lab</span>
-          </div>
+          <div className="brand-icon"><Activity size={20} /></div>
+          <strong>MetaHub</strong>
         </div>
 
-        <nav
-          className="sidebar-nav"
-          aria-label="Navegación principal"
-        >
-          <span className="sidebar-section-title">
-            {sectionTitle}
-          </span>
-
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/' || item.to === '/portal'}
-                className={({ isActive }) =>
-                  `sidebar-link ${
-                    isActive ? 'active' : ''
-                  }`
-                }
-              >
-                <Icon size={19} />
-
-                <span className="desktop-label">
-                  {item.label}
-                </span>
-
-                <span className="mobile-label">
-                  {item.shortLabel}
-                </span>
-              </NavLink>
-            );
-          })}
+        <nav className="sidebar-nav" aria-label="Navegación principal">
+          {nav.groups.map(group => (
+            <div className="sidebar-group" key={group.title}>
+              <span className="sidebar-section-title">{group.title}</span>
+              {group.items.map(item => {
+                const Icon = item.icon;
+                return (
+                  <NavLink key={item.to} to={item.to} end={isHome(item.to)} className={linkClass(item)}>
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-profile">
-
-          <div className="profile-avatar" style={{ background: isAthlete ? 'linear-gradient(135deg, #10b981, #059669)' : undefined }}>
-            {userInitials}
-          </div>
-
+          <div className="profile-avatar">{userInitials}</div>
           <div className="profile-data">
             <strong>{userName}</strong>
-            <span style={{ color: isAthlete ? '#34d399' : undefined }}>{userRole}</span>
+            <span>{userRole}</span>
           </div>
-
-          <button
-            type="button"
-            className="logout-button"
-            aria-label="Cerrar sesión"
-            onClick={handleLogout}
-          >
+          <button type="button" className="logout-button" aria-label="Cerrar sesión" onClick={handleLogout}>
             <LogOut size={18} />
           </button>
-
         </div>
       </aside>
 
-
       <nav className="mobile-bottom-nav" aria-label="Navegación móvil">
-        {primaryItems.map(item => {
+        {tabItems.map(item => {
           const Icon = item.icon;
           return (
-            <NavLink key={item.to} to={item.to} end className={({isActive}) => 'mobile-nav-link' + (isActive ? ' active' : '')}>
-              <Icon size={21}/><span>{item.shortLabel}</span>
+            <NavLink key={item.to} to={item.to} end
+              className={({ isActive }) => 'mobile-nav-link' + (isActive ? ' active' : '') + (item.accent ? ' is-accent' : '')}>
+              <Icon size={23} aria-hidden="true" /><span>{item.shortLabel || item.label}</span>
             </NavLink>
           );
         })}
         <button type="button" ref={moreButton} className={'mobile-nav-link' + (moreIsActive ? ' active' : '')}
           aria-expanded={moreOpen} aria-controls="mobile-all-options" onClick={() => setMoreOpen(value => !value)}>
-          <Menu size={21}/><span>Más</span>
+          <MoreHorizontal size={23} aria-hidden="true" /><span>Más</span>
         </button>
       </nav>
       {moreOpen && <div className="mobile-menu-backdrop" onMouseDown={event => {
@@ -274,15 +217,27 @@ export function Layout({ children }) {
       }}>
         <section className="mobile-menu-sheet" ref={morePanel} role="dialog" aria-modal="true" aria-labelledby="mobile-menu-title">
           <div className="mobile-menu-heading">
-            <div><h2 id="mobile-menu-title">Todas las opciones</h2><p>{userName} · {userRole}</p></div>
-            <button type="button" className="mobile-menu-close" aria-label="Cerrar menú" onClick={() => setMoreOpen(false)}><X size={21}/></button>
+            <div className="mobile-menu-user">
+              <span className="profile-avatar" aria-hidden="true">{userInitials}</span>
+              <div><h2 id="mobile-menu-title">{userName}</h2><p>{userRole}</p></div>
+            </div>
+            <button type="button" className="mobile-menu-close" aria-label="Cerrar menú" onClick={() => setMoreOpen(false)}><X size={20}/></button>
           </div>
           <nav id="mobile-all-options" className="mobile-menu-options" aria-label="Menú completo">
-            {menuItems.map(item => {
-              const Icon = item.icon;
-              return <NavLink key={item.to} to={item.to} end onClick={() => setMoreOpen(false)}
-                className={({isActive}) => isActive ? 'active' : ''}><Icon size={20}/><span>{item.label}</span></NavLink>;
-            })}
+            {nav.groups.map(group => (
+              <div className="mobile-menu-group" key={group.title}>
+                <span className="sidebar-section-title">{group.title}</span>
+                <div className="mobile-menu-list">
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    return <NavLink key={item.to} to={item.to} end onClick={() => setMoreOpen(false)}
+                      className={({ isActive }) => (isActive ? 'active' : '') + (item.accent ? ' is-accent' : '')}>
+                      <Icon size={20} aria-hidden="true"/><span>{item.label}</span><ChevronRight size={18} aria-hidden="true" className="mobile-menu-chevron"/>
+                    </NavLink>;
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
           <button type="button" className="mobile-menu-logout" onClick={() => { setMoreOpen(false); handleLogout(); }}><LogOut size={18}/>Cerrar sesión</button>
         </section>
@@ -290,7 +245,6 @@ export function Layout({ children }) {
 
       <motion.main className="main-content" key={navLocation.pathname}
         variants={pageVariants} initial="initial" animate="animate">
-        <ThemeSwitch/>
         {children}
       </motion.main>
     </div>
@@ -364,8 +318,8 @@ export function AthleteCard({
   name,
   initials,
   age,
-  lastSession,
-  lastSessionDate,
+  category,
+  lastIptScore,
   consent,
   sessions,
   sessionCount,
@@ -375,91 +329,37 @@ export function AthleteCard({
   const displayInitials = initials || (name
     ? name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'AT');
-
   const count = sessionCount !== undefined ? sessionCount : (sessions !== undefined ? sessions : 0);
-  
-  let formattedLastSession = lastSession || 'Sin sesiones';
-  if (lastSessionDate) {
-    try {
-      const d = new Date(lastSessionDate);
-      formattedLastSession = d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch (e) {
-      formattedLastSession = lastSessionDate;
-    }
-  }
+  const meta = [
+    age != null ? age + ' años' : 'Edad sin registrar',
+    category,
+    count === 0 ? 'Sin sesiones' : count === 1 ? '1 sesión' : count + ' sesiones'
+  ].filter(Boolean).join(' · ');
 
   return (
-    <article className="athlete-card">
-      <div className="athlete-top">
-        <div className="athlete-avatar">
-          {displayInitials}
-        </div>
-
-        <div className="athlete-main-data">
+    <article className="athlete-row">
+      <button type="button" className="athlete-row-main" onClick={onView} aria-label={`Ver ficha de ${name}`}>
+        <span className="athlete-avatar" aria-hidden="true">{displayInitials}</span>
+        <span className="athlete-row-text">
           <strong>{name}</strong>
-          <span>
-            <PersonStanding size={14} />
-            {age} años
-          </span>
-        </div>
-
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={`Ver atleta ${name}`}
-          onClick={onView}
-        >
-          <ChevronRight size={20} />
-        </button>
-      </div>
-
-      <div className="athlete-divider" />
-
-      <div className="athlete-info-row">
-        <div>
-          <span className="mini-label">ÚLTIMA SESIÓN</span>
-          <strong>
-            <CalendarDays size={15} />
-            {formattedLastSession}
-          </strong>
-        </div>
-
-        <div>
-          <span className="mini-label">SESIONES</span>
-          <strong>{count}</strong>
-        </div>
-      </div>
-
-      <div className="athlete-footer">
+          <small>{meta}</small>
+        </span>
+        <span className="athlete-row-score">
+          <b className={lastIptScore != null ? '' : 'is-empty'}>{lastIptScore != null ? lastIptScore : '—'}</b>
+          <small>IPT</small>
+        </span>
+      </button>
+      <div className="athlete-row-foot">
         <span className={consent ? 'status success' : 'status warning'}>
           <span className="status-dot" />
           {consent ? 'Consentimiento vigente' : 'Consentimiento pendiente'}
         </span>
-
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {onDelete && (
-            <button
-              className="text-button"
-              type="button"
-              style={{ color: '#ef4444', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(id, name);
-              }}
-              title="Eliminar atleta"
-            >
-              <Trash2 size={15} />
-            </button>
-          )}
-
-          <button
-            className="text-button"
-            type="button"
-            onClick={onView}
-          >
-            Ver detalle
+        {onDelete && (
+          <button type="button" className="athlete-row-delete" aria-label={`Eliminar a ${name}`}
+            onClick={(e) => { e.stopPropagation(); onDelete(id, name); }}>
+            <Trash2 size={16} aria-hidden="true" />
           </button>
-        </div>
+        )}
       </div>
     </article>
   );

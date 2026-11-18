@@ -25,27 +25,26 @@ import ScopedRoster from '../components/ScopedRoster.jsx';
 import ConsentPanel from '../components/ConsentPanel.jsx';
 import { AnimatePresence } from 'framer-motion';
 import { EASE_OUT, Skeleton, motion } from '../components/Motion.jsx';
+import { CATEGORIAS, categoriaPorEdad } from '../services/categoria.js';
 
 const DRAWER_TABS = [
-  { id: 'general', label: 'Ficha General' },
-  { id: 'apoyo', label: 'Apoyo Biomecánico' },
-  { id: 'consent', label: 'Consentimiento Ético' }
+  { id: 'general', label: 'Resumen' },
+  { id: 'apoyo', label: 'Apoyo' },
+  { id: 'consent', label: 'Consentimiento' }
 ];
 
 /** Tarjeta de atleta en carga: misma silueta que AthleteCard. Solo visual. */
 function AthleteCardSkeleton() {
   return (
-    <div className="athlete-card mh-skeleton-stack" aria-hidden="true">
-      <div className="mh-skeleton-identity">
-        <Skeleton width={48} height={48} radius={14} />
+    <div className="athlete-row" aria-hidden="true">
+      <div className="athlete-row-main">
+        <Skeleton width={44} height={44} radius={999} />
         <div className="mh-skeleton-stack" style={{ flex: 1 }}>
           <Skeleton width="62%" height={15} />
-          <Skeleton width="35%" height={11} />
+          <Skeleton width="45%" height={11} />
         </div>
+        <Skeleton width={40} height={28} radius={8} />
       </div>
-      <Skeleton width="80%" height={11} />
-      <Skeleton width="55%" height={11} />
-      <Skeleton height={38} radius={10} />
     </div>
   );
 }
@@ -68,7 +67,6 @@ export default function Athletes() {
   const [newAthlete, setNewAthlete] = useState({
     name: '',
     age: '15',
-    category: 'Sub-16',
     school: '',
     guardian: '',
     phone: '',
@@ -84,8 +82,9 @@ export default function Athletes() {
         id: a.id,
         name: a.name,
         initials: (a.name || 'AT').split(' ').filter(Boolean).map((n) => n[0]).slice(0, 2).join('').toUpperCase(),
-        age: a.age || 15,
-        category: a.category || 'Sub-16',
+        age: a.age ?? null,
+        category: a.category || categoriaPorEdad(a.age),
+        lastIptScore: a.lastIptScore ?? null,
         school: a.organizationName || a.school || 'Sin registrar',
         lastSession: a.lastIptScore ? `IPT: ${a.lastIptScore} pts` : 'Sin sesiones',
         sessions: a.sessionCount || 0,
@@ -145,7 +144,6 @@ export default function Athletes() {
       const payload = {
         name: newAthlete.name.trim(),
         age,
-        category: newAthlete.category,
         organizationName: newAthlete.school.trim(),
         consentStatus: newAthlete.consent ? 'vigente' : 'pendiente'
       };
@@ -165,7 +163,6 @@ export default function Athletes() {
       setNewAthlete({
         name: '',
         age: '15',
-        category: 'Sub-16',
         school: '',
         guardian: '',
         phone: '',
@@ -182,9 +179,9 @@ export default function Athletes() {
   return (
     <Layout>
       <PageHeader
-        eyebrow="GESTIÓN DE ATLETAS ESCOLARES"
-        title="Roster del Equipo"
-        description="Fichas deportivas, estado de consentimiento parental y asignación de planes de refuerzo."
+        eyebrow="EQUIPO"
+        title="Atletas"
+        description="Fichas, consentimiento del apoderado y planes de refuerzo."
         action={
           <button
             className="primary-button"
@@ -197,20 +194,20 @@ export default function Athletes() {
         }
       />
 
-      <details className="panel-card" style={{ marginBottom: 20 }}><summary>Consultar atletas de mis clubes (solo lectura)</summary><ScopedRoster embedded clubOnly mode="club" /></details>
       {/* FILTER PILLS & SEARCH TOOLBAR */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 20
-        }}
-      >
-        <div className="filter-pills-bar">
-          {['Todas', 'Sub-14', 'Sub-16', 'Sub-18', 'Apoyo'].map((cat) => (
+      <div className="athletes-toolbar">
+        <label className="mh-search">
+          <Search size={17} aria-hidden="true" />
+          <span className="mh-visually-hidden">Buscar atleta</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por nombre o club"
+          />
+        </label>
+        <div className="filter-pills-bar" role="group" aria-label="Filtrar por categoría">
+          {['Todas', ...CATEGORIAS, 'Apoyo'].map((cat) => (
             <button
               key={cat}
               type="button"
@@ -221,26 +218,10 @@ export default function Athletes() {
               {cat === 'Todas'
                 ? `Todos${loading ? '' : ` (${athletesList.length})`}`
                 : cat === 'Apoyo'
-                ? `⚡ Requieren apoyo${loading ? '' : ` (${athletesList.filter((a) => a.needsSupport).length})`}`
+                ? `Requieren apoyo${loading ? '' : ` (${athletesList.filter((a) => a.needsSupport).length})`}`
                 : `${cat}${loading ? '' : ` (${athletesList.filter((a) => a.category === cat).length})`}`}
             </button>
           ))}
-        </div>
-
-        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 260, minWidth: 0 }}>
-          <Search
-            size={16}
-            color="#94a3b8"
-            style={{ position: 'absolute', left: 12, top: 12 }}
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por nombre o colegio..."
-            className="form-control"
-            style={{ height: 38, paddingLeft: 36, fontSize: 12 }}
-          />
         </div>
       </div>
 
@@ -270,9 +251,14 @@ export default function Athletes() {
       ) : (
         <motion.div className="empty-card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <h3>No encontramos atletas</h3>
-          <p>Aún no hay atletas registrados. Haz clic en "Inscribir atleta" para comenzar.</p>
+          <p>{athletesList.length ? 'Ningún atleta coincide con el filtro o la búsqueda.' : 'Aún no hay atletas registrados. Usa "Inscribir atleta" para comenzar.'}</p>
         </motion.div>
       )}
+
+      <details className="mh-club-details">
+        <summary>Atletas de mis clubes <small>solo lectura</small></summary>
+        <ScopedRoster embedded clubOnly mode="club" />
+      </details>
 
       {/* ATHLETE DETAIL DRAWER */}
       <AnimatePresence>
@@ -284,25 +270,20 @@ export default function Athletes() {
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'tween', duration: 0.3, ease: EASE_OUT }}>
             <div className="drawer-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div className="athlete-avatar-circle" style={{ width: 44, height: 44 }}>
-                  {selectedAthlete.initials}
-                </div>
+              <div className="drawer-identity">
+                <div className="athlete-avatar-circle">{selectedAthlete.initials}</div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>
-                    {selectedAthlete.name}
-                  </h3>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {selectedAthlete.category} · {selectedAthlete.school}
-                  </span>
+                  <h3>{selectedAthlete.name}</h3>
+                  <span>{[selectedAthlete.age != null ? selectedAthlete.age + ' años' : null, selectedAthlete.category, selectedAthlete.school].filter(Boolean).join(' · ')}</span>
                 </div>
               </div>
               <button
                 type="button"
                 className="icon-button"
+                aria-label="Cerrar ficha"
                 onClick={() => setSelectedAthlete(null)}
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
             </div>
 
@@ -334,13 +315,13 @@ export default function Athletes() {
                     <div style={{ background: 'var(--surface-raised)', padding: 12, borderRadius: 10, border: '1px solid var(--border)' }}>
                       <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 800 }}>EDAD</span>
                       <strong style={{ display: 'block', fontSize: 14, color: 'var(--navy)' }}>
-                        {selectedAthlete.age} años
+                        {selectedAthlete.age != null ? selectedAthlete.age + ' años' : 'Sin registrar'}
                       </strong>
                     </div>
                     <div style={{ background: 'var(--surface-raised)', padding: 12, borderRadius: 10, border: '1px solid var(--border)' }}>
                       <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 800 }}>CATEGORÍA</span>
                       <strong style={{ display: 'block', fontSize: 14, color: 'var(--blue)' }}>
-                        {selectedAthlete.category}
+                        {selectedAthlete.category || 'Sin registrar'}
                       </strong>
                     </div>
                   </div>
@@ -519,16 +500,10 @@ export default function Athletes() {
                   </div>
 
                   <div className="form-group">
-                    <label>Categoría Escolar</label>
-                    <select
-                      className="form-control"
-                      value={newAthlete.category}
-                      onChange={(e) => setNewAthlete({ ...newAthlete, category: e.target.value })}
-                    >
-                      <option value="Sub-14">Sub-14</option>
-                      <option value="Sub-16">Sub-16</option>
-                      <option value="Sub-18">Sub-18</option>
-                    </select>
+                    <label>Categoría (según edad)</label>
+                    <output className="form-control mh-derived" aria-live="polite">
+                      {categoriaPorEdad(newAthlete.age) || 'Indica la edad'}
+                    </output>
                   </div>
                 </div>
 

@@ -1,163 +1,95 @@
 /**
- * =========================================================================================
- * PROYECTO METAHUB — SEGUIMIENTO LONGITUDINAL DE LA TÉCNICA DE CARRERA EN ATLETISMO ESCOLAR
- * Escuela de Ingeniería Civil en Informática — Universidad Católica de Temuco
- * 
- * Memoria / Trabajo de Título:
- * Autores: Felipe Arellano Vargas & Sofía Henríquez Soto
- * Profesor Guía: Dr. Marcos Lévano
- * 
- * Módulo: Vista de Configuración y Preferencias del Entrenador (Settings.jsx)
- * Descripción: Permite gestionar la información de la cuenta, preferencias de alertas
- *              de calidad biomecánica y parámetros de sincronización en terreno.
- * =========================================================================================
+ * Ajustes: solo opciones que funcionan de verdad.
+ *  - Cuenta: datos que devuelve GET /api/auth/me (no hay endpoint para editarlos).
+ *  - Apariencia: tema oscuro o claro, guardado en este dispositivo.
+ *  - Club o establecimiento (entrenador): PUT /api/organization.
+ *  - Instalar la app: aviso real del navegador (beforeinstallprompt) o instrucciones de iOS.
+ *  - Cerrar sesión.
  */
-
-import { Bell, CheckCircle2, Save, ShieldCheck, Smartphone } from 'lucide-react';
+import { Download, LogOut, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 import OrganizationProfile from '../components/OrganizationProfile.jsx';
-import { AnimatePresence } from 'framer-motion';
-import { cardVariants, motion } from '../components/Motion.jsx';
+import { ThemeSwitch } from '../components/Theme.jsx';
+import { useInstallPrompt } from '../hooks/useInstallPrompt.js';
+import { cardVariants, motion, staggerVariants } from '../components/Motion.jsx';
+
+function storedUser() {
+  try { return JSON.parse(localStorage.getItem('metahub_user') || 'null'); } catch { return null; }
+}
 
 export default function Settings() {
-  const [saved, setSaved] = useState(false);
-  const [form, setForm] = useState({
-    name: 'Felipe Arellano',
-    email: 'felipe@metahub.cl',
-    notifications: true,
-    qualityAlerts: true
-  });
+  const navigate = useNavigate();
+  const [user, setUser] = useState(storedUser);
+  const [profileError, setProfileError] = useState('');
+  const install = useInstallPrompt();
 
   useEffect(() => {
-    try {
-      const rawUser = localStorage.getItem('metahub_user');
-      if (rawUser) {
-        const user = JSON.parse(rawUser);
-        setForm(prev => ({
-          ...prev,
-          name: user.name || prev.name,
-          email: user.email || prev.email
-        }));
-      }
-    } catch (e) {
-      // ignore
-    }
+    let alive = true;
+    api.auth.getProfile()
+      .then(data => { if (alive && data) setUser(prev => ({ ...prev, ...(data.user || data) })); })
+      .catch(err => { if (alive) setProfileError(err.message || 'No se pudo actualizar la información de la cuenta.'); });
+    return () => { alive = false; };
   }, []);
 
-  function updateField(key, value) {
-    setSaved(false);
-    setForm((current) => ({ ...current, [key]: value }));
-  }
+  const role = user?.role === 'atleta' ? 'Atleta' : 'Entrenador';
 
-  function handleSubmit(event) {
-    event.preventDefault();
-    setSaved(true);
+  function logout() {
+    localStorage.removeItem('metahub_token');
+    localStorage.removeItem('metahub_user');
+    navigate('/login');
   }
 
   return (
     <Layout>
-      <PageHeader
-        eyebrow="PREFERENCIAS"
-        title="Configuración"
-        description="Personaliza la experiencia del panel de entrenador."
-      />
+      <PageHeader eyebrow="CUENTA" title="Ajustes" />
 
-      <OrganizationProfile />
-      <form className="settings-grid" onSubmit={handleSubmit}>
-        <motion.section variants={cardVariants} className="panel-card">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">PERFIL</span>
-              <h2>Datos de la cuenta</h2>
-            </div>
-            <ShieldCheck size={24} className="panel-icon" />
-          </div>
-
-          <label className="form-field">
-            <span>Nombre</span>
-            <input
-              value={form.name}
-              onChange={(event) => updateField('name', event.target.value)}
-            />
-          </label>
-
-          <label className="form-field">
-            <span>Correo electrónico</span>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => updateField('email', event.target.value)}
-            />
-          </label>
+      <motion.div className="mh-settings" variants={staggerVariants(0.06)} initial="initial" animate="animate">
+        <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-cuenta">
+          <h2 id="mh-cuenta" className="mh-block-title">Tu cuenta</h2>
+          <dl className="mh-rows">
+            <div><dt>Nombre</dt><dd>{user?.name || '—'}</dd></div>
+            <div><dt>Correo</dt><dd>{user?.email || '—'}</dd></div>
+            <div><dt>Rol</dt><dd>{role}</dd></div>
+          </dl>
+          {profileError && <p className="mh-block-note" role="status">{profileError}</p>}
+          <p className="mh-block-note">Para cambiar tu nombre o correo, pídelo al administrador de MetaHub.</p>
         </motion.section>
 
-        <motion.section variants={cardVariants} className="panel-card">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">AVISOS</span>
-              <h2>Notificaciones</h2>
-            </div>
-            <Bell size={24} className="panel-icon" />
-          </div>
-
-          <label className="toggle-row">
-            <div>
-              <strong>Actividad del sistema</strong>
-              <span>Recibir avisos de nuevas sesiones y análisis.</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={form.notifications}
-              onChange={(event) => updateField('notifications', event.target.checked)}
-            />
-          </label>
-
-          <label className="toggle-row">
-            <div>
-              <strong>Alertas de calidad</strong>
-              <span>Avisar cuando una captura no cumple el protocolo.</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={form.qualityAlerts}
-              onChange={(event) => updateField('qualityAlerts', event.target.checked)}
-            />
-          </label>
-        </motion.section>
-
-        <motion.section variants={cardVariants} className="panel-card device-card">
-          <div className="device-icon">
-            <Smartphone size={24} />
-          </div>
-          <div>
-            <span className="eyebrow">DISPOSITIVO</span>
-            <h2>Captura móvil</h2>
-            <p>
-              El frontend está preparado para adaptarse a escritorio y móvil.
-              La captura de video se conectará en el siguiente avance.
-            </p>
+        <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-apariencia">
+          <h2 id="mh-apariencia" className="mh-block-title">Apariencia</h2>
+          <div className="mh-row-card">
+            <span className="mh-row-text"><strong>Tema</strong><small>Se recuerda en este dispositivo.</small></span>
+            <ThemeSwitch />
           </div>
         </motion.section>
 
-        <div className="settings-actions">
-          <AnimatePresence>
-          {saved && (
-            <motion.span className="saved-message" role="status"
-              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <CheckCircle2 size={18} />
-              Configuración guardada localmente.
-            </motion.span>
-          )}
-          </AnimatePresence>
+        <motion.div variants={cardVariants}><OrganizationProfile /></motion.div>
 
-          <button className="primary-button" type="submit">
-            <Save size={18} />
-            Guardar cambios
-          </button>
-        </div>
-      </form>
+        <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-app">
+          <h2 id="mh-app" className="mh-block-title">App en tu celular</h2>
+          <div className="mh-row-card">
+            <span className="mh-row-icon" aria-hidden="true"><Smartphone size={20} /></span>
+            <span className="mh-row-text">
+              {install.installed ? <><strong>MetaHub está instalada</strong><small>La estás usando como app.</small></>
+                : install.canPrompt ? <><strong>Instalar MetaHub</strong><small>Ábrela desde tu pantalla de inicio, a pantalla completa.</small></>
+                : install.ios ? <><strong>Instalar en iPhone</strong><small>En Safari toca Compartir y luego "Agregar a inicio".</small></>
+                : <><strong>Instalar MetaHub</strong><small>Abre el menú del navegador y elige "Instalar app" o "Agregar a la pantalla de inicio".</small></>}
+            </span>
+            {install.canPrompt && !install.installed && (
+              <button type="button" className="primary-button mh-row-action" onClick={install.prompt}>
+                <Download size={17} aria-hidden="true" />Instalar
+              </button>
+            )}
+          </div>
+        </motion.section>
+
+        <motion.div variants={cardVariants}>
+          <button type="button" className="mh-logout" onClick={logout}><LogOut size={18} aria-hidden="true" />Cerrar sesión</button>
+        </motion.div>
+      </motion.div>
     </Layout>
   );
 }

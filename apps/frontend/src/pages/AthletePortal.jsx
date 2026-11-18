@@ -1,33 +1,33 @@
 import {
   Activity,
-  ArrowRight,
-  Award,
-  Calendar,
-  Check,
-  CheckCircle2,
-  Clock,
-  Dumbbell,
+  Flag,
   Flame,
-  Info,
-  MapPin,
   Medal,
-  Play,
-  RotateCcw,
+  Repeat,
+  Rocket,
+  Scale,
   ShieldCheck,
-  Sparkles,
-  Star,
+  TrendingUp,
   Trophy,
-  User,
-  Video
+  Upload
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 import { Skeleton, cardVariants, motion } from '../components/Motion.jsx';
 
+/** Ícono de cada medalla que entrega la API (progress.medals[].id). */
+const MEDAL_ICONS = {
+  first_session: Flag,
+  consistency: Repeat,
+  ipt_75: Rocket,
+  ipt_90: Trophy,
+  improvement: TrendingUp,
+  symmetry: Scale
+};
+
 export default function AthletePortal() {
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [portalData, setPortalData] = useState(null);
@@ -80,10 +80,10 @@ export default function AthletePortal() {
   if (error) {
     return (
       <Layout>
-        <div style={{ padding: '40px 20px', maxWidth: 600, margin: '0 auto' }}>
-          <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 12, padding: 20, color: '#9f1239' }}>
-            <h3 style={{ margin: '0 0 8px', fontWeight: 800 }}>No se pudo cargar tu portal</h3>
-            <p style={{ margin: '0 0 16px', fontSize: 14 }}>{error}</p>
+        <div className="roster-message error" role="alert">
+          <div>
+            <strong>No se pudo cargar tu portal</strong>
+            <p>{error}</p>
             <button className="primary-button" onClick={() => window.location.reload()}>Reintentar</button>
           </div>
         </div>
@@ -91,205 +91,130 @@ export default function AthletePortal() {
     );
   }
 
-  const initials = athlete?.name
-    ? athlete.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-    : 'AT';
-
   const earnedMedals = progress?.medals?.filter(m => m.earned) || [];
+  const allMedals = progress?.medals || [];
+  const firstName = (athlete?.name || '').split(' ')[0] || 'atleta';
+  const latestIpt = Number.isFinite(progress?.latestIpt) ? progress.latestIpt : null;
+  const deltaIpt = Number.isFinite(progress?.deltaIpt) && (progress?.analyzedCount || 0) > 1 ? progress.deltaIpt : null;
+  // Arco del indicador: semicírculo de radio 84 centrado en (100,104); el IPT va de 0 a 100.
+  const arc = latestIpt == null ? null : (() => {
+    const t = Math.max(0, Math.min(100, latestIpt)) / 100 * Math.PI;
+    return `M16 104A84 84 0 0 1 ${(100 - 84 * Math.cos(t)).toFixed(1)} ${(104 - 84 * Math.sin(t)).toFixed(1)}`;
+  })();
+  const xpRange = progress?.xpNext ? Math.max(1, progress.xpNext - (progress.xpFloor || 0)) : null;
+  const xpPct = xpRange ? Math.min(100, Math.round(((progress.xp || 0) - (progress.xpFloor || 0)) / xpRange * 100)) : null;
+  const fecha = d => new Date(d).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <Layout>
       <PageHeader
-        eyebrow="PORTAL DEL ESTUDIANTE ATLETA"
-        title="Mi Espacio Deportivo"
-        description="Seguimiento biomecánico longitudinal y plan progresivo personalizado de técnica de carrera."
+        eyebrow={'Hola, ' + firstName}
+        title="Tu progreso"
+        description={athlete?.trainerName ? 'Entrenador: ' + athlete.trainerName : undefined}
       />
 
-      {/* ATHLETE HERO CARD */}
-      <motion.div variants={cardVariants} className="athlete-hero-card" style={{ marginBottom: 24 }}>
-        <div className="athlete-hero-bg-accent" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-          <div
-            style={{
-              width: 54,
-              height: 54,
-              borderRadius: 16,
-              background: 'linear-gradient(135deg, #35a8e0, #2474d2)',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: 20
-            }}
-          >
-            {initials}
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
-                ¡Hola, {athlete?.name || 'Atleta'}! 🏃‍♂️
-              </h2>
-              {athlete?.category && (
-                <span
-                  style={{
-                    background: 'rgba(28, 155, 105, 0.25)',
-                    border: '1px solid rgba(28, 155, 105, 0.5)',
-                    color: '#6ee7b7',
-                    fontSize: 10,
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: 6
-                  }}
-                >
-                  {athlete.category}
-                </span>
-              )}
-            </div>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>
-              {athlete?.school || 'MetaHub Track Academy'} · Nivel: <strong style={{ color: '#60a5fa' }}>{progress?.level?.name || 'Iniciación'}</strong>
+      <div className="mh-portal">
+        <motion.section variants={cardVariants} className="mh-gauge-card" aria-label="Tu índice de técnica">
+          {latestIpt != null ? <>
+            <svg viewBox="0 0 200 112" className="mh-gauge" role="img" aria-label={`IPT ${latestIpt} de 100`}>
+              <path d="M16 104a84 84 0 0 1 168 0" className="mh-gauge-track" />
+              <path d={arc} className="mh-gauge-value" />
+            </svg>
+            <span className="mh-gauge-score">{latestIpt}</span>
+            <span className="mh-gauge-label">
+              Índice de técnica (IPT)
+              {deltaIpt != null && <> · <b className={deltaIpt >= 0 ? 'is-up' : 'is-down'}>{deltaIpt > 0 ? '+' : ''}{deltaIpt}</b> desde tu sesión anterior</>}
             </span>
+          </> : <>
+            <span className="mh-kicker">Tu primer análisis</span>
+            <p className="mh-gauge-empty">Sube un video de tu carrera y aquí verás tu índice de técnica.</p>
+          </>}
+          <Link className="primary-button mh-gauge-cta" to="/upload"><Upload size={18} aria-hidden="true" />Subir video de carrera</Link>
+        </motion.section>
+
+        <motion.ul variants={cardVariants} className="mh-facts" aria-label="Tu estado">
+          <li className={athlete?.consent === true ? 'ok' : 'warn'}><ShieldCheck size={16} aria-hidden="true" />Consentimiento {athlete?.consent === true ? 'vigente' : 'pendiente'}</li>
+          <li><Activity size={16} aria-hidden="true" />{progress?.sessionCount ?? sessions.length} {(progress?.sessionCount ?? sessions.length) === 1 ? 'sesión' : 'sesiones'}</li>
+          {progress?.label && <li><Flame size={16} aria-hidden="true" />{progress.label} · {progress.xp || 0} XP</li>}
+        </motion.ul>
+
+        <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-sesiones">
+          <div className="mh-block-head">
+            <h2 id="mh-sesiones" className="mh-block-title">Tus sesiones</h2>
+            <Link to="/reviews" className="mh-link">Revisiones</Link>
           </div>
-        </div>
+          {sessions.length ? (
+            <ul className="mh-list">
+              {sessions.map((s, idx) => (
+                <li key={s.id || idx}>
+                  <Link to={'/reviews?sessionId=' + s.id}>
+                    <span className="mh-list-text">
+                      <strong>{fecha(s.sessionDate)}</strong>
+                      <small>{s.sectorPrioritario ? 'A trabajar: ' + s.sectorPrioritario.replace(/^Sector \d+:\s*/, '') : 'Sesión #' + (sessions.length - idx)}</small>
+                    </span>
+                    <span className={'mh-list-score' + (idx > 0 ? ' is-past' : '')}>{s.iptScore != null ? s.iptScore : '—'}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mh-empty-line">Aún no tienes sesiones registradas.</p>}
+        </motion.section>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: athlete?.consent === true ? '#6ee7b7' : '#f59e0b' }}>
-            <ShieldCheck size={15} /> Consentimiento {athlete?.consent === true ? 'vigente' : 'pendiente'}
-          </span>
-          <span style={{ color: '#64748b' }}>•</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#93c5fd' }}>
-            <Activity size={15} /> {progress?.sessionCount || sessions.length} sesiones registradas
-          </span>
-          <span style={{ color: '#64748b' }}>•</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fde047' }}>
-            <Trophy size={15} /> {earnedMedals.length} medallas obtenidas
-          </span>
-          <span style={{ color: '#64748b' }}>•</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#c084fc' }}>
-            <Flame size={15} /> {progress?.xp || 0} XP
-          </span>
-        </div>
-      </motion.div>
-
-      <motion.div variants={cardVariants} className="mh-portal-layout">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <section className="panel-card">
-            <h3>Mis sesiones y seguimiento</h3>
-            <Link className="secondary-button" to="/reviews">Mis revisiones y ejercicios por sesión</Link>
-            <Link className="primary-button" to="/upload">Subir video para analizar</Link>
-            <Link className="secondary-button" to="/evolution">Comparar mis sesiones y ver mi evolución</Link>
-            <p>Consulta tus citas y ejercicios asignados. El cumplimiento y los mensajes se guardan en el servidor.</p>
-            <Link className="primary-button" to="/collaboration">Abrir seguimiento compartido</Link>
-          </section>
-          <section className="panel-card">
-            <h3>Prescripción del último análisis</h3>
-            <p>Referencia del análisis biomecánico. Revisa con tu entrenador qué ejercicios y dosificación realizar;
-              las asignaciones y su cumplimiento se registran en Seguimiento compartido.</p>
-            {dynamicDrills.length ? dynamicDrills.map((drill, idx) => (
-              <article key={idx} style={{ padding: 12, borderBottom: '1px solid #e6eaf0' }}>
-                <strong>[{drill.fase || 'FASE'}] {drill.nombre}</strong>
-                <p>{drill.protocolo}</p>
-                <p>{drill.foco}</p>
-              </article>
-            )) : <p>No hay una prescripción disponible en el último análisis.</p>}
-          </section>
-
-          {/* HISTORIAL RECIENTE DE SESIONES */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #e6eaf0',
-              borderRadius: 16,
-              padding: 20,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
-            }}
-          >
-            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800, color: '#10283f', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Activity size={16} color="#2474d2" />
-              Historial de Sesiones Registradas
-            </h3>
-
-            {sessions.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {sessions.map((s, idx) => (
-                  <div key={s.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #edf2f7' }}>
-                    <div>
-                      <strong style={{ fontSize: 13, color: '#10283f' }}>Sesión #{sessions.length - idx}</strong>
-                      <span style={{ fontSize: 11, color: '#64748b', display: 'block' }}>
-                        {new Date(s.sessionDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: (s.iptScore || 0) >= 80 ? '#10b981' : (s.iptScore || 0) >= 65 ? '#2474d2' : '#f59e0b' }}>
-                        {s.iptScore != null ? `${s.iptScore} pts` : 'Sin análisis'}
-                      </span>
-                      <span style={{ fontSize: 10, color: '#94a3b8', display: 'block' }}>Índice IPT</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p style={{ margin: 0, fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>
-                Aún no tienes sesiones registradas en el laboratorio.
-              </p>
-            )}
+        <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-plan">
+          <div className="mh-block-head">
+            <h2 id="mh-plan" className="mh-block-title">Tu plan sugerido</h2>
+            <Link to="/collaboration" className="mh-link">Seguimiento</Link>
           </div>
-        </div>
+          <p className="mh-block-note">Sale de tu último análisis. Confirma con tu entrenador qué ejercicios hacer.</p>
+          {dynamicDrills.length ? (
+            <ol className="mh-drills">
+              {dynamicDrills.map((drill, idx) => (
+                <li key={idx}>
+                  {drill.fase && <span className="mh-drill-phase">{drill.fase}</span>}
+                  <strong>{drill.nombre}</strong>
+                  {drill.protocolo && <span className="mh-drill-dose">{drill.protocolo}</span>}
+                  {drill.foco && <small>{drill.foco}</small>}
+                </li>
+              ))}
+            </ol>
+          ) : <p className="mh-empty-line">Tu último análisis no trae ejercicios sugeridos.</p>}
+        </motion.section>
 
-        {/* SIDEBAR: GAMIFICACIÓN Y FEEDBACK */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* LOGROS Y MEDALLAS REALES */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #e6eaf0',
-              borderRadius: 16,
-              padding: 20,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
-            }}
-          >
-            <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 800, color: '#10283f', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Trophy size={16} color="#d69b2b" />
-              Medallas Obtenidas ({earnedMedals.length})
-            </h4>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {earnedMedals.length > 0 ? (
-                earnedMedals.map(medal => (
-                  <div key={medal.id} className="badge-trophy-card" style={{ padding: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <div style={{ fontSize: 24 }}>{medal.icon || '🏅'}</div>
-                    <div>
-                      <strong style={{ fontSize: 12, color: '#10283f', display: 'block' }}>{medal.name}</strong>
-                      <span style={{ fontSize: 10, color: '#64748b' }}>{medal.description}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
-                  Completa tus primeras sesiones en pista para desbloquear medallas biomecánicas.
-                </div>
-              )}
+        {allMedals.length > 0 && (
+          <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-medallas">
+            <div className="mh-block-head">
+              <h2 id="mh-medallas" className="mh-block-title">Medallas</h2>
+              <span className="mh-block-count">{earnedMedals.length} de {allMedals.length}</span>
             </div>
-          </div>
+            {xpPct != null && (
+              <div className="mh-xp" role="progressbar" aria-label={'Avance hacia ' + (progress.nextLabel || 'el siguiente nivel')}
+                aria-valuemin={0} aria-valuemax={100} aria-valuenow={xpPct}>
+                <span className="mh-xp-fill" style={{ transform: `scaleX(${xpPct / 100})` }} />
+              </div>
+            )}
+            {progress?.nextLabel && <p className="mh-block-note">{progress.xp || 0} de {progress.xpNext} XP para {progress.nextLabel}</p>}
+            <ul className="mh-medals">
+              {allMedals.map(medal => {
+                const Icon = MEDAL_ICONS[medal.id] || Medal;
+                return (
+                  <li key={medal.id} className={medal.earned ? 'is-earned' : ''}>
+                    <span className="mh-medal-icon" aria-hidden="true"><Icon size={20} /></span>
+                    <strong>{medal.title}</strong>
+                    <small>{medal.earned ? medal.detail : 'Pendiente · ' + medal.detail}</small>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.section>
+        )}
 
-          {/* NOTA DE AUTORÍA CIENTÍFICA */}
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #f8fafc 0%, #edf4fc 100%)',
-              border: '1px solid #dce8f5',
-              borderRadius: 16,
-              padding: 16
-            }}
-          >
-            <strong style={{ fontSize: 11, color: '#10283f', display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Fórmula IPT MetaHub UCT
-            </strong>
-            <p style={{ fontSize: 11, color: '#475569', margin: '4px 0 0', lineHeight: 1.4 }}>
-              Evaluación matemática longitudinal basada en triple extensión, compresión de recobro y simetría bilateral (Henríquez & Arellano, 2026).
-            </p>
-          </div>
+        <div className="mh-note">
+          <strong>Fórmula IPT MetaHub UCT</strong>
+          <p>
+            Evaluación matemática longitudinal basada en triple extensión, compresión de recobro y simetría bilateral (Henríquez & Arellano, 2026).
+          </p>
         </div>
-      </motion.div>
+      </div>
     </Layout>
   );
 }

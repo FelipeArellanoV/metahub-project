@@ -19,9 +19,11 @@ import './styles.css';
 import './professional-theme.css';
 import './motion.css';
 import './motion-ui.css';
+import './sport-theme.css';
 
 import {ThemeProvider} from './components/Theme.jsx';
 import {MotionProvider} from './components/Motion.jsx';
+import './hooks/useInstallPrompt.js'; // registra el aviso de instalación de la PWA desde que carga la app
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

@@ -16,7 +16,7 @@ export default function Clubs(){
  }
  const owned=data.clubs.filter(c=>c.ownerId===data.userId);
  return <Layout><div className="feature-page feature-clubs">
- <PageHeader eyebrow="EQUIPO Y PERTENENCIA" title="Mis clubes"
+ <PageHeader eyebrow="ORGANIZACIÓN" title="Clubes"
  description="Organiza tu equipo y comparte el seguimiento con otros entrenadores."
  action={<button type="button" className="secondary-button" disabled={busy} onClick={()=>load().catch(e=>setError(e.message))}><RefreshCw size={16}/>Actualizar</button>}/>
  <FeatureBanner icon={Building2} title="Un equipo conectado, con roles claros"

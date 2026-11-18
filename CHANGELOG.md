@@ -2,6 +2,63 @@
 
 Reconstruido el 2026-10-30 a partir del historial de git (rama `main`). Los mensajes originales se conservan entre paréntesis.
 
+## [Sin publicar] 2026-11-17 — nuevo diseño visual (etapa 3: resto de pantallas) y funciones que fingían funcionar
+### Cambiado
+- Comparar: selectores de atleta, "Antes" y "Después"; tarjeta con el IPT antes y después; grilla de cambios por medición, y videos con el esqueleto. Se quitaron las frases de "Impacto", que afirmaban beneficios aunque la medición empeorara, y el veredicto entre comillas.
+- Ejercicios: un solo diseño con el plan sugerido (mediciones, confianza plegable, hallazgos y ejercicios) y un catálogo con tarjetas y "Cómo hacerlo" plegable. Se reemplazó la paleta azul marino propia.
+- Revisiones, Seguimiento, Clubes y Evolución: títulos cortos, el banner promocional pasa a una fila de cifras, las acciones de los formularios dejan de ser naranjas, y en Revisiones el formulario para vincular un ejercicio queda plegado.
+- Laboratorio de captura: siempre en oscuro, con la paleta del sistema en vez del neón, sin emoji ni brillos, y pestañas "Cámara" y "Subir video".
+- Ajustes: solo opciones reales (cuenta, tema, club, instalar la app y cerrar sesión).
+- ADR-022: sistema visual y orden de las pantallas.
+
+### Corregido
+- Ajustes mostraba "Configuración guardada localmente" sin guardar nada, y tenía avisos de notificaciones sin efecto.
+- Ejercicios: si la API fallaba, la asignación se guardaba en el navegador del entrenador y se informaba "asignado exitosamente". El plan completo también informaba éxito aunque fallara. Ahora se muestra el error real y se dice cuántos ejercicios se guardaron.
+- Ejercicios: el modal de asignación ofrecía dos atletas inventados ("Martín San Martín" y "Javiera Soto", ids 1 y 2), y la dosis y las instrucciones editadas no se enviaban.
+- Atletas: el formulario pedía una categoría que el backend descartaba. Ahora la categoría se calcula desde la edad (`services/categoria.js`) y los filtros funcionan.
+- Laboratorio: "Validado UCT" decía lo contrario del análisis (`experimental_no_validado`). Ahora dice "Experimental · sin validación externa".
+
+### Agregado
+- `tests/categoria.test.mjs` (3 pruebas). El frontend pasa de 34 a 37 pruebas.
+- `hooks/useInstallPrompt.js`: botón "Instalar" real en Ajustes cuando el navegador lo permite.
+
+## [Sin publicar] 2026-11-17 — nuevo diseño visual (etapa 2: Inicio, Atletas, Grabar y Portal)
+### Cambiado
+- Inicio del entrenador: título "Tu equipo" con la fecha, selector de atleta y una tarjeta protagonista con el IPT del último análisis, la diferencia con la sesión anterior, la confianza del análisis, la flexión de rodilla, la simetría y el sector a trabajar. Debajo, "Requiere atención" (simetría bajo 60 %, análisis de confianza baja y consentimientos pendientes) y tres cifras del equipo. Se quitó el banner "Cada sesión cuenta una historia de progreso". La lógica está en `services/resumenEquipo.js` y reutiliza `extraerMetricasSesion`.
+- Atletas: lista compacta con el IPT en grande, buscador de ancho completo y filtros en una fila desplazable en el celular; "Atletas de mis clubes" pasa al final. La ficha lateral muestra el nombre en grande y pestañas cortas (Resumen, Apoyo, Consentimiento).
+- Grabar o subir: título "Grabar pasada" (entrenador) o "Subir video" (atleta), tres pasos de cómo grabar y el consentimiento como etiqueta junto al selector, en vez del banner de formatos.
+- Portal del atleta: indicador semicircular del IPT con la acción "Subir video de carrera", estado (consentimiento, sesiones, nivel y XP), sesiones con el sector a trabajar, plan sugerido por el último análisis y medallas con su avance.
+
+### Corregido
+- Atletas: si faltaba la edad se mostraba "15 años", y si faltaba la categoría, "Sub-16". Ahora dice "Sin registrar" y no se cuenta en ningún filtro de categoría.
+- Portal del atleta: las medallas salían sin nombre ni descripción (se leían `name`/`description` en vez de `title`/`detail`); el nivel usaba un campo inexistente, y si faltaba el club se mostraba "MetaHub Track Academy".
+
+### Agregado
+- `tests/resumen-equipo.test.mjs`: 6 pruebas del último análisis y de los avisos del Inicio. El frontend pasa de 28 a 34 pruebas.
+
+## [Sin publicar] 2026-11-17 — nuevo diseño visual (etapa 1: base y navegación)
+### Cambiado
+- Estilo de app deportiva: tema oscuro por defecto (el claro sigue disponible en Ajustes), títulos grandes en Barlow Condensed, cifras protagonistas, tarjetas lisas sin sombra, botones tipo píldora y un único acento naranja para la acción principal. Todo vive en `src/sport-theme.css`, que redefine las variables antiguas para que las pantallas existentes adopten la paleta.
+- Navegación: el menú lateral pasa de 12 enlaces sueltos a 4 grupos (Equipo, Análisis, Entrenamiento, Organización) con nombres en español. En el celular, barra inferior de 5 pestañas con "Grabar" (entrenador) o "Subir" (atleta) al centro y un menú "Más" agrupado.
+- El selector Claro/Oscuro sale del encabezado de cada pantalla y del inicio de sesión, y pasa a Ajustes › Apariencia.
+- Se quitaron los emoji del selector de rol del inicio de sesión y los degradados de los banners, del portal del atleta y de la pantalla de grabación.
+
+### Corregido
+- Portal del atleta: la nota "Fórmula IPT" tenía fondo blanco fijo y quedaba ilegible en tema oscuro.
+- Grabar o subir: las opciones "Grabar con la cámara" y "Elegir video" tenían fondo blanco fijo en tema oscuro.
+
+## [Sin publicar] 2026-11-17 — movimiento: carga diferida, pruebas y ADR-021
+### Cambiado
+- Framer Motion se carga con `LazyMotion` (`domMax` en un chunk aparte). El bundle principal baja de 534,9 kB a 440,9 kB (de 159,6 a 129,9 kB con gzip) y desaparece el aviso de Vite por chunks de más de 500 kB. Los componentes usan `m`, exportado como `motion` desde `components/Motion.jsx`.
+- La lógica de los indicadores de avance se separa de `Motion.jsx` en `components/progressState.js`. Un texto de pasos fuera de rango ("0/4", "7/4") ahora se acota en vez de dejar el indicador vacío o con todos los tramos llenos.
+
+### Agregado
+- `tests/progress-state.test.mjs`: 9 pruebas de los indicadores de avance (tramos por estado de la cola, `aria-valuenow`, lectura de "2/4: …" y relleno con movimiento reducido). El frontend pasa de 19 a 28 pruebas.
+- ADR-021: decisión de usar Framer Motion, reglas de movimiento, el problema de `layoutId` en overlays y la carga diferida.
+
+### Corregido
+- Mis atletas: el botón para cerrar la ficha era solo un ícono, sin nombre para lectores de pantalla. Ahora se anuncia como "Cerrar ficha".
+
 ## [Sin publicar] 2026-11-14 — sin datos inventados en la interfaz
 ### Cambiado
 - Comparar: el "monito" animado con `Math.sin`/`Math.cos` y la "fase ilustrada" se reemplazan por `PoseComparison`. Este componente muestra el esqueleto que MediaPipe detectó en el video de cada sesión, sincronizado, con avance cuadro a cuadro y velocidad. Bajo los videos quedan las mediciones guardadas de cada sesión, y "Sin medición" ya no lleva la unidad pegada. El selector de atletas ya no muestra "Edad 15" cuando la ficha no tiene edad.

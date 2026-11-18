@@ -1,8 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
-import {Camera,Video,RefreshCw,ShieldCheck,X,UploadCloud} from 'lucide-react';
+import {Video,RefreshCw,ShieldCheck,X,UploadCloud} from 'lucide-react';
 import {Layout,PageHeader} from '../components/UI.jsx';
-import FeatureBanner from '../components/FeatureBanner.jsx';
 import DeviceVideoInput from '../components/DeviceVideoInput.jsx';
 import {createRequestId} from '../services/requestId.js';
 import {uploadVideo,videoRequest} from '../services/videoUpload.js';
@@ -118,25 +117,26 @@ export default function UploadVideo(){
  const percent=progress&&progress.total?Math.min(100,Math.round(progress.sent/progress.total*100)):0;
  const showVideoSkeleton=videosLoading||(coach&&athletesLoading);
  return <Layout><motion.div className="feature-page" variants={staggerVariants(0.07,0.05)}>
- <PageHeader eyebrow="CAPTURA Y ANÁLISIS" title="Grabar o subir una carrera"
- description={coach?'Selecciona un atleta a tu cargo y registra su pasada.':'Graba o carga tu pasada para analizarla y compartir el resultado con tu entrenador.'}/>
- <FeatureBanner icon={Camera} title="La cámara de tu dispositivo, conectada a tu sesión"
- description="Graba una pasada o selecciona un video. El análisis corre en segundo plano: no necesitas esperar en esta pantalla."
- stats={[{label:'Formatos',value:'MP4 · WebM · MOV'},{label:'Máximo',value:formatBytes(MAX_VIDEO_BYTES)+' · 5 min'}]}/>
- {coach&&<motion.section className="panel-card" variants={cardVariants}>
-  {!athletesLoading&&<label className="form-field"><span>Atleta a mi cargo</span><select value={athleteId} disabled={uploading} onChange={e=>{setAthleteId(e.target.value);chooseFile(null);}}>
+ <PageHeader eyebrow="ANÁLISIS" title={coach?'Grabar pasada':'Subir video'}
+ description={coach?'Graba o sube la pasada de un atleta a tu cargo. El análisis sigue en segundo plano.':'Graba o sube tu pasada; tu entrenador verá el resultado.'}/>
+ {coach&&<motion.section className="mh-capture-athlete" variants={cardVariants}>
+  {!athletesLoading&&<label className="mh-athlete-picker"><span>Atleta</span><select value={athleteId} disabled={uploading} onChange={e=>{setAthleteId(e.target.value);chooseFile(null);}}>
    <option value="">Seleccionar atleta</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
   </select></label>}
   {athletesLoading&&<div className="mh-skeleton-field" role="status" aria-busy="true"><span className="mh-visually-hidden">Cargando atletas…</span>
-   <Skeleton width="42%" height={12}/><Skeleton height={44} radius={12}/></div>}
-  {selected&&<p><ShieldCheck size={14}/> Consentimiento: {selected.consent?'registrado':'pendiente; debes registrarlo antes de cargar'}</p>}
+   <Skeleton height={40} radius={999}/></div>}
+  {selected&&<span className={'mh-chip '+(selected.consent?'ok':'warn')}><ShieldCheck size={14} aria-hidden="true"/>&nbsp;{selected.consent?'Consentimiento vigente':'Falta el consentimiento: regístralo antes de subir'}</span>}
   {listError&&<p role="alert">{listError}</p>}
-  {!athletesLoading&&!athletes.length&&!listError&&<p>Registra primero un atleta en Mis atletas.</p>}
+  {!athletesLoading&&!athletes.length&&!listError&&<p className="mh-empty-line">Registra primero un atleta en <Link to="/athletes">Atletas</Link>.</p>}
  </motion.section>}
+ <motion.ol className="mh-steps" variants={cardVariants} aria-label="Cómo grabar">
+  <li><b>1 · De costado</b><span>Cuerpo completo a la vista</span></li>
+  <li><b>2 · Cámara fija</b><span>Horizonte recto, sin seguir al atleta</span></li>
+  <li><b>3 · Graba</b><span>Hasta 120 s en el navegador</span></li>
+ </motion.ol>
  <motion.section className="panel-card" variants={cardVariants}>
   <h2 className="feature-title"><Video size={21}/>Video de la carrera</h2>
-  <p className="device-video-info">Graba lateralmente y con el cuerpo completo visible. La grabación en el navegador se detiene a los 120 segundos.
-  Antes de enviar se revisa el formato, el peso y la duración del video.</p>
+  <p className="device-video-info">Archivos MP4, WebM o MOV (iPhone) de hasta 5 min y {formatBytes(MAX_VIDEO_BYTES)}. Antes de enviar se revisa el formato, el peso y la duración.</p>
   <DeviceVideoInput disabled={uploading||(coach&&!athleteId)} onFile={chooseFile}/>
   <form onSubmit={submit}>
    {file&&<><h3>Vista previa antes de enviar</h3>
@@ -159,7 +159,7 @@ export default function UploadVideo(){
    {error&&<motion.p key={'e'+error} role="alert" className="upload-error" initial={{opacity:0,y:-4}} animate={{opacity:1,y:0}} exit={{opacity:0}}>{error}</motion.p>}
   </AnimatePresence>
  </motion.section>
- <motion.section className="panel-card" variants={cardVariants}><h2 className="feature-title"><Video size={21}/>Videos de esta ficha</h2>
+ <motion.section className="panel-card" variants={cardVariants}><h2 className="feature-title"><Video size={21}/>{coach?'Videos de esta ficha':'Tus videos'}</h2>
   <div className="upload-history-actions">
    <button type="button" className="secondary-button" onClick={()=>load().catch(e=>setError(e.message))}><RefreshCw size={16}/>Actualizar</button>
    {polling&&<small className="upload-live">Actualizando automáticamente mientras haya análisis pendientes</small>}

@@ -417,17 +417,17 @@ export default function LiveCapture() {
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
-      const tone = isLevel === null ? 'rgba(148, 163, 184, 0.6)' : isLevel ? '#00f5a0' : '#ff3366';
+      const tone = isLevel === null ? 'rgba(148, 163, 184, 0.6)' : isLevel ? '#34D399' : '#FF6B6B';
 
       ctx.save();
-      ctx.strokeStyle = 'rgba(0, 194, 255, 0.25)';
+      ctx.strokeStyle = 'rgba(77, 155, 255, 0.25)';
       ctx.lineWidth = 1;
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       ctx.moveTo(w * 0.2, 0); ctx.lineTo(w * 0.2, h);
       ctx.moveTo(w * 0.8, 0); ctx.lineTo(w * 0.8, h);
       ctx.stroke();
-      ctx.strokeStyle = isLevel === null ? 'rgba(148, 163, 184, 0.35)' : isLevel ? 'rgba(0, 245, 160, 0.4)' : 'rgba(255, 51, 102, 0.4)';
+      ctx.strokeStyle = isLevel === null ? 'rgba(148, 163, 184, 0.35)' : isLevel ? 'rgba(52, 211, 153, 0.4)' : 'rgba(255, 107, 107, 0.4)';
       ctx.strokeRect(w * 0.22, h * 0.12, w * 0.56, h * 0.76);
       ctx.restore();
 
@@ -469,12 +469,12 @@ export default function LiveCapture() {
     return (
       <Layout>
       {athleteLoadError && <p role="alert">{athleteLoadError}</p>}
-        <div style={{ maxWidth: '960px', margin: '0 auto', paddingBottom: '40px' }}>
+        <div className="mh-lab" data-theme="dark">
 
           {/* Cabecera Superior */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <button
-              onClick={() => navigate('/sessions')}
+              onClick={() => navigate('/capture')}
               style={{
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
@@ -490,14 +490,14 @@ export default function LiveCapture() {
               }}
             >
               <ArrowLeft size={16} />
-              <span>Volver a Sesiones</span>
+              <span>Volver</span>
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{
-                background: isLevel === null ? 'rgba(148, 163, 184, 0.15)' : isLevel ? 'rgba(0, 245, 160, 0.15)' : 'rgba(255, 51, 102, 0.15)',
-                color: isLevel === null ? '#94a3b8' : isLevel ? '#00f5a0' : '#ff3366',
-                border: `1px solid ${isLevel === null ? 'rgba(148, 163, 184, 0.3)' : isLevel ? 'rgba(0, 245, 160, 0.3)' : 'rgba(255, 51, 102, 0.3)'}`,
+                background: isLevel === null ? 'rgba(148, 163, 184, 0.15)' : isLevel ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255, 107, 107, 0.15)',
+                color: isLevel === null ? '#A1A8B3' : isLevel ? '#34D399' : '#FF6B6B',
+                border: `1px solid ${isLevel === null ? 'rgba(148, 163, 184, 0.3)' : isLevel ? 'rgba(52, 211, 153, 0.3)' : 'rgba(255, 107, 107, 0.3)'}`,
                 padding: '4px 10px',
                 borderRadius: '8px',
                 fontSize: '11px',
@@ -511,9 +511,9 @@ export default function LiveCapture() {
               </span>
 
               <span style={{
-                background: 'rgba(0, 194, 255, 0.15)',
-                color: '#38bdf8',
-                border: '1px solid rgba(0, 194, 255, 0.3)',
+                background: 'rgba(77, 155, 255, 0.15)',
+                color: '#4D9BFF',
+                border: '1px solid rgba(77, 155, 255, 0.3)',
                 padding: '4px 10px',
                 borderRadius: '8px',
                 fontSize: '11px',
@@ -528,7 +528,7 @@ export default function LiveCapture() {
           {/* SELECTOR DE MODO: CÁMARA EN VIVO vs SUBIR VIDEO REAL (MEDIAPIPE) */}
           <div style={{
             display: 'flex',
-            background: 'rgba(16, 26, 46, 0.75)',
+            background: '#15171A',
             padding: '6px',
             borderRadius: '16px',
             gap: '8px',
@@ -540,8 +540,8 @@ export default function LiveCapture() {
               style={{
                 flex: 1,
                 minHeight: '42px', padding: '6px 10px', lineHeight: 1.2,
-                background: activeTab === 'camera' ? 'linear-gradient(135deg, #0284c7 0%, #00f5a0 100%)' : 'transparent',
-                color: activeTab === 'camera' ? '#04121d' : '#94a3b8',
+                background: activeTab === 'camera' ? '#FF5A1F' : 'transparent',
+                color: activeTab === 'camera' ? '#050607' : '#A1A8B3',
                 border: 'none',
                 borderRadius: '12px',
                 fontSize: '13px',
@@ -551,11 +551,11 @@ export default function LiveCapture() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: activeTab === 'camera' ? '0 4px 18px rgba(0, 245, 160, 0.3)' : 'none',
+                boxShadow: activeTab === 'camera' ? 'none' : 'none',
               }}
             >
               <Camera size={18} />
-              <span>Cámara en Vivo y Calibrador Sagital</span>
+              <span>Cámara</span>
             </button>
 
             <button
@@ -563,8 +563,8 @@ export default function LiveCapture() {
               style={{
                 flex: 1,
                 minHeight: '42px', padding: '6px 10px', lineHeight: 1.2,
-                background: activeTab === 'video_upload' ? 'linear-gradient(135deg, #00f5a0 0%, #00c2ff 100%)' : 'transparent',
-                color: activeTab === 'video_upload' ? '#04121d' : '#94a3b8',
+                background: activeTab === 'video_upload' ? '#FF5A1F' : 'transparent',
+                color: activeTab === 'video_upload' ? '#050607' : '#A1A8B3',
                 border: 'none',
                 borderRadius: '12px',
                 fontSize: '13px',
@@ -574,11 +574,11 @@ export default function LiveCapture() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: activeTab === 'video_upload' ? '0 4px 18px rgba(0, 194, 255, 0.3)' : 'none',
+                boxShadow: activeTab === 'video_upload' ? 'none' : 'none',
               }}
             >
               <FileVideo size={18} />
-              <span>Subir Video (Extracción MediaPipe Real)</span>
+              <span>Subir video</span>
             </button>
           </div>
 
@@ -589,11 +589,11 @@ export default function LiveCapture() {
                 position: 'relative',
                 width: '100%',
                 height: '520px',
-                background: '#040812',
+                background: '#000000',
                 borderRadius: '24px',
                 overflow: 'hidden',
-                border: '1px solid rgba(0, 194, 255, 0.3)',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 194, 255, 0.15)',
+                border: '1px solid rgba(77, 155, 255, 0.3)',
+                boxShadow: 'none',
                 marginBottom: '16px'
               }}>
 
@@ -629,7 +629,7 @@ export default function LiveCapture() {
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'rgba(4, 18, 29, 0.88)',
+                    background: 'rgba(0, 0, 0, 0.75)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -637,19 +637,19 @@ export default function LiveCapture() {
                     zIndex: 50,
                     backdropFilter: 'blur(10px)'
                   }}>
-                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#00c2ff', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#4D9BFF', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
                       INICIANDO CAPTURA EN PISTA
                     </span>
                     <AnimatePresence mode="popLayout" initial={false}>
                     <motion.span key={String(countdown)}
                       initial={{ opacity: 0, scale: 0.55 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.35 }}
                       transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                      style={{ display: 'inline-block', fontSize: '88px', fontWeight: '900', color: countdown === '¡YA!' ? '#00f5a0' : '#ffffff', fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 35px rgba(0, 245, 160, 0.7)' }}>
+                      style={{ display: 'inline-block', fontSize: '88px', fontWeight: '900', color: countdown === '¡YA!' ? '#FF5A1F' : '#ffffff', fontFamily: "'Barlow Condensed', sans-serif", }}>
                       {countdown}
                     </motion.span>
                     </AnimatePresence>
-                    <span style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '12px' }}>
-                      Atleta a registrar: <strong style={{ color: '#00f5a0' }}>{selectedAthlete}</strong>
+                    <span style={{ fontSize: '13px', color: '#D5DAE1', marginTop: '12px' }}>
+                      Atleta a registrar: <strong style={{ color: '#FF5A1F' }}>{selectedAthlete}</strong>
                     </span>
                   </motion.div>
                 )}</AnimatePresence>
@@ -675,7 +675,7 @@ export default function LiveCapture() {
                         if (ath) setSelectedAthlete(ath.name);
                       }}
                       style={{
-                        background: 'rgba(9, 15, 28, 0.85)',
+                        background: '#0C0D0F',
                         border: '1px solid rgba(255, 255, 255, 0.15)',
                         color: 'white',
                         padding: '6px 12px',
@@ -689,7 +689,7 @@ export default function LiveCapture() {
                       {athletesList.length > 0 ? (
                         athletesList.map(a => (
                           <option key={a.id} value={a.id}>
-                            🏃 {a.name} ({a.category || 'Atleta'})
+                            {a.name} ({a.category || 'Atleta'})
                           </option>
                         ))
                       ) : (
@@ -707,7 +707,7 @@ export default function LiveCapture() {
                         width: '36px',
                         height: '36px',
                         borderRadius: '10px',
-                        background: 'rgba(9, 15, 28, 0.85)',
+                        background: '#0C0D0F',
                         border: '1px solid rgba(255, 255, 255, 0.2)',
                         color: 'white',
                         display: 'flex',
@@ -724,8 +724,8 @@ export default function LiveCapture() {
 
                 {/* CÁMARA APAGADA: activarla con un toque (también pide el giroscopio en iOS) */}
                 {!cameraActive && (
-                  <div style={{ position: 'absolute', inset: 0, zIndex: 15, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '24px', textAlign: 'center', color: '#cbd5e1' }}>
-                    <Camera size={40} color="#38bdf8" />
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 15, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '24px', textAlign: 'center', color: '#D5DAE1' }}>
+                    <Camera size={40} color="#4D9BFF" />
                     <strong style={{ color: 'white', fontSize: '15px' }}>Encuadra la pasada con la cámara del dispositivo</strong>
                     <span style={{ fontSize: '12px', maxWidth: '420px', lineHeight: 1.5 }}>
                       Al detener la grabación, el video se guarda en la ficha del atleta y MediaPipe lo analiza en el servidor.
@@ -741,11 +741,11 @@ export default function LiveCapture() {
                 {(captureError || uploadState.status !== 'idle') && (
                   <div role="status" aria-live="polite" style={{
                     position: 'absolute', bottom: '80px', left: '16px', right: '16px', zIndex: 20,
-                    background: 'rgba(9, 15, 28, 0.9)', backdropFilter: 'blur(16px)',
-                    border: `1px solid ${captureError || uploadState.status === 'error' ? 'rgba(255, 51, 102, 0.5)' : 'rgba(0, 245, 160, 0.35)'}`,
+                    background: '#0C0D0F', backdropFilter: 'blur(16px)',
+                    border: `1px solid ${captureError || uploadState.status === 'error' ? 'rgba(255, 107, 107, 0.5)' : 'rgba(255, 90, 31, 0.35)'}`,
                     borderRadius: '16px', padding: '12px 16px', color: '#e2e8f0', fontSize: '12px', display: 'grid', gap: '8px'
                   }}>
-                    {captureError && <span style={{ color: '#fda4af' }}>{captureError}</span>}
+                    {captureError && <span style={{ color: '#FF8A8A' }}>{captureError}</span>}
                     {uploadState.status === 'uploading' && <>
                       <span><UploadCloud size={14} style={{ verticalAlign: '-2px' }} /> Subiendo la grabación… {uploadState.percent}%</span>
                       <div className="mh-upload-bar" role="progressbar" aria-label="Progreso de la subida" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadState.percent}>
@@ -754,9 +754,9 @@ export default function LiveCapture() {
                     </>}
                     {uploadState.status === 'done' && <span style={{ color: '#6ee7b7' }}>
                       <CheckCircle2 size={14} style={{ verticalAlign: '-2px' }} /> {uploadState.message}{uploadState.sessionId ? ` Sesión #${uploadState.sessionId}.` : ''}{' '}
-                      <button type="button" onClick={() => navigate('/capture')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Ver el avance del análisis</button>
+                      <button type="button" onClick={() => navigate('/capture')} style={{ background: 'none', border: 'none', color: '#4D9BFF', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Ver el avance del análisis</button>
                     </span>}
-                    {uploadState.status === 'error' && <span style={{ color: '#fda4af', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    {uploadState.status === 'error' && <span style={{ color: '#FF8A8A', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                       {uploadState.message}
                       <button type="button" onClick={uploadRecording} className="secondary-button" style={{ padding: '4px 10px', fontSize: '11px' }}>
                         <RefreshCw size={13} /> Reintentar subida
@@ -784,7 +784,7 @@ export default function LiveCapture() {
                       style={{
                         height: '52px',
                         padding: '0 28px',
-                        background: countdown !== null || !cameraActive || uploadState.status === 'uploading' ? '#475569' : 'linear-gradient(135deg, #ff3366, #e11d48)',
+                        background: countdown !== null || !cameraActive || uploadState.status === 'uploading' ? '#475569' : '#FF5A1F',
                         color: 'white',
                         border: 'none',
                         borderRadius: '26px',
@@ -793,7 +793,7 @@ export default function LiveCapture() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        boxShadow: '0 0 25px rgba(255, 51, 102, 0.4)',
+                        boxShadow: 'none',
                         cursor: countdown !== null || !cameraActive || uploadState.status === 'uploading' ? 'not-allowed' : 'pointer'
                       }}
                     >
@@ -806,8 +806,8 @@ export default function LiveCapture() {
                       style={{
                         height: '52px',
                         padding: '0 28px',
-                        background: 'linear-gradient(135deg, #00f5a0, #00c2ff)',
-                        color: '#04121d',
+                        background: '#FF5A1F',
+                        color: '#050607',
                         border: 'none',
                         borderRadius: '26px',
                         fontSize: '13px',
@@ -815,7 +815,7 @@ export default function LiveCapture() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        boxShadow: '0 0 25px rgba(0, 245, 160, 0.4)',
+                        boxShadow: 'none',
                         cursor: 'pointer'
                       }}
                     >
@@ -829,7 +829,7 @@ export default function LiveCapture() {
 
               {/* Ficha explicativa del Calibrador y Guía de Terreno */}
               <div style={{
-                background: 'rgba(16, 26, 46, 0.75)',
+                background: '#15171A',
                 backdropFilter: 'blur(14px)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 borderRadius: '18px',
@@ -839,31 +839,31 @@ export default function LiveCapture() {
                 gap: '16px'
               }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#00f5a0', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#FF5A1F', marginBottom: '4px' }}>
                     <Compass size={16} />
                     <strong style={{ fontSize: '12px' }}>1. Nivelación de Horizonte</strong>
                   </div>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
+                  <p style={{ fontSize: '11px', color: '#A1A8B3', margin: 0, lineHeight: 1.4 }}>
                     El giroscopio del celular indica si la cámara está nivelada. Ubícala perpendicular al carril para evitar distorsión de perspectiva en la cinemática 2D.
                   </p>
                 </div>
 
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#00c2ff', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4D9BFF', marginBottom: '4px' }}>
                     <Layers size={16} />
                     <strong style={{ fontSize: '12px' }}>2. Distancia Focal Óptima</strong>
                   </div>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
+                  <p style={{ fontSize: '11px', color: '#A1A8B3', margin: 0, lineHeight: 1.4 }}>
                     Ubica el trípode o tu posición a 4 metros de la recta de carrera para encuadrar la zancada completa de despegue y recobro.
                   </p>
                 </div>
 
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fde047', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#FBBF24', marginBottom: '4px' }}>
                     <Sparkles size={16} />
                     <strong style={{ fontSize: '12px' }}>3. Análisis en el servidor</strong>
                   </div>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
+                  <p style={{ fontSize: '11px', color: '#A1A8B3', margin: 0, lineHeight: 1.4 }}>
                     Al detener, el video entra a la cola y MediaPipe calcula los ángulos de rodilla (cadera-rodilla-tobillo) con <code>atan2</code>. Durante la grabación no se muestran ángulos.
                   </p>
                 </div>
@@ -876,8 +876,8 @@ export default function LiveCapture() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'rgba(0, 194, 255, 0.1)',
-                border: '1px solid rgba(0, 194, 255, 0.25)',
+                background: 'rgba(77, 155, 255, 0.1)',
+                border: '1px solid rgba(77, 155, 255, 0.25)',
                 borderRadius: '16px',
                 padding: '12px 18px'
               }}>
@@ -886,18 +886,18 @@ export default function LiveCapture() {
                     width: '10px',
                     height: '10px',
                     borderRadius: '50%',
-                    background: cvHealth === 'ok' ? '#00f5a0' : cvHealth === 'checking' ? '#94a3b8' : '#ff3366',
-                    boxShadow: cvHealth === 'ok' ? '0 0 10px #00f5a0' : 'none'
+                    background: cvHealth === 'ok' ? '#34D399' : cvHealth === 'checking' ? '#A1A8B3' : '#FF6B6B',
+                    boxShadow: cvHealth === 'ok' ? 'none' : 'none'
                   }}></span>
                   <div>
-                    <strong style={{ fontSize: '13px', color: '#38bdf8', display: 'block' }}>Servicio de visión (MediaPipe)</strong>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>FastAPI + OpenCV + BlazePose, a través de la API</span>
+                    <strong style={{ fontSize: '13px', color: '#4D9BFF', display: 'block' }}>Servicio de visión (MediaPipe)</strong>
+                    <span style={{ fontSize: '11px', color: '#A1A8B3' }}>FastAPI + OpenCV + BlazePose, a través de la API</span>
                   </div>
                 </div>
                 <span style={{
-                  background: cvHealth === 'ok' ? 'rgba(0, 245, 160, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-                  color: cvHealth === 'ok' ? '#00f5a0' : cvHealth === 'checking' ? '#94a3b8' : '#ff3366',
-                  border: `1px solid ${cvHealth === 'ok' ? 'rgba(0, 245, 160, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`,
+                  background: cvHealth === 'ok' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                  color: cvHealth === 'ok' ? '#34D399' : cvHealth === 'checking' ? '#A1A8B3' : '#FF6B6B',
+                  border: `1px solid ${cvHealth === 'ok' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`,
                   padding: '4px 10px',
                   borderRadius: '8px',
                   fontSize: '11px',
@@ -907,8 +907,8 @@ export default function LiveCapture() {
 
               {/* Dropzone / Carga de Video */}
               <div style={{
-                background: 'rgba(16, 26, 46, 0.75)',
-                border: '2px dashed rgba(0, 194, 255, 0.35)',
+                background: '#15171A',
+                border: '2px dashed rgba(77, 155, 255, 0.35)',
                 borderRadius: '20px',
                 padding: '24px',
                 textAlign: 'center'
@@ -917,18 +917,18 @@ export default function LiveCapture() {
                   width: '54px',
                   height: '54px',
                   borderRadius: '16px',
-                  background: 'rgba(0, 194, 255, 0.15)',
-                  border: '1px solid rgba(0, 194, 255, 0.3)',
+                  background: 'rgba(77, 155, 255, 0.15)',
+                  border: '1px solid rgba(77, 155, 255, 0.3)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: '12px',
-                  color: '#00c2ff'
+                  color: '#4D9BFF'
                 }}>
                   <UploadCloud size={28} />
                 </div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '16px', color: 'white' }}>Cargar Video de Carrera de Velocidad</h3>
-                <p style={{ margin: '0 auto 16px', fontSize: '12px', color: '#94a3b8', maxWidth: '460px', lineHeight: 1.4 }}>
+                <p style={{ margin: '0 auto 16px', fontSize: '12px', color: '#A1A8B3', maxWidth: '460px', lineHeight: 1.4 }}>
                   Sube un video del atleta (.mp4 / .webm / .mov). Se extraen los fotogramas y MediaPipe devuelve las coordenadas articulares detectadas. Este análisis rápido no guarda el video; para conservarlo usa la cámara o "Grabar o subir carrera".
                 </p>
 
@@ -972,8 +972,8 @@ export default function LiveCapture() {
                       disabled={isProcessingVideo}
                       style={{
                         height: '44px',
-                        background: 'linear-gradient(135deg, #0284c7 0%, #00f5a0 100%)',
-                        color: '#04121d',
+                        background: '#FF5A1F',
+                        color: '#050607',
                         border: 'none',
                         borderRadius: '12px',
                         fontSize: '13px',
@@ -983,7 +983,7 @@ export default function LiveCapture() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        boxShadow: '0 4px 18px rgba(0, 245, 160, 0.3)'
+                        boxShadow: 'none'
                       }}
                     >
                       <Play size={16} />
@@ -996,7 +996,7 @@ export default function LiveCapture() {
                   <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '2px 0' }}>
                     <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.1)' }}></div>
-                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>o prueba al instante</span>
+                    <span style={{ fontSize: '10px', color: '#8B939E', fontWeight: '800', textTransform: 'uppercase' }}>o prueba al instante</span>
                     <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.1)' }}></div>
                   </div>
 
@@ -1005,8 +1005,8 @@ export default function LiveCapture() {
                     disabled={isProcessingVideo}
                     style={{
                       height: '44px',
-                      background: 'linear-gradient(135deg, #00f5a0 0%, #00c2ff 100%)',
-                      color: '#04121d',
+                      background: '#FF5A1F',
+                      color: '#050607',
                       border: 'none',
                       borderRadius: '12px',
                       fontSize: '13px',
@@ -1016,11 +1016,11 @@ export default function LiveCapture() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      boxShadow: '0 4px 18px rgba(0, 245, 160, 0.3)'
+                      boxShadow: 'none'
                     }}
                   >
                     <Zap size={16} />
-                    <span>⚡ Analizar Video Real de Velocista (1-Click)</span>
+                    <span>Analizar Video Real de Velocista (1-Click)</span>
                   </button>
                   </>
                   )}
@@ -1030,8 +1030,8 @@ export default function LiveCapture() {
               {/* Spinner de Carga */}
               <AnimatePresence>{isProcessingVideo && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.15 } }} style={{
-                  background: 'rgba(16, 26, 46, 0.95)',
-                  border: '1px solid rgba(0, 245, 160, 0.4)',
+                  background: '#15171A',
+                  border: '1px solid rgba(255, 90, 31, 0.4)',
                   borderRadius: '18px',
                   padding: '20px',
                   textAlign: 'center'
@@ -1039,7 +1039,7 @@ export default function LiveCapture() {
                   <div style={{ color: 'white', marginBottom: '10px' }}>
                     <SteppedProgress text={videoProcessingStep} label="Avance del análisis del video" />
                   </div>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, textAlign: 'left' }}>
+                  <p style={{ fontSize: '11px', color: '#A1A8B3', margin: 0, textAlign: 'left' }}>
                     Extrayendo fotogramas con OpenCV y detectando 33 puntos anatómicos en cada cuadro con BlazePose.
                   </p>
                 </motion.div>
@@ -1048,14 +1048,14 @@ export default function LiveCapture() {
               {/* Error si ocurre */}
               {videoError && (
                 <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0, x: [0, -5, 4, -2, 0] }} transition={{ duration: 0.3, x: { duration: 0.32 } }} style={{
-                  background: 'rgba(255, 51, 102, 0.15)',
-                  border: '1px solid #ff3366',
+                  background: 'rgba(255, 107, 107, 0.15)',
+                  border: '1px solid #FF6B6B',
                   borderRadius: '14px',
                   padding: '12px 16px',
                   fontSize: '12px',
-                  color: '#ff3366'
+                  color: '#FF6B6B'
                 }}>
-                  ⚠️ {videoError}
+                  {videoError}
                 </motion.div>
               )}
 
@@ -1064,14 +1064,14 @@ export default function LiveCapture() {
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE_OUT }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {/* Cuadro Resumen de Detección */}
                   <div style={{
-                    background: 'rgba(16, 26, 46, 0.8)',
-                    border: '1px solid rgba(0, 245, 160, 0.3)',
+                    background: '#15171A',
+                    border: '1px solid rgba(255, 90, 31, 0.3)',
                     borderRadius: '18px',
                     padding: '16px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <div>
-                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#00f5a0', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#FF5A1F', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                           RESULTADOS MEDIAPIPE REALES
                         </span>
                         <h4 style={{ margin: '2px 0 0', fontSize: '15px', color: 'white' }}>{realAnalysisData.video_info.filename}</h4>
@@ -1079,9 +1079,9 @@ export default function LiveCapture() {
                       <button
                         onClick={handleDownloadRealDataJson}
                         style={{
-                          background: 'rgba(0, 194, 255, 0.15)',
-                          border: '1px solid rgba(0, 194, 255, 0.3)',
-                          color: '#38bdf8',
+                          background: 'rgba(77, 155, 255, 0.15)',
+                          border: '1px solid rgba(77, 155, 255, 0.3)',
+                          color: '#4D9BFF',
                           borderRadius: '10px',
                           padding: '6px 12px',
                           fontSize: '11px',
@@ -1100,20 +1100,20 @@ export default function LiveCapture() {
                     {/* KPIs Reales */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center' }}>
                       <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '10px 4px' }}>
-                        <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>CUADROS CON POSE</span>
-                        <strong style={{ fontSize: '16px', color: '#38bdf8', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>CUADROS CON POSE</span>
+                        <strong style={{ fontSize: '16px', color: '#4D9BFF', fontFamily: 'monospace' }}>
                           {realAnalysisData.video_info.frames_with_pose} / {realAnalysisData.video_info.analyzed_frames}
                         </strong>
                       </div>
                       <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '10px 4px' }}>
-                        <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>PICO EXTENSIÓN</span>
-                        <strong style={{ fontSize: '16px', color: '#00f5a0', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>PICO EXTENSIÓN</span>
+                        <strong style={{ fontSize: '16px', color: '#FF5A1F', fontFamily: 'monospace' }}>
                           {realAnalysisData.summary_metrics.peak_knee_extension.toFixed(1)}°
                         </strong>
                       </div>
                       <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '10px 4px' }}>
-                        <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>SIMETRÍA MEDIA</span>
-                        <strong style={{ fontSize: '16px', color: '#fde047', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>SIMETRÍA MEDIA</span>
+                        <strong style={{ fontSize: '16px', color: '#FBBF24', fontFamily: 'monospace' }}>
                           {realAnalysisData.summary_metrics.avg_symmetry_score.toFixed(1)}%
                         </strong>
                       </div>
@@ -1122,8 +1122,8 @@ export default function LiveCapture() {
 
                   {/* SELLO DE AUTORÍA Y METODOLOGÍA UCT */}
                   <div style={{
-                    background: 'linear-gradient(135deg, rgba(0, 194, 255, 0.12), rgba(0, 245, 160, 0.08))',
-                    border: '1px solid rgba(0, 194, 255, 0.3)',
+                    background: '#202328',
+                    border: '1px solid rgba(77, 155, 255, 0.3)',
                     borderRadius: '16px',
                     padding: '12px 16px',
                     display: 'flex',
@@ -1131,20 +1131,20 @@ export default function LiveCapture() {
                     justifyContent: 'space-between'
                   }}>
                     <div>
-                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#00f5a0', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                        📐 Metodología UCT · Modelo en 3 Fases
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#FF5A1F', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                        Metodología UCT · Modelo en 3 Fases
                       </span>
                       <h4 style={{ margin: '2px 0 0', fontSize: '14px', color: 'white', fontWeight: '800' }}>
                         Modelo Cinemático Arellano & Henríquez
                       </h4>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                      <span style={{ fontSize: '11px', color: '#A1A8B3' }}>
                         Tesis de Grado UCT · Profesor Guía: Dr. Marcos Lévano
                       </span>
                     </div>
                     <span style={{
-                      background: 'rgba(0, 194, 255, 0.15)',
-                      color: '#38bdf8',
-                      border: '1px solid rgba(0, 194, 255, 0.3)',
+                      background: 'rgba(77, 155, 255, 0.15)',
+                      color: '#4D9BFF',
+                      border: '1px solid rgba(77, 155, 255, 0.3)',
                       padding: '4px 10px',
                       borderRadius: '8px',
                       fontSize: '10px',
@@ -1157,14 +1157,14 @@ export default function LiveCapture() {
                   {/* ÍNDICE PROPIETARIO DE PERFECCIONAMIENTO TÉCNICO (IPT) */}
                   {realAnalysisData.ipt_evaluation && (
                     <div style={{
-                      background: 'rgba(16, 26, 46, 0.9)',
-                      border: '1px solid rgba(0, 245, 160, 0.35)',
+                      background: '#15171A',
+                      border: '1px solid rgba(255, 90, 31, 0.35)',
                       borderRadius: '18px',
                       padding: '16px'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div>
-                          <span style={{ fontSize: '10px', fontWeight: '800', color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '800', color: '#4D9BFF', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                             ÍNDICE PROPIETARIO METAHUB
                           </span>
                           <h3 style={{ margin: '2px 0 0', fontSize: '16px', color: 'white', fontWeight: '800' }}>
@@ -1172,9 +1172,9 @@ export default function LiveCapture() {
                           </h3>
                         </div>
                         <div style={{
-                          background: `${realAnalysisData.ipt_evaluation.color || '#00f5a0'}22`,
-                          border: `1px solid ${realAnalysisData.ipt_evaluation.color || '#00f5a0'}`,
-                          color: realAnalysisData.ipt_evaluation.color || '#00f5a0',
+                          background: `${realAnalysisData.ipt_evaluation.color || '#FF5A1F'}22`,
+                          border: `1px solid ${realAnalysisData.ipt_evaluation.color || '#FF5A1F'}`,
+                          color: realAnalysisData.ipt_evaluation.color || '#FF5A1F',
                           padding: '4px 10px',
                           borderRadius: '8px',
                           fontSize: '11px',
@@ -1196,16 +1196,16 @@ export default function LiveCapture() {
                         marginBottom: '12px'
                       }}>
                         <div style={{ textAlign: 'center', minWidth: '90px' }}>
-                          <span style={{ fontSize: '36px', fontWeight: '900', color: realAnalysisData.ipt_evaluation.color || '#00f5a0', fontFamily: 'monospace', lineHeight: 1 }}>
+                          <span style={{ fontSize: '36px', fontWeight: '900', color: realAnalysisData.ipt_evaluation.color || '#FF5A1F', fontFamily: 'monospace', lineHeight: 1 }}>
                             {realAnalysisData.ipt_evaluation.ipt_score.toFixed(1)}
                           </span>
-                          <span style={{ display: 'block', fontSize: '10px', color: '#64748b', fontWeight: '700' }}>/ 100 PTS</span>
+                          <span style={{ display: 'block', fontSize: '10px', color: '#8B939E', fontWeight: '700' }}>/ 100 PTS</span>
                         </div>
                         <div style={{ flex: 1, borderLeft: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '14px' }}>
                           <strong style={{ fontSize: '13px', color: 'white', display: 'block', marginBottom: '4px' }}>
                             {realAnalysisData.ipt_evaluation.categoria}
                           </strong>
-                          <p style={{ margin: 0, fontSize: '11px', color: '#cbd5e1', lineHeight: 1.4 }}>
+                          <p style={{ margin: 0, fontSize: '11px', color: '#D5DAE1', lineHeight: 1.4 }}>
                             {realAnalysisData.ipt_evaluation.diagnostico}
                           </p>
                         </div>
@@ -1218,14 +1218,14 @@ export default function LiveCapture() {
                         borderRadius: '10px',
                         padding: '8px 12px',
                         fontSize: '11px',
-                        color: '#94a3b8',
+                        color: '#A1A8B3',
                         fontFamily: 'monospace',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center'
                       }}>
                         <span>IPT = (0.40·S₁) + (0.35·S₂) + (0.25·Simetría)</span>
-                        <span style={{ color: '#00f5a0', fontWeight: '700' }}>Validado UCT</span>
+                        <span style={{ color: '#FBBF24', fontWeight: '700' }}>Experimental · sin validación externa</span>
                       </div>
                     </div>
                   )}
@@ -1233,67 +1233,67 @@ export default function LiveCapture() {
                   {/* DESGLOSE EN 3 SECTORES CINEMÁTICOS DE ZANCADA */}
                   {realAnalysisData.ipt_evaluation?.desglose_sectores && (
                     <div style={{
-                      background: 'rgba(16, 26, 46, 0.75)',
+                      background: '#15171A',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       borderRadius: '18px',
                       padding: '16px'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <strong style={{ fontSize: '13px', color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                          📊 Desglose de los 3 Sectores Cinemáticos (UCT)
+                        <strong style={{ fontSize: '13px', color: '#4D9BFF', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                          Desglose de los 3 Sectores Cinemáticos (UCT)
                         </strong>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>3 Fases por Ciclo</span>
+                        <span style={{ fontSize: '11px', color: '#A1A8B3' }}>3 Fases por Ciclo</span>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {/* Sector 1: Propulsión */}
-                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #ffaa00' }}>
+                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #FBBF24' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#ffaa00' }}>SECTOR 1: PROPULSIÓN (40%)</span>
-                            <strong style={{ fontSize: '13px', color: '#ffaa00', fontFamily: 'monospace' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#FBBF24' }}>SECTOR 1: PROPULSIÓN (40%)</span>
+                            <strong style={{ fontSize: '13px', color: '#FBBF24', fontFamily: 'monospace' }}>
                               {realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score} pts
                             </strong>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
                             <span>Triple Extensión: <strong style={{ color: 'white' }}>{realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.angulo_real?.toFixed(1)}°</strong></span>
                             <span>Objetivo: 165° - 175°</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #ffaa00, #00f5a0)', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
+                            <div style={{ width: '100%', height: '100%', background: '#FF5A1F', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                           </div>
                         </div>
 
                         {/* Sector 2: Vuelo / Recobro */}
-                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #00c2ff' }}>
+                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #4D9BFF' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#00c2ff' }}>SECTOR 2: VUELO / RECOBRO (35%)</span>
-                            <strong style={{ fontSize: '13px', color: '#00c2ff', fontFamily: 'monospace' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#4D9BFF' }}>SECTOR 2: VUELO / RECOBRO (35%)</span>
+                            <strong style={{ fontSize: '13px', color: '#4D9BFF', fontFamily: 'monospace' }}>
                               {realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score} pts
                             </strong>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
                             <span>Péndulo Corto (talón a glúteo): <strong style={{ color: 'white' }}>{realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.angulo_real?.toFixed(1)}°</strong></span>
                             <span>Objetivo: &lt; 70° (Rodilla &gt; 85°)</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #ff3366, #00c2ff)', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
+                            <div style={{ width: '100%', height: '100%', background: '#FF5A1F', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                           </div>
                         </div>
 
                         {/* Sector 3: Contacto / Simetría */}
-                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #00f5a0' }}>
+                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #FF5A1F' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#00f5a0' }}>SECTOR 3: CONTACTO / SIMETRÍA (25%)</span>
-                            <strong style={{ fontSize: '13px', color: '#00f5a0', fontFamily: 'monospace' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#FF5A1F' }}>SECTOR 3: CONTACTO / SIMETRÍA (25%)</span>
+                            <strong style={{ fontSize: '13px', color: '#FF5A1F', fontFamily: 'monospace' }}>
                               {realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score} pts
                             </strong>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
                             <span>Simetría Bilateral de Apoyo: <strong style={{ color: 'white' }}>{realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.porcentaje_real?.toFixed(1)}%</strong></span>
                             <span>Objetivo: ≥ 92.0%</span>
                           </div>
                           <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #00c2ff, #00f5a0)', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
+                            <div style={{ width: '100%', height: '100%', background: '#FF5A1F', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                           </div>
                         </div>
                       </div>
@@ -1303,22 +1303,22 @@ export default function LiveCapture() {
                   {/* PRESCRIPCIÓN PERSONALIZADA Y CONSEJOS IA (PLAN PROGRESIVO DE CORRECCIÓN) */}
                   {realAnalysisData.ipt_evaluation && (
                     <div style={{
-                      background: 'linear-gradient(135deg, rgba(255, 51, 102, 0.12), rgba(16, 26, 46, 0.92))',
-                      border: '1px solid rgba(255, 51, 102, 0.35)',
+                      background: '#202328',
+                      border: '1px solid rgba(255, 107, 107, 0.35)',
                       borderRadius: '16px',
                       padding: '16px'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Target size={16} color="#ff3366" />
-                          <strong style={{ fontSize: '13px', color: '#ff3366', textTransform: 'uppercase' }}>
+                          <Target size={16} color="#FF6B6B" />
+                          <strong style={{ fontSize: '13px', color: '#FF6B6B', textTransform: 'uppercase' }}>
                             Prescripción Metodológica IA (Plan Progresivo)
                           </strong>
                         </div>
                         <span style={{
-                          background: 'rgba(255, 51, 102, 0.2)',
-                          color: '#ff3366',
-                          border: '1px solid #ff3366',
+                          background: 'rgba(255, 107, 107, 0.2)',
+                          color: '#FF6B6B',
+                          border: '1px solid #FF6B6B',
                           padding: '2px 8px',
                           borderRadius: '6px',
                           fontSize: '10px',
@@ -1332,7 +1332,7 @@ export default function LiveCapture() {
                       {realAnalysisData.ipt_evaluation.prescripcion_completa?.causa_biomecanica && (
                         <p style={{
                           fontSize: '11px',
-                          color: '#cbd5e1',
+                          color: '#D5DAE1',
                           margin: '0 0 10px',
                           lineHeight: 1.4,
                           background: 'rgba(0, 0, 0, 0.25)',
@@ -1346,8 +1346,8 @@ export default function LiveCapture() {
                       {/* Clave Motora (Cue Verbal) */}
                       {realAnalysisData.ipt_evaluation.prescripcion_completa?.cue_verbal && (
                         <div style={{
-                          background: 'rgba(0, 194, 255, 0.1)',
-                          border: '1px solid rgba(0, 194, 255, 0.25)',
+                          background: 'rgba(77, 155, 255, 0.1)',
+                          border: '1px solid rgba(77, 155, 255, 0.25)',
                           borderRadius: '10px',
                           padding: '8px 12px',
                           marginBottom: '10px',
@@ -1355,12 +1355,12 @@ export default function LiveCapture() {
                           alignItems: 'center',
                           gap: '10px'
                         }}>
-                          <span style={{ fontSize: '16px' }}>🗣️</span>
+                          <span style={{ fontSize: '16px' }}></span>
                           <div>
-                            <span style={{ fontSize: '9px', color: '#38bdf8', fontWeight: '800', display: 'block', textTransform: 'uppercase' }}>
+                            <span style={{ fontSize: '9px', color: '#4D9BFF', fontWeight: '800', display: 'block', textTransform: 'uppercase' }}>
                               CLAVE MOTORA (CUE VERBAL DEL ENTRENADOR)
                             </span>
-                            <strong style={{ fontSize: '12px', color: '#00f5a0', display: 'block' }}>
+                            <strong style={{ fontSize: '12px', color: '#FF5A1F', display: 'block' }}>
                               {realAnalysisData.ipt_evaluation.prescripcion_completa.cue_verbal}
                             </strong>
                           </div>
@@ -1370,19 +1370,19 @@ export default function LiveCapture() {
                       {/* Lista de Ejercicios Progresivos */}
                       {realAnalysisData.ipt_evaluation.prescripcion_completa?.ejercicios && (
                         <div style={{ marginBottom: '10px' }}>
-                          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                            🏋️‍♂️ Plan de Ejercicios Correctivos Progresivos
+                          <span style={{ fontSize: '10px', color: '#A1A8B3', fontWeight: '800', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                            Plan de Ejercicios Correctivos Progresivos
                           </span>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {realAnalysisData.ipt_evaluation.prescripcion_completa.ejercicios.map((ex, idx) => (
-                              <div key={idx} style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '10px', padding: '8px 12px', borderLeft: '3px solid #00c2ff' }}>
+                              <div key={idx} style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '10px', padding: '8px 12px', borderLeft: '3px solid #4D9BFF' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                                  <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>{ex.fase}</span>
-                                  <span style={{ fontSize: '9px', background: 'rgba(0, 245, 160, 0.15)', color: '#00f5a0', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>OBJETIVO</span>
+                                  <span style={{ fontSize: '10px', color: '#4D9BFF', fontWeight: '800', textTransform: 'uppercase' }}>{ex.fase}</span>
+                                  <span style={{ fontSize: '9px', background: 'rgba(255, 90, 31, 0.15)', color: '#FF5A1F', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>OBJETIVO</span>
                                 </div>
                                 <strong style={{ fontSize: '12px', color: 'white', display: 'block' }}>{ex.nombre}</strong>
-                                <span style={{ fontSize: '10px', color: '#fde047', display: 'block' }}>⏱️ Protocolo: {ex.protocolo}</span>
-                                <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>🎯 Foco: {ex.foco}</span>
+                                <span style={{ fontSize: '10px', color: '#FBBF24', display: 'block' }}>⏱️ Protocolo: {ex.protocolo}</span>
+                                <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>Foco: {ex.foco}</span>
                               </div>
                             ))}
                           </div>
@@ -1391,8 +1391,8 @@ export default function LiveCapture() {
 
                       {/* Error a Evitar */}
                       {realAnalysisData.ipt_evaluation.prescripcion_completa?.error_evitar && (
-                        <div style={{ background: 'rgba(255, 170, 0, 0.1)', borderLeft: '3px solid #ffaa00', borderRadius: '8px', padding: '8px 12px', fontSize: '10.5px', color: '#fde047' }}>
-                          <strong>⚠️ Qué debe evitar el atleta:</strong> <span style={{ color: '#cbd5e1' }}>{realAnalysisData.ipt_evaluation.prescripcion_completa.error_evitar}</span>
+                        <div style={{ background: 'rgba(251, 191, 36, 0.1)', borderLeft: '3px solid #FBBF24', borderRadius: '8px', padding: '8px 12px', fontSize: '10.5px', color: '#FBBF24' }}>
+                          <strong>Qué debe evitar el atleta:</strong> <span style={{ color: '#D5DAE1' }}>{realAnalysisData.ipt_evaluation.prescripcion_completa.error_evitar}</span>
                         </div>
                       )}
                     </div>
@@ -1402,19 +1402,19 @@ export default function LiveCapture() {
                   {realAnalysisData.preview_frames && realAnalysisData.preview_frames.length > 0 && (
                     <div style={{
                       background: '#040711',
-                      border: '1px solid rgba(0, 194, 255, 0.3)',
+                      border: '1px solid rgba(77, 155, 255, 0.3)',
                       borderRadius: '20px',
                       overflow: 'hidden'
                     }}>
                       <div style={{
                         padding: '10px 16px',
-                        background: 'rgba(15, 23, 42, 0.85)',
+                        background: '#15171A',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
                       }}>
-                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#4D9BFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Eye size={16} />
                           <span>Cuadro Real con Esqueleto MediaPipe</span>
                         </span>
@@ -1439,9 +1439,9 @@ export default function LiveCapture() {
                             );
                           })()}
                           <span style={{
-                            background: 'rgba(0, 245, 160, 0.15)',
-                            color: '#00f5a0',
-                            border: '1px solid rgba(0, 245, 160, 0.3)',
+                            background: 'rgba(255, 90, 31, 0.15)',
+                            color: '#FF5A1F',
+                            border: '1px solid rgba(255, 90, 31, 0.3)',
                             padding: '2px 8px',
                             borderRadius: '6px',
                             fontSize: '11px',
@@ -1463,10 +1463,10 @@ export default function LiveCapture() {
                       </div>
 
                       {/* Selector / Slider de Cuadros */}
-                      <div style={{ padding: '12px 18px', background: 'rgba(9, 15, 28, 0.95)', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                      <div style={{ padding: '12px 18px', background: '#0C0D0F', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
                           <span>Deslizar entre fotogramas procesados:</span>
-                          <strong style={{ color: '#00f5a0' }}>{previewFrameIndex + 1} de {realAnalysisData.preview_frames.length}</strong>
+                          <strong style={{ color: '#FF5A1F' }}>{previewFrameIndex + 1} de {realAnalysisData.preview_frames.length}</strong>
                         </div>
                         <input
                           type="range"
@@ -1474,7 +1474,7 @@ export default function LiveCapture() {
                           max={realAnalysisData.preview_frames.length - 1}
                           value={previewFrameIndex}
                           onChange={(e) => setPreviewFrameIndex(parseInt(e.target.value))}
-                          style={{ width: '100%', accentColor: '#00f5a0', cursor: 'pointer' }}
+                          style={{ width: '100%', accentColor: '#FF5A1F', cursor: 'pointer' }}
                         />
                       </div>
                     </div>
@@ -1482,13 +1482,13 @@ export default function LiveCapture() {
 
                   {/* FICHA DE COORDENADAS ARTICULARES REALES (LANDMARKS) */}
                   <div style={{
-                    background: 'rgba(16, 26, 46, 0.75)',
+                    background: '#15171A',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '18px',
                     padding: '16px'
                   }}>
-                    <strong style={{ fontSize: '12px', color: '#38bdf8', display: 'block', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                      📍 Puntos Anatómicos Reales (MediaPipe Landmarks)
+                    <strong style={{ fontSize: '12px', color: '#4D9BFF', display: 'block', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                      Puntos Anatómicos Reales (MediaPipe Landmarks)
                     </strong>
 
                     {(() => {
@@ -1499,21 +1499,21 @@ export default function LiveCapture() {
 
                       return (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '11px', fontFamily: 'monospace' }}>
-                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #00c2ff' }}>
-                            <span style={{ color: '#94a3b8', display: 'block' }}>Cadera Izquierda (23):</span>
+                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #4D9BFF' }}>
+                            <span style={{ color: '#A1A8B3', display: 'block' }}>Cadera Izquierda (23):</span>
                             <strong style={{ color: 'white' }}>X: {kp?.left_hip?.[0] ?? '—'} · Y: {kp?.left_hip?.[1] ?? '—'}</strong>
                           </div>
-                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #00f5a0' }}>
-                            <span style={{ color: '#94a3b8', display: 'block' }}>Rodilla Izquierda (25):</span>
+                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #FF5A1F' }}>
+                            <span style={{ color: '#A1A8B3', display: 'block' }}>Rodilla Izquierda (25):</span>
                             <strong style={{ color: 'white' }}>X: {kp?.left_knee?.[0] ?? '—'} · Y: {kp?.left_knee?.[1] ?? '—'}</strong>
                           </div>
-                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #fde047' }}>
-                            <span style={{ color: '#94a3b8', display: 'block' }}>Tobillo Izquierdo (27):</span>
+                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #FBBF24' }}>
+                            <span style={{ color: '#A1A8B3', display: 'block' }}>Tobillo Izquierdo (27):</span>
                             <strong style={{ color: 'white' }}>X: {kp?.left_ankle?.[0] ?? '—'} · Y: {kp?.left_ankle?.[1] ?? '—'}</strong>
                           </div>
-                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #ff3366' }}>
-                            <span style={{ color: '#94a3b8', display: 'block' }}>Ángulo Vectorial Rodilla:</span>
-                            <strong style={{ color: '#00f5a0' }}>{m?.left_knee_angle != null ? `${m.left_knee_angle}°` : '—'} (Sim: {m?.symmetry_score != null ? `${m.symmetry_score}%` : '—'})</strong>
+                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #FF6B6B' }}>
+                            <span style={{ color: '#A1A8B3', display: 'block' }}>Ángulo Vectorial Rodilla:</span>
+                            <strong style={{ color: '#FF5A1F' }}>{m?.left_knee_angle != null ? `${m.left_knee_angle}°` : '—'} (Sim: {m?.symmetry_score != null ? `${m.symmetry_score}%` : '—'})</strong>
                           </div>
                         </div>
                       );
@@ -1522,27 +1522,27 @@ export default function LiveCapture() {
 
                   {/* EVALUACIÓN DEL ASISTENTE VIRTUAL IA */}
                   <div style={{
-                    background: 'rgba(0, 245, 160, 0.08)',
-                    border: '1px solid rgba(0, 245, 160, 0.25)',
+                    background: 'rgba(255, 90, 31, 0.08)',
+                    border: '1px solid rgba(255, 90, 31, 0.25)',
                     borderRadius: '16px',
                     padding: '16px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <Bot size={20} color="#00f5a0" />
-                      <strong style={{ fontSize: '13px', color: '#00f5a0', textTransform: 'uppercase' }}>
+                      <Bot size={20} color="#FF5A1F" />
+                      <strong style={{ fontSize: '13px', color: '#FF5A1F', textTransform: 'uppercase' }}>
                         Diagnóstico del Asistente Virtual IA Basado en Datos Reales
                       </strong>
                     </div>
-                    <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: '12px', color: '#D5DAE1', lineHeight: 1.5 }}>
                       {realAnalysisData.ai_evaluations?.praises?.map((p, i) => (
-                        <div key={i} style={{ color: '#00f5a0', marginBottom: '6px' }}>
-                          ✨ <strong>{p.badge}:</strong> {p.message}
+                        <div key={i} style={{ color: '#FF5A1F', marginBottom: '6px' }}>
+                          <strong>{p.badge}:</strong> {p.message}
                         </div>
                       ))}
                       {realAnalysisData.ai_evaluations?.anomalies?.map((a, i) => (
                         <div key={i} style={{ color: a.color, marginBottom: '6px' }}>
-                          ⚠️ <strong>{a.badge}:</strong> {a.message} <br />
-                          <span style={{ color: '#fde047' }}>💡 Consejo: {a.advice}</span>
+                          <strong>{a.badge}:</strong> {a.message} <br />
+                          <span style={{ color: '#FBBF24' }}>Consejo: {a.advice}</span>
                         </div>
                       ))}
                     </div>
@@ -1550,8 +1550,8 @@ export default function LiveCapture() {
 
                   {/* GUARDAR SESIÓN AL ATLETA SELECCIONADO */}
                   <div style={{
-                    background: 'rgba(16, 26, 46, 0.95)',
-                    border: '1px solid rgba(0, 245, 160, 0.4)',
+                    background: '#15171A',
+                    border: '1px solid rgba(255, 90, 31, 0.4)',
                     borderRadius: '18px',
                     padding: '20px',
                     display: 'flex',
@@ -1559,17 +1559,17 @@ export default function LiveCapture() {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                     gap: '14px',
-                    boxShadow: '0 8px 30px rgba(0, 245, 160, 0.12)'
+                    boxShadow: 'none'
                   }}>
                     <div>
-                      <span style={{ fontSize: '10px', color: '#00f5a0', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                      <span style={{ fontSize: '10px', color: '#FF5A1F', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                         GUARDAR EN FICHA DEL ATLETA
                       </span>
                       <h4 style={{ margin: '3px 0', fontSize: '16px', color: 'white', fontWeight: '800' }}>
                         Vincular evaluación a: {selectedAthlete}
                       </h4>
-                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        Puntaje IPT: <strong style={{ color: '#00f5a0' }}>{realAnalysisData.ipt_evaluation?.ipt_score || 0} pts</strong> · Detección: <strong>{realAnalysisData.video_info?.detection_rate_pct}%</strong>
+                      <span style={{ fontSize: '12px', color: '#A1A8B3' }}>
+                        Puntaje IPT: <strong style={{ color: '#FF5A1F' }}>{realAnalysisData.ipt_evaluation?.ipt_score || 0} pts</strong> · Detección: <strong>{realAnalysisData.video_info?.detection_rate_pct}%</strong>
                       </span>
                     </div>
 
@@ -1578,8 +1578,8 @@ export default function LiveCapture() {
                       style={{
                         height: '46px',
                         padding: '0 24px',
-                        background: 'linear-gradient(135deg, #00f5a0, #00c2ff)',
-                        color: '#04121d',
+                        background: '#FF5A1F',
+                        color: '#050607',
                         border: 'none',
                         borderRadius: '14px',
                         fontSize: '13px',
@@ -1588,7 +1588,7 @@ export default function LiveCapture() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        boxShadow: '0 4px 18px rgba(0, 245, 160, 0.4)'
+                        boxShadow: 'none'
                       }}
                     >
                       <CheckCircle2 size={18} />

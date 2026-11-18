@@ -88,7 +88,7 @@ export default function Collaboration() {
   }
 
   return <Layout><div className="feature-page feature-collaboration">
-    <PageHeader eyebrow="ALUMNO Y ENTRENADOR" title="Seguimiento compartido"
+    <PageHeader eyebrow="ENTRENAMIENTO" title="Seguimiento"
       description="Ejercicios, citas y mensajes vinculados a la misma ficha. Actualización automática cada 10 segundos."
       action={<button className="secondary-button" onClick={refresh} disabled={busy || (coach && !athleteId)}>Actualizar</button>} />
     <FeatureBanner icon={Users} title="Entrenador y alumno, en el mismo equipo"

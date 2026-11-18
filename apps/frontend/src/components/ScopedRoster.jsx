@@ -1,7 +1,8 @@
 import {useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Layout,PageHeader,StatCard} from './UI.jsx';
-import {AlertTriangle,CalendarDays,ChevronDown,FileText,GitCompare,RefreshCw,ShieldCheck,Sparkles,TrendingUp,User,Users,Video} from 'lucide-react';
+import {AlertTriangle,CalendarDays,ChevronDown,ChevronRight,FileText,GitCompare,RefreshCw,ShieldCheck,TrendingUp,User,Users,Video} from 'lucide-react';
+import {avisosEquipo,ultimoAnalisis} from '../services/resumenEquipo.js';
 import SessionVideo from './SessionVideo.jsx';
 import {clubRequest} from '../services/roster.js';
 import {AnimatePresence} from 'framer-motion';
@@ -9,7 +10,6 @@ import {Skeleton,cardVariants,listItemVariants,motion,staggerVariants} from './M
 
 const titles={home:'Inicio',compare:'Comparación de sesiones',priority:'Prioridad de apoyo',reports:'Ficha de progreso',sessions:'Sesiones',club:'Atletas del club'};
 const date=v=>new Date(v).toLocaleString('es-CL');
-const score=v=>v==null?'Sin análisis':v+' pts';
 /** Esqueleto con la forma del panel: indicadores, selector y ficha. Solo visual. */
 function RosterSkeleton({stats}){
  return <div className="mh-roster-skeleton" role="status" aria-busy="true">
@@ -27,6 +27,58 @@ function ProfileSkeleton({label}){
   <div className="mh-skeleton-identity"><Skeleton width={56} height={56} radius={16}/><div className="mh-skeleton-stack" style={{flex:1}}><Skeleton width="30%" height={10}/><Skeleton width="55%" height={20}/><Skeleton width="40%" height={11}/></div></div>
   <div className="mh-skeleton-facts">{[0,1,2,3].map(i=><div className="mh-skeleton-stack" key={i}><Skeleton width="70%" height={10}/><Skeleton width="50%" height={14}/></div>)}</div>
  </div>;
+}
+const fmt1=v=>Number(v).toFixed(1);
+const fechaCorta=v=>new Date(v).toLocaleDateString('es-CL',{day:'numeric',month:'short'});
+const CONFIANZA={alta:['ok','Confianza alta'],media:['warn','Confianza media'],baja:['warn','Confianza baja']};
+/** Tarjeta protagonista: IPT del último análisis del atleta elegido y sus mediciones guardadas. */
+function UltimoAnalisis({ficha,resumen}){
+ if(!ficha)return <ProfileSkeleton label="Cargando último análisis…"/>;
+ if(!resumen)return <motion.section variants={cardVariants} className="mh-hero mh-hero-empty">
+  <span className="mh-kicker">Último análisis</span>
+  <h2>{ficha.athlete.name} aún no tiene sesiones analizadas</h2>
+  {ficha.athlete.canEdit&&<Link className="primary-button" to="/capture"><Video size={18}/>Grabar una pasada</Link>}
+ </motion.section>;
+ const conf=CONFIANZA[resumen.confianza];
+ const sector=resumen.sectorPrioritario?.replace(/^Sector \d+:\s*/,'');
+ return <motion.section variants={cardVariants} className="mh-hero" aria-label={'Último análisis de '+ficha.athlete.name}>
+  <div className="mh-hero-head">
+   <span className="mh-kicker">Último análisis</span>
+   <span className="mh-hero-date">{fechaCorta(resumen.session.sessionDate)} · Sesión #{resumen.session.id}</span>
+  </div>
+  <div className="mh-hero-main">
+   <div>
+    <span className="mh-hero-score">{fmt1(resumen.ipt)}</span>
+    <span className="mh-hero-label">IPT · {ficha.athlete.name}</span>
+   </div>
+   <div className="mh-hero-tags">
+    {resumen.deltaIpt!=null&&<span className={'mh-chip '+(resumen.deltaIpt>=0?'ok':'bad')}>{resumen.deltaIpt>0?'+':''}{fmt1(resumen.deltaIpt)}</span>}
+    {conf&&<span className={'mh-chip '+conf[0]}>{conf[1]}</span>}
+   </div>
+  </div>
+  <dl className="mh-hero-metrics">
+   <div><dt>Flexión rodilla</dt><dd>{resumen.flexionRodilla==null?'—':fmt1(resumen.flexionRodilla)+'°'}</dd></div>
+   <div><dt>Simetría</dt><dd className={resumen.simetria!=null&&resumen.simetria<60?'is-bad':''}>{resumen.simetria==null?'—':fmt1(resumen.simetria)+'%'}</dd></div>
+   <div><dt>A trabajar</dt><dd className="mh-hero-text">{sector||'—'}</dd></div>
+  </dl>
+  <Link className="mh-hero-link" to={'/reviews?athleteId='+ficha.athlete.id+'&sessionId='+resumen.session.id}>Ver revisión y ejercicios<ChevronRight size={16}/></Link>
+ </motion.section>;
+}
+/** Lista "Requiere atención": solo avisos calculados con datos guardados. */
+function RequiereAtencion({avisos}){
+ return <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-atencion">
+  <h2 id="mh-atencion" className="mh-block-title">Requiere atención</h2>
+  {avisos.length===0?<p className="mh-empty-line">Nada pendiente en tu equipo.</p>:
+  <ul className="mh-list">
+   {avisos.map(aviso=><li key={aviso.tipo+aviso.athleteId}>
+    <Link to={aviso.tipo==='consentimiento'?'/athletes':'/reviews?athleteId='+aviso.athleteId}>
+     <span className={'mh-dot '+aviso.tono} aria-hidden="true"/>
+     <span className="mh-list-text"><strong>{aviso.nombre}</strong><small>{aviso.texto}</small></span>
+     <ChevronRight size={18} aria-hidden="true" className="mh-list-chevron"/>
+    </Link>
+   </li>)}
+  </ul>}
+ </motion.section>;
 }
 function readable(value){return typeof value==='string'?value:JSON.stringify(value,null,2);}
 export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}) {
@@ -66,12 +118,22 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
  const latest=sessions.find(s=>s.iptScore!=null);
  const initials=(current?.athlete.name||'').split(' ').filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase();
  const scoredFirst=first?.iptScore!=null,scoredLast=last?.iptScore!=null;
+ const hoy=new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'});
+ const organizacion=athletes.find(a=>a.canEdit)?.organizationName||'';
+ const resumen=current?ultimoAnalisis(current.sessions):null;
+ const avisos=mode==='home'?avisosEquipo(athletes,current):[];
  const content=(
   <div className="roster-view">
-   {!embedded && <PageHeader
-    eyebrow={mode==='home'?'PANEL DEL ENTRENADOR':'SEGUIMIENTO LONGITUDINAL'}
-    title={mode==='home'?'Tu equipo, en evolución':titles[mode]}
-    description={mode==='home'?'Revisa el progreso de tus atletas y organiza su seguimiento.':'Consulta sesiones y resultados de los atletas a tu cargo o compartidos por tu club.'}
+   {!embedded && mode==='home' && <PageHeader
+    eyebrow={hoy}
+    title="Tu equipo"
+    description={loading?'Cargando tu equipo…':(organizacion?organizacion+' · ':'')+ownCount+(ownCount===1?' atleta a tu cargo':' atletas a tu cargo')}
+    action={<button type="button" className="icon-button mh-refresh" aria-label="Actualizar datos" onClick={()=>setRevision(r=>r+1)}><RefreshCw size={18}/></button>}
+   />}
+   {!embedded && mode!=='home' && <PageHeader
+    eyebrow="SEGUIMIENTO LONGITUDINAL"
+    title={titles[mode]}
+    description="Consulta sesiones y resultados de los atletas a tu cargo o compartidos por tu club."
     action={<button type="button" className="secondary-button" onClick={()=>setRevision(r=>r+1)}><RefreshCw size={16}/>Actualizar</button>}
    />}
    {embedded && <div className="section-heading"><h2>Atletas de mis clubes</h2></div>}
@@ -83,7 +145,23 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
     {!clubOnly && <Link className="primary-button" to="/athletes">Gestionar atletas</Link>}
    </motion.div>}
    {!loading && !error && athletes.length>0 && <>
-    {!embedded && <motion.section className="stats-grid" variants={staggerVariants(0.05)} initial="initial" animate="animate">
+    {mode==='home' && <>
+     <label className="mh-athlete-picker"><span>Atleta</span>
+      <select value={id} onChange={event=>setId(event.target.value)}>
+       {athletes.map(athlete=><option key={athlete.id} value={athlete.id}>{athlete.name}{athlete.canEdit?'':' · club (solo lectura)'}</option>)}
+      </select>
+     </label>
+     <motion.div className="mh-home-grid" variants={staggerVariants(0.06)} initial="initial" animate="animate">
+      <UltimoAnalisis ficha={current} resumen={resumen}/>
+      <RequiereAtencion avisos={avisos}/>
+     </motion.div>
+     <section className="mh-mini-stats" aria-label="Resumen del equipo">
+      <div><strong>{ownCount}</strong><span>A mi cargo</span></div>
+      <div><strong>{totalSessions}</strong><span>Sesiones</span></div>
+      <div><strong>{clubCount}</strong><span>Del club</span></div>
+     </section>
+    </>}
+    {!embedded && mode!=='home' && <motion.section className="stats-grid" variants={staggerVariants(0.05)} initial="initial" animate="animate">
      <motion.div variants={cardVariants} className="mh-grid-item"><StatCard icon={Users} label="A mi cargo" value={ownCount} detail="atletas propios"/></motion.div>
      <motion.div variants={cardVariants} className="mh-grid-item"><StatCard icon={ShieldCheck} label="Del club" value={clubCount} detail="consulta compartida"/></motion.div>
      <motion.div variants={cardVariants} className="mh-grid-item"><StatCard icon={Video} label="Sesiones" value={totalSessions} detail="en las fichas visibles"/></motion.div>
@@ -91,14 +169,7 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
       value={<AnimatePresence mode="wait" initial={false}><motion.span key={String(latest?.iptScore ?? '—')+'-'+id} className="mh-inline-block"
        initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:.18}}>{latest?.iptScore ?? '—'}</motion.span></AnimatePresence>}/></motion.div>
     </motion.section>}
-    {mode==='home' && <motion.section className="highlight-card" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.18}}>
-     <div className="highlight-icon"><Sparkles size={26}/></div>
-     <div><span className="eyebrow blue">SEGUIMIENTO LONGITUDINAL</span>
-      <h2>Cada sesión cuenta una historia de progreso.</h2>
-      <p>Revisa evaluaciones, acompaña al alumno y convierte sus resultados en un plan de trabajo.</p>
-     </div><Link className="secondary-button" to="/collaboration">Abrir seguimiento</Link>
-    </motion.section>}
-    <motion.section className="toolbar-card roster-toolbar" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.24}}>
+    {mode!=='home' && <motion.section className="toolbar-card roster-toolbar" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.24}}>
      <label><User size={18}/>Atleta evaluado
       <select className="select-control" value={id} onChange={event=>setId(event.target.value)}>
        {athletes.map(athlete=>(
@@ -109,7 +180,7 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
       </select>
      </label>
      <small><ShieldCheck size={13}/> Los datos del club son de solo lectura</small>
-    </motion.section>
+    </motion.section>}
     {mode==='priority' && <>
      <div className="section-heading"><div><span className="eyebrow">SEGUIMIENTO DEL EQUIPO</span><h2>Resultados recientes</h2></div></div>
      <motion.div className="roster-priority-grid" variants={staggerVariants(0.05)} initial="initial" animate="animate">
@@ -190,7 +261,7 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
         <summary>
          <div className="session-icon"><Video size={18}/></div>
          <div className="roster-session-info"><strong>Sesión #{session.id}</strong><small>{date(session.sessionDate)}</small></div>
-         <span className="roster-session-score">{score(session.iptScore)}</span>
+         <span className="roster-session-score">{session.iptScore==null?'—':session.iptScore}<small>{session.iptScore==null?'':' IPT'}</small></span>
          <span className={'status '+(session.iptScore==null?'warning':'success')}><span className="status-dot"/>{session.iptScore==null?'Pendiente de análisis':'Con análisis'}</span>
          <ChevronDown size={18}/>
         </summary>

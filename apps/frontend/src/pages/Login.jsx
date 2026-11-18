@@ -1,4 +1,3 @@
-import {ThemeSwitch} from '../components/Theme.jsx';
 import { Activity, ArrowRight, Lock, Mail, User } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -108,13 +107,12 @@ export default function Login({ onLoginSuccess }) {
   };
 
   const roles = [
-    { value: 'entrenador', label: '👨‍🏫 Entrenador' },
-    { value: 'atleta', label: '🏃‍♂️ Atleta' }
+    { value: 'entrenador', label: 'Entrenador' },
+    { value: 'atleta', label: 'Atleta' }
   ];
 
   return (
     <div className="login-container">
-      <ThemeSwitch/>
       <motion.div className="login-card" variants={staggerVariants(0.05, 0.08)} initial="initial" animate="animate">
         <motion.div className="login-header" variants={cardVariants}>
           <motion.div className="login-brand-icon"

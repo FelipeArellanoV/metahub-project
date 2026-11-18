@@ -24,7 +24,7 @@ desde `http://localhost`. Los prototipos HTML anteriores quedaron en `apps/front
 **Producción** (HTTPS con Let's Encrypt, variables obligatorias, respaldos diarios y healthchecks):
 ver [`docs/despliegue.md`](docs/despliegue.md).
 
-Las decisiones de arquitectura están en [`docs/adr/`](docs/adr) (ADR-001 a ADR-020). El historial de cambios está en [`CHANGELOG.md`](CHANGELOG.md).
+Las decisiones de arquitectura están en [`docs/adr/`](docs/adr) (ADR-001 a ADR-022). El historial de cambios está en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Puesta en marcha
 

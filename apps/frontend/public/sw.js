@@ -6,7 +6,7 @@
  * - Íconos, manifest y fuentes: se sirven desde caché y se actualizan en segundo plano.
  * - /api/*: NUNCA se guarda. Los datos de atletas y videos son personales y deben ser actuales.
  *
- * __BUILD_ID__ se reemplaza al compilar (vite.config.js), así cada versión usa su propio caché
+ * El marcador de VERSION se reemplaza al compilar (plugin metahub-sw-version de vite.config.js), así cada versión usa su propio caché
  * y la anterior se elimina al activarse.
  */
 const VERSION = '__BUILD_ID__';

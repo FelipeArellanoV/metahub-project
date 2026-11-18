@@ -21,7 +21,7 @@ export default function MyEvolution(){
  const sessions=portal?.sessions||[],first=sessions.find(s=>String(s.id)===a),last=sessions.find(s=>String(s.id)===b);
  const valid=first&&last&&a!==b&&first.iptScore!=null&&last.iptScore!=null;
  const delta=valid?last.iptScore-first.iptScore:null;
- return <Layout><PageHeader eyebrow="MI PROGRESO" title="Mi evolución"
+ return <Layout><PageHeader eyebrow="MI PROGRESO" title="Evolución"
  description="Compara únicamente las sesiones vinculadas a tu cuenta. Se actualiza cada 15 segundos."
  action={<Link className="primary-button" to="/upload">Subir video de una nueva sesión</Link>}/>
  {error&&<p role="alert">{error}</p>}

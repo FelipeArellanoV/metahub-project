@@ -6,7 +6,7 @@ import {SkeletonList,cardVariants,listItemVariants,motion} from '../components/M
 import FeatureBanner from '../components/FeatureBanner.jsx';
 import {clubRequest} from '../services/roster.js';
 const labels={pending:'Pendiente de revisión',reviewed:'Revisada',requires_new_video:'Solicita nueva captura'};
-const date=v=>new Date(v).toLocaleString('es-CL');
+const date=v=>new Date(v).toLocaleString('es-CL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 function ReviewCard({session,tasks,canEdit,onReload}){
  const [status,setStatus]=useState(session.reviewStatus),[notes,setNotes]=useState(session.observations);
  const [title,setTitle]=useState(''),[details,setDetails]=useState(''),[due,setDue]=useState('');
@@ -42,19 +42,19 @@ function ReviewCard({session,tasks,canEdit,onReload}){
    <label className="form-field"><span>Estado de revisión</span><select disabled={busy} value={status} onChange={e=>{dirty.current=true;setStatus(e.target.value);}}>
     {Object.entries(labels).map(([key,label])=><option key={key} value={key}>{label}</option>)}
    </select></label>
-   <label className="form-field"><span>Observaciones para el alumno</span><textarea disabled={busy} required={status!=='pending'} maxLength={3000} value={notes} onChange={e=>{dirty.current=true;setNotes(e.target.value);}} style={{minHeight:100}}/></label>
+   <label className="form-field"><span>Observaciones para el alumno</span><textarea disabled={busy} required={status!=='pending'} maxLength={3000} value={notes} onChange={e=>{dirty.current=true;setNotes(e.target.value);}} className="mh-textarea-tall"/></label>
    {draftVersion!==session.reviewVersion && <p role="alert">La revisión cambió en otra ventana. Tus observaciones sin guardar se conservan; carga la revisión actual antes de volver a guardar.</p>}
    <button disabled={busy} className="primary-button">Guardar revisión</button>
-   <button type="button" disabled={busy} onClick={()=>{
+   <button type="button" className="text-button mh-text-action" disabled={busy} onClick={()=>{
     dirty.current=false;setStatus(session.reviewStatus);setNotes(session.observations);setDraftVersion(session.reviewVersion);setError('');
    }}>Cargar revisión actual (descarta el borrador)</button>
-  </form>:<><h3>Observación del entrenador</h3><p style={{whiteSpace:'pre-wrap'}}>{session.observations||'Sin observaciones publicadas.'}</p></>}
+  </form>:<><h3>Observación del entrenador</h3><p className="mh-prewrap">{session.observations||'Sin observaciones publicadas.'}</p></>}
   <h3>Ejercicios vinculados a esta sesión</h3>
   {!tasks.length&&<p>Aún no hay ejercicios vinculados.</p>}
   <p>{tasks.filter(t=>t.done).length} completados de {tasks.length} asignados.</p>
   <ul className="feature-linked-tasks">{tasks.map(t=><li key={t.id}><strong>{t.title}</strong> · {t.done?'Completado':'Pendiente'}
-   <p style={{whiteSpace:'pre-wrap'}}>{t.details}</p>{t.dueAt&&<p>Fecha objetivo: {date(t.dueAt)}</p>}</li>)}</ul>
-  {canEdit&&<form onSubmit={e=>{e.preventDefault();save(true);}}>
+   <p className="mh-prewrap">{t.details}</p>{t.dueAt&&<p>Fecha objetivo: {date(t.dueAt)}</p>}</li>)}</ul>
+  {canEdit&&<details className="mh-collapsible"><summary>Vincular un ejercicio a esta sesión</summary><form onSubmit={e=>{e.preventDefault();save(true);}}>
    {Array.isArray(exercises)&&exercises.length>0&&<label className="form-field"><span>Tomar como base una sugerencia del análisis</span>
     <select disabled={busy} defaultValue="" onChange={e=>{
      if(!e.target.value)return;
@@ -67,7 +67,7 @@ function ReviewCard({session,tasks,canEdit,onReload}){
    <label className="form-field"><span>Indicaciones, series y descansos</span><textarea disabled={busy} required maxLength={2000} value={details} onChange={e=>setDetails(e.target.value)}/></label>
    <label className="form-field"><span>Fecha objetivo (opcional, hora local)</span><input disabled={busy} type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/></label>
    <button disabled={busy} className="primary-button">Asignar ejercicio vinculado</button>
-  </form>}
+  </form></details>}
  </motion.article>;
 }
 export default function SessionReviews(){
@@ -96,7 +96,7 @@ export default function SessionReviews(){
   return()=>{clearInterval(timer);generation.current++;};
  },[reload]);
  const visible=data?.sessions.filter(s=>(filter==='all'||s.reviewStatus===filter)&&(!selectedSession||String(s.id)===selectedSession))||[];
- return <Layout><div className="feature-page feature-reviews"><PageHeader eyebrow="CIERRE DEL CICLO" title={coach?'Revisión de sesiones':'Mis revisiones y plan'}
+ return <Layout><div className="feature-page feature-reviews"><PageHeader eyebrow="ANÁLISIS" title={coach?'Revisiones':'Revisiones y plan'}
  description="Observaciones del entrenador y ejercicios vinculados a cada evaluación."
  action={<button className="secondary-button" type="button" onClick={reload}>Actualizar</button>}/>
  <FeatureBanner icon={ClipboardCheck} title={coach?'Una revisión que se convierte en progreso':'Tu entrenador acompaña cada sesión'}

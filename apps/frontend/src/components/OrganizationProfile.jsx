@@ -5,7 +5,7 @@ export default function OrganizationProfile(){
  let coach=false;try{coach=JSON.parse(localStorage.getItem('metahub_user')||'{}').role==='entrenador';}catch{}
  useEffect(()=>{clubRequest('/organization').then(r=>setName(r.organizationName)).catch(e=>setError(e.message));},[]);
  if(!coach)return null;
- return <form className="panel-card" style={{marginBottom:20}} onSubmit={async e=>{
+ return <form className="panel-card mh-org-form" onSubmit={async e=>{
   e.preventDefault();setBusy(true);setSaved(false);setError('');
   try{await clubRequest('/organization','PUT',{organizationName:name});setSaved(true);}
   catch(err){setError(err.message);}finally{setBusy(false);}
