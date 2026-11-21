@@ -57,6 +57,69 @@ import { validateVideoFile } from '../services/videoValidation.js';
 const MAX_RECORD_SECONDS = 120;
 const RECORDER_TYPES = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
 
+const ESTADO_PASO = {
+  dentro_de_referencia: { texto: 'En rango', color: '#4ADE80' },
+  dentro_del_error_del_metodo: { texto: 'Dentro del error', color: '#FBBF24' },
+  alteracion: { texto: 'Alteración', color: '#FF5A1F' },
+  no_comparable: { texto: 'No comparable', color: '#8A93A0' },
+  insuficiente: { texto: 'Pocos pasos', color: '#8A93A0' }
+};
+const fmtNum = (v, d = 1) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(d) : '—');
+
+/** Estadística por paso medida en el video, con su referencia publicada y el motivo si no se compara. */
+function EstadisticaPorPaso({ cinematica }) {
+  const vars = cinematica.variables || {};
+  const comp = cinematica.comparacion || {};
+  const avisos = [
+    cinematica.motivo,
+    cinematica.es_sprint && !cinematica.es_sprint.es_sprint ? cinematica.es_sprint.motivo : null,
+    cinematica.regularidad && !cinematica.regularidad.regular ? (cinematica.regularidad.motivos || []).join(' ') : null,
+    cinematica.apoyo_estable && !cinematica.apoyo_estable.estable ? cinematica.apoyo_estable.motivo : null
+  ].filter(Boolean);
+  const filas = Object.entries(comp);
+  return (
+    <div style={{ background: '#15171A', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '18px', padding: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <strong style={{ fontSize: '13px', color: '#4D9BFF', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Estadística por paso</strong>
+        <span style={{ fontSize: '11px', color: '#A1A8B3' }}>
+          {cinematica.conteo_pasos ?? 0} contactos · {fmtNum(cinematica.fs_muestreo, 0)} cuadros/s reales
+          {cinematica.es_sprint?.frecuencia_paso_hz ? ` · ${fmtNum(cinematica.es_sprint.frecuencia_paso_hz, 2)} pasos/s` : ''}
+        </span>
+      </div>
+      {avisos.length > 0 && (
+        <div role="note" style={{ fontSize: '12px', color: '#FBBF24', background: 'rgba(251, 191, 36, 0.08)', borderRadius: '10px', padding: '8px 10px', marginBottom: '10px', lineHeight: 1.45 }}>
+          {avisos.map((a, i) => <p key={i} style={{ margin: i ? '6px 0 0' : 0 }}>{a}</p>)}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {filas.map(([clave, c]) => {
+          const v = vars[clave] || {};
+          const est = ESTADO_PASO[c.estado] || ESTADO_PASO.no_comparable;
+          const ref = c.referencia || {};
+          return (
+            <div key={clave} style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '10px', padding: '8px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12px' }}>
+                <span style={{ color: '#F2F4F7', fontWeight: 700 }}>{c.etiqueta}</span>
+                <span style={{ color: est.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{est.texto}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', color: '#A1A8B3', marginTop: '2px', flexWrap: 'wrap' }}>
+                <span>
+                  {v.n ? `${fmtNum(v.media_global ?? v.media, clave.endsWith('_s') || clave.endsWith('_hz') ? 2 : 1)}${v.de != null ? ` ± ${fmtNum(v.de, clave.endsWith('_s') || clave.endsWith('_hz') ? 2 : 1)}` : ''} ${c.unidad} · n ${v.n}${v.cv_pct != null ? ` · CV ${fmtNum(v.cv_pct, 0)} %` : ''}` : 'Sin medición'}
+                </span>
+                <span>Ref. {ref.media} ± {ref.de} {c.unidad}{typeof c.z === 'number' ? ` · z ${c.z > 0 ? '+' : ''}${fmtNum(c.z, 1)}` : ''}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: '11px', color: '#8A93A0', margin: '10px 0 0', lineHeight: 1.45 }}>
+        Referencia: velocistas adultos varones a máxima velocidad, video 2D (Miyashiro et al., 2019). Con una cámara no se
+        distingue la pierna izquierda de la derecha: la simetría compara pasos alternos (pierna A y B).
+      </p>
+    </div>
+  );
+}
+
 export default function LiveCapture() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
@@ -224,6 +287,7 @@ export default function LiveCapture() {
   // Modo de operación: 'camera' o 'video_upload'
   const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'video_upload'
   const [selectedVideoFile, setSelectedVideoFile] = useState(null);
+  const [slowMotionFactor, setSlowMotionFactor] = useState('1'); // cámara lenta guardada a 30 cuadros/s (ADR-023)
   const [isProcessingVideo, setIsProcessingVideo] = useState(false);
   const [videoProcessingStep, setVideoProcessingStep] = useState('');
   const [realAnalysisData, setRealAnalysisData] = useState(null);
@@ -245,7 +309,12 @@ export default function LiveCapture() {
   const handleSaveRealSession = async () => {
     if (!realAnalysisData || !selectedAthleteId) return;
     try {
-      const ipt = realAnalysisData.ipt_evaluation?.ipt_score || 0;
+      const ipt = realAnalysisData.ipt_evaluation?.ipt_score;
+      if (!Number.isFinite(ipt)) {
+        // Sin IPT medido no se guarda un 0 inventado (ADR-018).
+        alert(realAnalysisData.ipt_evaluation?.motivo || 'Este video no produjo un IPT medible. Graba otra pasada.');
+        return;
+      }
       await api.sessions.create({
         athleteId: selectedAthleteId,
         sessionDate: new Date().toISOString(),
@@ -281,8 +350,11 @@ export default function LiveCapture() {
         formData.append('file', selectedVideoFile);
         formData.append('use_sample', 'false');
       }
-      formData.append('sample_stride', '3');
-      formData.append('max_frames', '90');
+      // Recorrido completo cuadro a cuadro: la medición por paso necesita 60 o más cuadros/s reales (ADR-023).
+      formData.append('sample_stride', '1');
+      formData.append('scan_full_video', 'true');
+      formData.append('max_samples', '4500');
+      if (Number(slowMotionFactor) > 1) formData.append('factor_camara_lenta', slowMotionFactor);
 
       // El servicio de visión se alcanza a través de la API, que exige sesión iniciada.
       const response = await fetch(apiUrl, {
@@ -966,6 +1038,20 @@ export default function LiveCapture() {
                     <span>{selectedVideoFile ? `Archivo: ${selectedVideoFile.name}` : 'Seleccionar Video de tu Dispositivo'}</span>
                   </button>
 
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#A1A8B3', textAlign: 'left' }}>
+                    Velocidad del video
+                    <select
+                      value={slowMotionFactor}
+                      onChange={e => setSlowMotionFactor(e.target.value)}
+                      style={{ height: '40px', borderRadius: '12px', background: '#15171A', color: 'white', border: '1px solid rgba(255, 255, 255, 0.18)', padding: '0 10px', fontSize: '12px' }}
+                    >
+                      <option value="1">Normal (o cámara lenta guardada a 120/240 cuadros)</option>
+                      <option value="2">Cámara lenta ×2 (60 cuadros/s guardada a 30)</option>
+                      <option value="4">Cámara lenta ×4 (120 cuadros/s guardada a 30)</option>
+                      <option value="8">Cámara lenta ×8 (240 cuadros/s guardada a 30)</option>
+                    </select>
+                  </label>
+
                   {selectedVideoFile && (
                     <button
                       onClick={() => handleProcessVideoUpload(false)}
@@ -1108,13 +1194,13 @@ export default function LiveCapture() {
                       <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '10px 4px' }}>
                         <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>PICO EXTENSIÓN</span>
                         <strong style={{ fontSize: '16px', color: '#FF5A1F', fontFamily: 'monospace' }}>
-                          {realAnalysisData.summary_metrics.peak_knee_extension.toFixed(1)}°
+                          {fmtNum(realAnalysisData.summary_metrics?.peak_knee_extension, 1)}°
                         </strong>
                       </div>
                       <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '10px 4px' }}>
-                        <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>SIMETRÍA MEDIA</span>
+                        <span style={{ fontSize: '10px', color: '#A1A8B3', display: 'block' }}>RITMO DE PASO</span>
                         <strong style={{ fontSize: '16px', color: '#FBBF24', fontFamily: 'monospace' }}>
-                          {realAnalysisData.summary_metrics.avg_symmetry_score.toFixed(1)}%
+                          {fmtNum(realAnalysisData.cinematica_eventos?.es_sprint?.frecuencia_paso_hz, 2)} /s
                         </strong>
                       </div>
                     </div>
@@ -1197,7 +1283,12 @@ export default function LiveCapture() {
                       }}>
                         <div style={{ textAlign: 'center', minWidth: '90px' }}>
                           <span style={{ fontSize: '36px', fontWeight: '900', color: realAnalysisData.ipt_evaluation.color || '#FF5A1F', fontFamily: 'monospace', lineHeight: 1 }}>
-                            {realAnalysisData.ipt_evaluation.ipt_score.toFixed(1)}
+                            {Number.isFinite(realAnalysisData.ipt_evaluation.ipt_score) ? realAnalysisData.ipt_evaluation.ipt_score.toFixed(1) : "—"}
+                            {Array.isArray(realAnalysisData.ipt_evaluation.ic95) && (
+                              <small style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#A1A8B3' }}>
+                                IC 95 %: {realAnalysisData.ipt_evaluation.ic95[0]}–{realAnalysisData.ipt_evaluation.ic95[1]}
+                              </small>
+                            )}
                           </span>
                           <span style={{ display: 'block', fontSize: '10px', color: '#8B939E', fontWeight: '700' }}>/ 100 PTS</span>
                         </div>
@@ -1230,7 +1321,7 @@ export default function LiveCapture() {
                     </div>
                   )}
 
-                  {/* DESGLOSE EN 3 SECTORES CINEMÁTICOS DE ZANCADA */}
+                  {/* DESGLOSE POR SECTOR: cada variable comparada con la referencia publicada (ADR-023) */}
                   {realAnalysisData.ipt_evaluation?.desglose_sectores && (
                     <div style={{
                       background: '#15171A',
@@ -1238,70 +1329,57 @@ export default function LiveCapture() {
                       borderRadius: '18px',
                       padding: '16px'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px', flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: '13px', color: '#4D9BFF', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                          Desglose de los 3 Sectores Cinemáticos (UCT)
+                          Sectores frente a la referencia
                         </strong>
-                        <span style={{ fontSize: '11px', color: '#A1A8B3' }}>3 Fases por Ciclo</span>
+                        <span style={{ fontSize: '11px', color: '#A1A8B3' }}>
+                          {realAnalysisData.ipt_evaluation.provisional ? 'IPT provisional' : 'Todos los sectores evaluados'}
+                        </span>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {/* Sector 1: Propulsión */}
-                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #FBBF24' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#FBBF24' }}>SECTOR 1: PROPULSIÓN (40%)</span>
-                            <strong style={{ fontSize: '13px', color: '#FBBF24', fontFamily: 'monospace' }}>
-                              {realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score} pts
-                            </strong>
+                        {Object.entries(realAnalysisData.ipt_evaluation.desglose_sectores).map(([clave, sector]) => (
+                          <div key={clave} style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: `3px solid ${sector.score == null ? '#5B6370' : '#4D9BFF'}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#F2F4F7' }}>
+                                {String(sector.nombre || clave).toUpperCase()} ({sector.ponderacion || '0%'})
+                              </span>
+                              <strong style={{ fontSize: '13px', color: '#F2F4F7', fontFamily: 'monospace' }}>
+                                {sector.score == null ? 'Sin datos' : `${sector.score} pts`}
+                              </strong>
+                            </div>
+                            {(sector.variables || []).map(v => (
+                              <div key={v.variable} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', color: '#A1A8B3', marginBottom: '4px' }}>
+                                <span>{v.etiqueta}: <strong style={{ color: 'white' }}>
+                                  {v.izquierda != null ? `izq. ${v.izquierda} / der. ${v.derecha}` : v.valor}
+                                </strong></span>
+                                <span>{v.referencia ? `Ref. ${v.referencia} · ` : ''}z {Number(v.z) > 0 ? '+' : ''}{v.z}</span>
+                              </div>
+                            ))}
+                            {sector.score == null && (
+                              <div style={{ fontSize: '11px', color: '#A1A8B3', marginBottom: '4px' }}>
+                                No se pudo comparar con la referencia en este video.
+                              </div>
+                            )}
+                            <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: '100%', height: '100%', background: '#4D9BFF', transform: `scaleX(${Math.max(0, Math.min(100, Number(sector.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
-                            <span>Triple Extensión: <strong style={{ color: 'white' }}>{realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.angulo_real?.toFixed(1)}°</strong></span>
-                            <span>Objetivo: 165° - 175°</span>
-                          </div>
-                          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: '#FF5A1F', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_1_propulsion?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
-                          </div>
-                        </div>
-
-                        {/* Sector 2: Vuelo / Recobro */}
-                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #4D9BFF' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#4D9BFF' }}>SECTOR 2: VUELO / RECOBRO (35%)</span>
-                            <strong style={{ fontSize: '13px', color: '#4D9BFF', fontFamily: 'monospace' }}>
-                              {realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score} pts
-                            </strong>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
-                            <span>Péndulo Corto (talón a glúteo): <strong style={{ color: 'white' }}>{realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.angulo_real?.toFixed(1)}°</strong></span>
-                            <span>Objetivo: &lt; 70° (Rodilla &gt; 85°)</span>
-                          </div>
-                          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: '#FF5A1F', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.sector_2_recobro?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
-                          </div>
-                        </div>
-
-                        {/* Sector 3: Contacto / Simetría */}
-                        <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', padding: '10px 14px', borderLeft: '3px solid #FF5A1F' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#FF5A1F' }}>SECTOR 3: CONTACTO / SIMETRÍA (25%)</span>
-                            <strong style={{ fontSize: '13px', color: '#FF5A1F', fontFamily: 'monospace' }}>
-                              {realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score} pts
-                            </strong>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#A1A8B3', marginBottom: '6px' }}>
-                            <span>Simetría Bilateral de Apoyo: <strong style={{ color: 'white' }}>{realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.porcentaje_real?.toFixed(1)}%</strong></span>
-                            <span>Objetivo: ≥ 92.0%</span>
-                          </div>
-                          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: '100%', height: '100%', background: '#FF5A1F', transform: `scaleX(${Math.max(0, Math.min(100, Number(realAnalysisData.ipt_evaluation.desglose_sectores.simetria_bilateral?.score) || 0)) / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {/* PRESCRIPCIÓN PERSONALIZADA Y CONSEJOS IA (PLAN PROGRESIVO DE CORRECCIÓN) */}
-                  {realAnalysisData.ipt_evaluation && (
+                  {/* ESTADÍSTICA POR PASO: lo medido en el video y su comparación con la referencia (ADR-023) */}
+                  {realAnalysisData.cinematica_eventos && (
+                    <EstadisticaPorPaso cinematica={realAnalysisData.cinematica_eventos} />
+                  )}
+
+                  {/* PLAN DE TRABAJO: solo si el análisis encontró variables fuera de la referencia (misma regla que
+                      Ejercicios del entrenador y el Portal del atleta, ADR-023) */}
+                  {realAnalysisData.ipt_evaluation && realAnalysisData.recomendaciones?.disponible
+                    && (realAnalysisData.recomendaciones.hallazgos || []).length > 0 && (
                     <div style={{
                       background: '#202328',
                       border: '1px solid rgba(255, 107, 107, 0.35)',
@@ -1569,7 +1647,7 @@ export default function LiveCapture() {
                         Vincular evaluación a: {selectedAthlete}
                       </h4>
                       <span style={{ fontSize: '12px', color: '#A1A8B3' }}>
-                        Puntaje IPT: <strong style={{ color: '#FF5A1F' }}>{realAnalysisData.ipt_evaluation?.ipt_score || 0} pts</strong> · Detección: <strong>{realAnalysisData.video_info?.detection_rate_pct}%</strong>
+                        Puntaje IPT: <strong style={{ color: '#FF5A1F' }}>{realAnalysisData.ipt_evaluation?.ipt_score ?? '—'} pts</strong> · Detección: <strong>{realAnalysisData.video_info?.detection_rate_pct}%</strong>
                       </span>
                     </div>
 

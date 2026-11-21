@@ -1,5 +1,6 @@
 """Pruebas del motor de recomendaciones (ADR-018): sin dato no hay recomendación."""
 from recomendaciones import banda_edad, evaluar_confianza, generar_recomendaciones
+from metrics_engine import calculate_ipt_referenciado
 
 VIDEO_OK = {"valid_rate_pct": 90.0, "valid_frames": 120, "low_confidence": False}
 ARTIC_OK = {"articulaciones_evaluadas": 3, "articulaciones": {
@@ -8,12 +9,11 @@ ARTIC_OK = {"articulaciones_evaluadas": 3, "articulaciones": {
     "tobillo": {"evaluable": True, "simetria": 60.0}}}
 
 
-def ipt(s1=94.0, s2=100.0, s3=90.0, ang1=170.0, ang2=60.0, sim=92.0, excluida=False):
-    return {"desglose_sectores": {
-        "sector_1_propulsion": {"score": s1, "angulo_real": ang1, "rango_optimo": "165° - 175°"},
-        "sector_2_recobro": {"score": s2, "angulo_real": ang2, "rango_optimo": "< 70°"},
-        "simetria_bilateral": {"score": s3, "porcentaje_real": sim, "rango_optimo": "≥ 92.0%"}},
-        "symmetry_excluded": excluida}
+def ipt(**valores):
+    """IPT v2 a partir de la comparación con la referencia (ADR-023)."""
+    from cinematica_eventos import comparar_con_referencia
+    variables = {k: {"n": 6, "media": v, "por_pierna": {}} for k, v in valores.items()}
+    return calculate_ipt_referenciado(comparar_con_referencia(variables, 120.0, 15, True))
 
 
 def test_banda_de_edad():
@@ -35,50 +35,50 @@ def test_sin_metricas_no_recomienda():
 
 
 def test_baja_confianza_no_recomienda():
-    r = generar_recomendaciones(ipt(s3=40.0), ARTIC_OK, {"valid_rate_pct": 45.0, "valid_frames": 80}, 15)
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=60.0), ARTIC_OK, {"valid_rate_pct": 45.0, "valid_frames": 80}, 15)
     assert r["disponible"] is False and "repite el video" in r["motivo_no_disponible"]
-    r = generar_recomendaciones(ipt(s3=40.0), ARTIC_OK, {"valid_rate_pct": 90.0, "valid_frames": 12}, 15)
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=60.0), ARTIC_OK, {"valid_rate_pct": 90.0, "valid_frames": 12}, 15)
     assert r["disponible"] is False
-    r = generar_recomendaciones(ipt(s3=40.0), ARTIC_OK, None, 15)
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=60.0), ARTIC_OK, None, 15)
     assert r["confianza"]["nivel"] == "baja" and r["disponible"] is False
-    r = generar_recomendaciones(ipt(s3=40.0), ARTIC_OK, {**VIDEO_OK, "low_confidence": True}, 15)
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=60.0), ARTIC_OK, {**VIDEO_OK, "low_confidence": True}, 15)
     assert r["disponible"] is False
 
 
 def test_tecnica_en_rango_no_genera_hallazgos():
-    r = generar_recomendaciones(ipt(), ARTIC_OK, VIDEO_OK, 15)
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=32.0, rodilla_despegue=156.0), ARTIC_OK, VIDEO_OK, 15)
     assert r["disponible"] is True and r["hallazgos"] == [] and "mensaje" in r
 
 
-def test_hallazgos_por_sector_con_fuente_y_estado():
-    r = generar_recomendaciones(ipt(s1=60.0, ang1=150.0, s2=40.0, ang2=95.0, s3=43.2, sim=77.4),
-                                ARTIC_OK, VIDEO_OK, 15)
+def test_hallazgos_con_referencia_publicada():
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=60.0, distancia_relativa_contacto=66.0,
+                                    rodilla_despegue=160.0), ARTIC_OK, VIDEO_OK, 15)
     ids = [h["id"] for h in r["hallazgos"]]
-    assert ids == ["propulsion", "recobro", "simetria"]
+    assert ids == ["rodilla_min_balanceo", "distancia_relativa_contacto"]   # ordenados por |z|
     for h in r["hallazgos"]:
-        assert h["fuente"] and h["estado_respaldo"] and h["metrica"] and h["umbral"]
+        assert h["fuente"].startswith("Miyashiro") and h["estado_respaldo"] == "referencia_publicada"
+        assert h["metrica"] and h["umbral"] and h["severidad"] == "alta"
     por_id = {h["id"]: h for h in r["hallazgos"]}
-    assert por_id["propulsion"]["severidad"] == "media" and por_id["recobro"]["severidad"] == "alta"
-    assert por_id["recobro"]["estado_respaldo"] == "respaldo_parcial"
-    assert por_id["simetria"]["valor"] == 77.4
-    assert "tobillo" in por_id["simetria"]["interpretacion"]      # la articulación menos simétrica
-    assert "2D" in por_id["simetria"]["interpretacion"]
+    assert por_id["rodilla_min_balanceo"]["tipo"] == "recobro"
+    assert por_id["distancia_relativa_contacto"]["tipo"] == "contacto"
+    assert "sobrezancada" in por_id["distancia_relativa_contacto"]["interpretacion"]
+    assert "adultos" in por_id["rodilla_min_balanceo"]["interpretacion"]      # atleta de 15 años
 
 
-def test_simetria_excluida_no_genera_hallazgo():
-    r = generar_recomendaciones(ipt(s3=0.0, excluida=True), ARTIC_OK, VIDEO_OK, 15)
-    assert all(h["id"] != "simetria" for h in r["hallazgos"])
-    assert any("Simetría" in t for t in r["no_evaluado"])
+def test_diferencia_menor_que_el_error_del_metodo_no_genera_hallazgo():
+    # 44° en el recobro: z = 2,2 pero 12,4° no supera el error del método (14,6°).
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=44.0), ARTIC_OK, VIDEO_OK, 15)
+    assert r["hallazgos"] == []
 
 
-def test_no_se_recomienda_por_cadencia_ni_tronco():
-    r = generar_recomendaciones(ipt(s1=60.0), ARTIC_OK, VIDEO_OK, 15)
-    assert all(h["tipo"] in ("propulsion", "recobro", "simetria") for h in r["hallazgos"])
-    assert any("Cadencia" in t for t in r["no_evaluado"])
+def test_variables_no_comparables_se_declaran():
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=32.0), ARTIC_OK, VIDEO_OK, 15)
+    assert any(t.startswith("Rodilla al contacto") for t in r["no_evaluado"])
+    assert any("tronco" in t for t in r["no_evaluado"])
 
 
 def test_edad_desconocida_se_declara():
-    r = generar_recomendaciones(ipt(s1=60.0), ARTIC_OK, VIDEO_OK, None)
+    r = generar_recomendaciones(ipt(rodilla_min_balanceo=60.0), ARTIC_OK, VIDEO_OK, None)
     assert r["banda_edad"]["etiqueta"] is None and "Edad no registrada" in r["advertencia"]
 
 
@@ -88,13 +88,7 @@ def test_confianza_media_por_pocas_articulaciones():
 
 
 if __name__ == "__main__":
-    test_banda_de_edad()
-    test_sin_metricas_no_recomienda()
-    test_baja_confianza_no_recomienda()
-    test_tecnica_en_rango_no_genera_hallazgos()
-    test_hallazgos_por_sector_con_fuente_y_estado()
-    test_simetria_excluida_no_genera_hallazgo()
-    test_no_se_recomienda_por_cadencia_ni_tronco()
-    test_edad_desconocida_se_declara()
-    test_confianza_media_por_pocas_articulaciones()
-    print("[OK] Pruebas del motor de recomendaciones aprobadas.")
+    pruebas = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+    for prueba in pruebas:
+        prueba()
+    print(f"[OK] {len(pruebas)} pruebas del motor de recomendaciones aprobadas.")

@@ -1,68 +1,90 @@
-// Inicio del entrenador: último análisis y avisos, solo con datos guardados.
+// Inicio del entrenador y Portal del atleta: mismo "último análisis", mismos datos (ADR-023).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ultimoAnalisis, avisosEquipo, SIMETRIA_BAJA } from '../src/services/resumenEquipo.js';
+import { resumenDeAnalisis, ultimaSesionConAnalisis } from '../src/services/analisisSesion.js';
+import { ejerciciosParaHallazgos, dosisPara, bandaDeEdad } from '../src/services/catalogoEjercicios.js';
 
-const sesion = (id, ipt, sm = {}, extra = {}) => ({
-  id, sessionDate: '2026-11-14T23:00:00Z', iptScore: ipt,
-  analysis: ipt == null ? null : { summary_metrics: sm, ...extra }
+const v2 = (ipt, extra = {}) => ({
+  ipt_score: ipt, version: '2.0-referenciado', sector_prioritario: 'Sector 2: Recobro',
+  desglose_sectores: { simetria_bilateral: { score: 55, variables: [{ variable: 'rodilla_min_balanceo' }] } },
+  cinematica_eventos: { variables: { rodilla_min_balanceo: { media: 41.2 } } },
+  recomendaciones: { disponible: true, confianza: { nivel: 'alta' }, hallazgos: [] },
+  ...extra
+});
+const sesion = (id, ipt, analysis) => ({ id, sessionDate: '2026-11-19T12:00:00Z', iptScore: ipt, analysis });
+
+test('el último análisis es la sesión más reciente con análisis y se compara con el IPT anterior', () => {
+  const r = ultimoAnalisis([sesion(5, 80, v2(80)), sesion(4, 72.5, v2(72.5))]);
+  assert.equal(r.session.id, 5);
+  assert.equal(r.ipt, 80);
+  assert.equal(r.deltaIpt, 7.5);
+  assert.equal(r.flexionRodilla, 41.2);          // rodilla mínima del recobro medida por paso
+  assert.equal(r.simetria, 55);                  // simetría por pasos alternos (pierna A y B)
+  assert.equal(r.sectorPrioritario, 'Sector 2: Recobro');
 });
 
-// Datos con la forma real de la API (sesiones #3 y #2 de la base de desarrollo).
-const s3 = sesion(3, 60.8, { min_knee_flexion: 95.24, avg_symmetry_score: 42.54, symmetry_valid: true },
-  { sector_prioritario: 'Sector 3: Simetría / Contacto', recomendaciones: { confianza: { nivel: 'baja' } } });
-const s2 = sesion(2, 60.6, { min_knee_flexion: 90.04, avg_symmetry_score: 89.92, symmetry_valid: true });
-
-test('el último análisis es la sesión más reciente con IPT y se compara con la anterior', () => {
-  const r = ultimoAnalisis([s3, s2]);
-  assert.equal(r.session.id, 3);
-  assert.equal(r.ipt, 60.8);
-  assert.equal(r.deltaIpt, 0.2);
-  assert.equal(r.flexionRodilla, 95.24);
-  assert.equal(r.simetria, 42.54);
-  assert.equal(r.simetriaAnterior, 89.92);
-  assert.equal(r.sectorPrioritario, 'Sector 3: Simetría / Contacto');
-  assert.equal(r.confianza, 'baja');
-});
-
-test('ignora sesiones pendientes de análisis y no inventa diferencia sin sesión anterior', () => {
-  const r = ultimoAnalisis([sesion(9, null), s2]);
-  assert.equal(r.session.id, 2);
-  assert.equal(r.deltaIpt, null);
-  assert.equal(r.simetriaAnterior, null);
-  assert.equal(ultimoAnalisis([sesion(9, null)]), null);
-  assert.equal(ultimoAnalisis([]), null);
+test('una sesión en análisis no reemplaza al último análisis; un análisis sin IPT sí, con su motivo', () => {
+  const enCola = sesion(9, null, null);
+  const r = ultimoAnalisis([enCola, sesion(4, 72.5, v2(72.5))]);
+  assert.equal(r.session.id, 4);
+  const trote = sesion(10, null, v2(null, { motivo: 'Sin IPT: ritmo de trote.', recomendaciones: { disponible: false } }));
+  const r2 = ultimoAnalisis([trote, sesion(4, 72.5, v2(72.5))]);
+  assert.equal(r2.session.id, 10);
+  assert.equal(r2.ipt, null);
+  assert.equal(r2.motivoSinIpt, 'Sin IPT: ritmo de trote.');
+  assert.equal(r2.deltaIpt, null);
+  assert.equal(r2.sectorPrioritario, null);      // sin IPT no hay sector "a trabajar"
+  assert.equal(ultimoAnalisis([enCola]), null);
   assert.equal(ultimoAnalisis(undefined), null);
 });
 
-test('una simetría marcada como no válida no se muestra', () => {
-  const r = ultimoAnalisis([sesion(4, 70, { avg_symmetry_score: 30, symmetry_valid: false })]);
+test('la simetría por rótulos izquierda/derecha de análisis antiguos no se muestra ni genera avisos', () => {
+  const antigua = sesion(3, 60.8, { ipt_score: 60.8, summary_metrics: { avg_symmetry_score: 42.5, symmetry_valid: true } });
+  const r = ultimoAnalisis([antigua]);
   assert.equal(r.simetria, null);
+  assert.deepEqual(avisosEquipo([], { athlete: { id: 1, name: 'A' }, sessions: [antigua] }), []);
 });
 
-test('avisos: simetría baja primero, luego confianza baja y consentimientos pendientes', () => {
+test('avisos: hallazgos de la técnica primero, luego calidad, video sin IPT y consentimientos', () => {
   const athletes = [
     { id: 2, name: 'Atleta Prueba UI', canEdit: true, consent: true },
     { id: 3, name: 'Segundo Atleta UI', canEdit: true, consent: false },
     { id: 7, name: 'Atleta de otro entrenador', canEdit: false, consent: false }
   ];
-  const avisos = avisosEquipo(athletes, { athlete: athletes[0], sessions: [s3, s2] });
+  const conHallazgos = sesion(6, 58, v2(58, { recomendaciones: { disponible: true, confianza: { nivel: 'baja' }, hallazgos: [
+    { id: 'simetria_x', tipo: 'simetria', titulo: 'Diferencia entre piernas' },
+    { id: 'rodilla_min_balanceo', tipo: 'recobro', titulo: 'Rodilla mínima en el recobro fuera del rango de referencia' }] } }));
+  const avisos = avisosEquipo(athletes, { athlete: athletes[0], sessions: [conHallazgos] });
   assert.deepEqual(avisos.map(a => [a.nombre, a.tipo, a.tono]), [
     ['Atleta Prueba UI', 'simetria', 'alto'],
+    ['Atleta Prueba UI', 'hallazgo', 'alto'],
     ['Atleta Prueba UI', 'confianza', 'medio'],
     ['Segundo Atleta UI', 'consentimiento', 'medio']
   ]);
-  assert.equal(avisos[0].texto, 'Simetría bajó de 89.9% a 42.5%');
+  assert.equal(avisos[1].texto, 'Rodilla mínima en el recobro fuera del rango de referencia');
+  const sinIpt = sesion(10, null, v2(null, { recomendaciones: { disponible: false, confianza: { nivel: 'media' } } }));
+  assert.deepEqual(avisosEquipo([], { athlete: athletes[0], sessions: [sinIpt] }).map(a => a.tipo), ['simetria', 'sin_ipt']);
 });
 
-test('sin ficha seleccionada solo avisa los consentimientos de atletas propios', () => {
-  const avisos = avisosEquipo([{ id: 3, name: 'B', canEdit: true, consent: false }], null);
-  assert.equal(avisos.length, 1);
-  assert.equal(avisos[0].tipo, 'consentimiento');
-  assert.deepEqual(avisosEquipo([], null), []);
-});
-
-test(`una simetría de ${SIMETRIA_BAJA}% o más no genera aviso`, () => {
-  const ok = sesion(5, 80, { avg_symmetry_score: SIMETRIA_BAJA, symmetry_valid: true });
+test(`una simetría entre pasos de ${SIMETRIA_BAJA} pts o más, sin hallazgos, no genera aviso`, () => {
+  const ok = sesion(5, 80, v2(80, { desglose_sectores: { simetria_bilateral: { score: SIMETRIA_BAJA, variables: [{}] } } }));
   assert.deepEqual(avisosEquipo([], { athlete: { id: 1, name: 'A' }, sessions: [ok] }), []);
+});
+
+test('el atleta y el entrenador ven los mismos hallazgos y los mismos ejercicios del catálogo', () => {
+  const hallazgos = [{ id: 'distancia_relativa_contacto', tipo: 'contacto', titulo: 'Pie por delante…' },
+                     { id: 'rodilla_min_balanceo', tipo: 'recobro', titulo: 'Rodilla mínima…' }];
+  const s = sesion(8, 61, v2(61, { recomendaciones: { disponible: true, hallazgos } }));
+  // Portal: lee el último análisis desde latestAnalysis; Inicio/Ejercicios: desde la lista de sesiones.
+  const portal = resumenDeAnalisis({ analysis: s.analysis });
+  const entrenador = resumenDeAnalisis(ultimaSesionConAnalisis([sesion(9, null, null), s]));
+  assert.deepEqual(portal.hallazgos, entrenador.hallazgos);
+  assert.equal(portal.ipt, entrenador.ipt);
+  const ej = ejerciciosParaHallazgos(portal.hallazgos).map(d => d.id);
+  assert.ok(ej.includes('D-05'), 'sobrezancada -> zarpazo');
+  assert.ok(ej.includes('D-01'), 'recobro -> skipping A');
+  assert.deepEqual(ejerciciosParaHallazgos([]), []);              // sin hallazgos no se sugieren ejercicios
+  assert.match(dosisPara({ dosingByCat: { 'Sub-16': '3x8' } }, bandaDeEdad(15)), /3x8/);
+  assert.match(dosisPara({ dosingByCat: {} }, bandaDeEdad(30)), /entrenador/);
 });

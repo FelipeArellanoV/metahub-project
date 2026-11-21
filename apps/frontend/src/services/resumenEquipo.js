@@ -1,62 +1,64 @@
 // Lógica pura del Inicio del entrenador: último análisis y avisos del equipo.
 // Solo usa datos guardados; si falta un valor devuelve null en vez de inventarlo.
-import { extraerMetricasSesion } from './metricasSesion.js';
+// El "último análisis" es el mismo que ve el atleta en su Portal (services/analisisSesion.js).
+import { iptDeSesion, resumenDeAnalisis, ultimaSesionConAnalisis } from './analisisSesion.js';
 
-/** Umbral bajo el cual la simetría se marca como aviso (porcentaje). */
+/** Puntaje del sector de simetría (pasos alternos) bajo el cual se marca un aviso. */
 export const SIMETRIA_BAJA = 60;
 
-const conIpt = s => Number.isFinite(s?.iptScore ?? s?.analysis?.ipt_score);
-
 /**
- * Último análisis con IPT de un atleta y su comparación con el anterior.
+ * Último análisis de un atleta y su comparación con el análisis con IPT anterior.
  * `sessions` llega de la API ordenado de la más reciente a la más antigua.
+ * Si el último análisis no tiene IPT (por ejemplo, un trote o pies tapados), se informa con su motivo.
  */
 export function ultimoAnalisis(sessions) {
-  const puntuadas = (sessions || []).filter(conIpt);
-  const ultima = puntuadas[0];
+  const ultima = ultimaSesionConAnalisis(sessions);
   if (!ultima) return null;
-  const anterior = puntuadas[1] || null;
-  const m = extraerMetricasSesion(ultima);
-  const prev = anterior ? extraerMetricasSesion(anterior) : null;
-  const a = ultima.analysis || {};
-  const simetriaValida = a.summary_metrics?.symmetry_valid !== false;
+  const r = resumenDeAnalisis(ultima);
+  const lista = sessions || [];
+  const anterior = lista.slice(lista.indexOf(ultima) + 1).find(s => iptDeSesion(s) != null) || null;
+  const rAnt = anterior ? resumenDeAnalisis(anterior) : null;
   const dif = (x, y) => (Number.isFinite(x) && Number.isFinite(y) ? Math.round((x - y) * 10) / 10 : null);
   return {
     session: ultima,
     anterior,
-    ipt: m.ipt,
-    deltaIpt: prev ? dif(m.ipt, prev.ipt) : null,
-    flexionRodilla: Number.isFinite(m.kneeAngle) ? m.kneeAngle : null,
-    simetria: simetriaValida && Number.isFinite(m.symmetry) ? m.symmetry : null,
-    simetriaAnterior: prev && Number.isFinite(prev.symmetry) ? prev.symmetry : null,
-    sectorPrioritario: typeof a.sector_prioritario === 'string' ? a.sector_prioritario : null,
-    confianza: a.recomendaciones?.confianza?.nivel || null
+    ipt: r.ipt,
+    motivoSinIpt: r.motivoSinIpt,
+    ic95: r.ic95,
+    deltaIpt: rAnt ? dif(r.ipt, rAnt.ipt) : null,
+    flexionRodilla: r.rodillaRecobro,
+    simetria: r.simetriaPasos,
+    simetriaAnterior: rAnt ? rAnt.simetriaPasos : null,
+    sectorPrioritario: r.sectorPrioritario,
+    confianza: r.confianza,
+    hallazgos: r.hallazgos
   };
 }
 
 /**
- * Avisos para "Requiere atención". Primero los de tono 'alto' (riesgo en la técnica),
- * luego los 'medio' (trámites o calidad del video).
+ * Avisos para "Requiere atención". Primero los de tono 'alto' (hallazgos en la técnica),
+ * luego los 'medio' (calidad del video, video sin IPT y trámites).
  * @param athletes lista del roster
  * @param ficha atleta seleccionado ({ athlete, sessions }) o null
  */
 export function avisosEquipo(athletes, ficha) {
   const avisos = [];
   const resumen = ficha ? ultimoAnalisis(ficha.sessions) : null;
-  if (resumen && resumen.simetria != null && resumen.simetria < SIMETRIA_BAJA) {
-    const fmt = v => v.toFixed(1) + '%';
-    avisos.push({
-      athleteId: ficha.athlete.id, nombre: ficha.athlete.name, tono: 'alto', tipo: 'simetria',
-      texto: resumen.simetriaAnterior != null
-        ? `Simetría bajó de ${fmt(resumen.simetriaAnterior)} a ${fmt(resumen.simetria)}`
-        : `Simetría de ${fmt(resumen.simetria)} en la última sesión`
-    });
+  const base = resumen ? { athleteId: ficha.athlete.id, nombre: ficha.athlete.name } : null;
+  if (resumen && resumen.hallazgos.some(h => h.tipo === 'simetria')) {
+    avisos.push({ ...base, tono: 'alto', tipo: 'simetria', texto: 'Diferencia entre piernas fuera de la referencia en el último análisis' });
+  } else if (resumen && resumen.simetria != null && resumen.simetria < SIMETRIA_BAJA) {
+    avisos.push({ ...base, tono: 'alto', tipo: 'simetria', texto: `Simetría entre pasos de ${Math.round(resumen.simetria)} pts en el último análisis` });
+  }
+  const otros = resumen ? resumen.hallazgos.filter(h => h.tipo !== 'simetria') : [];
+  if (otros.length) {
+    avisos.push({ ...base, tono: 'alto', tipo: 'hallazgo',
+      texto: otros.length === 1 ? otros[0].titulo : `${otros.length} variables fuera de la referencia en el último análisis` });
   }
   if (resumen && resumen.confianza === 'baja') {
-    avisos.push({
-      athleteId: ficha.athlete.id, nombre: ficha.athlete.name, tono: 'medio', tipo: 'confianza',
-      texto: 'Último análisis con confianza baja: conviene repetir la toma'
-    });
+    avisos.push({ ...base, tono: 'medio', tipo: 'confianza', texto: 'Último análisis con confianza baja: conviene repetir la toma' });
+  } else if (resumen && resumen.ipt == null) {
+    avisos.push({ ...base, tono: 'medio', tipo: 'sin_ipt', texto: 'Último video sin IPT: revisa el motivo y repite la toma' });
   }
   for (const a of athletes || []) {
     if (a.canEdit && !a.consent) {

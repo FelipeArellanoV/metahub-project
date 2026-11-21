@@ -33,8 +33,14 @@ def test_process_sample_full_scan():
     assert info['detection_rate_pct'] >= 80, info
     m = j['summary_metrics']
     assert 0 < m['peak_knee_extension'] <= 180
-    assert 0 <= m['avg_symmetry_score'] <= 100
-    assert 0 <= j['ipt_evaluation']['ipt_score'] <= 100
+    # La simetría por rótulos izquierda/derecha se marca como no válida (ADR-023): no se informa como dato.
+    assert m['avg_symmetry_score'] is None and m['symmetry_valid'] is False
+    assert 0 <= m['symmetry_rom_rotulos_crudo'] <= 100
+    # IPT v2 (ADR-023): el clip de muestra (3 s, 30 cuadros/s) no tiene zancadas comparables; sin
+    # variables comparables no hay IPT y se informa el motivo, nunca un puntaje inventado.
+    _ipt = j['ipt_evaluation']['ipt_score']
+    assert (_ipt is None and j['ipt_evaluation']['motivo']) or 0 <= _ipt <= 100
+    assert 'comparacion' in j['cinematica_eventos']
     ipt = j['ipt_evaluation']
     assert ipt['estado_validacion'] == 'experimental_no_validado' and ipt['advertencia']
     assert 'rodilla_p95' in ipt['inputs_robustos']

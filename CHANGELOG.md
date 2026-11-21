@@ -2,6 +2,60 @@
 
 Reconstruido el 2026-10-30 a partir del historial de git (rama `main`). Los mensajes originales se conservan entre paréntesis.
 
+## [Sin publicar] 2026-11-19: IPT v3, índice de perfil técnico (ADR-024)
+### Cambiado
+- **IPT v3 = 100 − 10 · RMS(z)** sobre las variables cinemáticas comparables con la referencia de Miyashiro et al. (2019).
+  - Usa la escala del Gait Deviation Index (100 = referencia, 10 puntos = 1 DE) y la agregación sin pesos del Gait Profile Score.
+  - Se eliminan los pesos 35/25/25/15, la escala lineal de 1 a 4 DE y los cortes 75/90 de diseño.
+- Cada IPT trae su **IC 95 %** (bootstrap de los pasos) y su **perfil** (z y aporte de cada variable).
+  - El IC se muestra en el Inicio, el Portal y el Laboratorio.
+- La simetría entre pasos (A/B) usa la misma escala y no entra al IPT.
+- Categorías derivadas de la escala: ≥ 90 (menos de 1 DE), 80–90 (1 a 2 DE) y < 80 (más de 2 DE). Las medallas pasan a 80 y 90.
+- Los hallazgos ya no dependen del IPT: una variable fuera de la referencia se informa aunque no haya variables suficientes para el índice.
+
+## [Sin publicar] 2026-11-19: medición por paso sin rótulos de pierna e IPT v2 referenciado (ADR-023)
+### Agregado
+- `cv-service/cinematica_eventos.py` mide paso a paso **sin depender de los rótulos izquierda/derecha de MediaPipe**, que en vista lateral intercambia las piernas.
+  - El contacto se detecta con el pie más bajo; la pierna de apoyo y la de recobro se identifican por su posición.
+  - Mide la rodilla, el muslo y la distancia cadera-pie en el contacto y en el despegue; la rodilla mínima y la elevación del muslo en el recobro; y la frecuencia de paso y los tiempos de apoyo y vuelo.
+  - Cada variable trae su estadística: n, media, DE, CV e IC 95 %.
+- Reglas físicas y de calidad:
+  - el pie toca el suelo por delante de la cadera;
+  - la secuencia de contactos se limpia con el ritmo dominante (programación dinámica): los pasos perdidos cortan la secuencia sin inventar contactos;
+  - se exige regularidad de los pasos;
+  - se detectan apoyos inestables (pies en el borde de la imagen);
+  - se reconoce cuando el video es un trote y no un sprint.
+- Simetría por pasos alternos: se comparan los pasos de la pierna A con los de la B, sin afirmar cuál es la izquierda.
+- `referencias.REFERENCIA_MAXIMA_VELOCIDAD`: valores publicados de Miyashiro et al. (2019), velocistas varones con video 2D en máxima velocidad.
+- Comparación con la referencia: una variable es "alteración" solo si se aleja más de 2 DE y además la diferencia supera el error del método (14,6°). Si no es comparable, se informa el motivo.
+- Cámara lenta: selector ×2/×4/×8 al subir el video y en el Laboratorio. Se guarda en la nueva columna `athlete_video_uploads.slow_motion_factor` (migración 008).
+- Laboratorio: tabla "Estadística por paso" con cada variable, su referencia, su estado y los motivos.
+- `test_cinematica_eventos.py`: 18 pruebas. Se agregaron al CI.
+
+### Cambiado
+- **IPT v2:** cada variable se puntúa por su distancia a la referencia (z). Los sectores son Propulsión, Recobro, Contacto y Simetría. El IPT v1 queda solo como `ipt_v1_diseno`.
+- Los hallazgos y las recomendaciones salen de la comparación con la referencia, no de las ventanas de diseño. Se agregó el tipo "contacto" (sobrezancada), que se asocia al ejercicio de zarpazo.
+- El video se analiza cuadro a cuadro, hasta 240 cuadros/s. Antes se submuestreaba a 15.
+- El filtro de rodilla imposible bajó de 30° a 20°.
+- En el Laboratorio, el desglose del IPT se arma con los datos, con cada variable y su referencia. Ya no muestra los objetivos 165°–175° y < 70° escritos en el código.
+
+### Corregido
+- La ventana de 165°–175° en el empuje contradecía la literatura (155,4 ± 4,8° al despegue) y podía marcar como déficit una técnica normal.
+- `main.py` emitía mensajes sin respaldo: "Excelente transferencia propulsiva", "esperado >160°" y "Prescribir Skipping unilateral".
+- El Laboratorio guardaba un IPT de 0 cuando el análisis no producía puntaje.
+- Si ningún dato del video se puede comparar con la referencia, ya no se calcula un IPT. Se informa el motivo concreto.
+- Una sesión sin IPT ahora se guarda igual, con la estadística medida y el motivo. Antes la cola la descartaba.
+- La simetría por rango de movimiento usaba los rótulos izquierda/derecha de MediaPipe, que no son fiables en vista lateral. Podía generar falsas alertas de "simetría baja" en el Inicio. Ahora se marca como no válida.
+- El Laboratorio analizaba como máximo 90 cuadros, uno de cada tres. Ahora analiza el video completo, cuadro a cuadro.
+- **Vistas del entrenador y del atleta sincronizadas.** Leen el análisis con la misma lógica (`services/analisisSesion.js`) y el mismo catálogo de ejercicios (`services/catalogoEjercicios.js`).
+  - Mismo "último análisis": la sesión más reciente que ya tiene análisis. Antes, el Inicio tomaba la última con IPT, Ejercicios la última aunque estuviera en cola y el Portal la última con análisis.
+  - Mismos ejercicios: los del catálogo que corresponden a los hallazgos. Antes, el atleta veía el plan fijo del sector con menor puntaje aunque no hubiera hallazgos, y el entrenador veía otros ejercicios. El Laboratorio sigue la misma regla.
+  - La diferencia de IPT del Portal ahora se calcula contra el análisis anterior, igual que el Inicio. Antes era contra el primero, aunque decía "desde tu sesión anterior".
+  - Un video sin IPT se muestra en ambas vistas con su motivo. En el Inicio genera el aviso "Último video sin IPT".
+  - La simetría por rótulos ya no se muestra ni genera alertas o medallas, tampoco en análisis antiguos. Se usa la simetría entre pasos alternos, también en Comparar.
+  - El Inicio y Ejercicios del entrenador se actualizan cada 15 s, como las vistas del atleta.
+  - El texto "Fórmula IPT" del Portal describía la fórmula antigua.
+
 ## [Sin publicar] 2026-11-17 — nuevo diseño visual (etapa 3: resto de pantallas) y funciones que fingían funcionar
 ### Cambiado
 - Comparar: selectores de atleta, "Antes" y "Después"; tarjeta con el IPT antes y después; grilla de cambios por medición, y videos con el esqueleto. Se quitaron las frases de "Impacto", que afirmaban beneficios aunque la medición empeorara, y el veredicto entre comillas.

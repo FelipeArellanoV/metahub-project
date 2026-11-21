@@ -1,4 +1,5 @@
 // Lógica pura de la comparación de sesiones (T-06). Se separó de Compare.jsx para poder probarla.
+import { resumenDeAnalisis } from './analisisSesion.js';
 
 export const formatearMetrica = (value, digits) => Number.isFinite(value) ? value.toFixed(digits) : 'Sin medición';
 
@@ -31,9 +32,12 @@ export function extraerMetricasSesion(session) {
   const cadencePpm = sm.cadence_ppm ?? Math.round(cadenceHz * 60);
   const strideLengthM = sm.stride_length_m ?? NaN;
   const speedMs = sm.speed_ms ?? NaN;
-  const kneeAngle = sm.avg_knee_angle ?? sm.min_knee_flexion ?? NaN;
+  // Misma lectura que el Inicio y el Portal (ADR-023): rodilla mínima del recobro medida por paso y
+  // simetría entre pasos alternos. La simetría por rótulos izquierda/derecha no se usa.
+  const lectura = resumenDeAnalisis(session);
+  const kneeAngle = lectura.rodillaRecobro ?? sm.avg_knee_angle ?? NaN;
   const hipAngle = sm.avg_hip_angle ?? sm.peak_hip_extension ?? NaN;
-  const symmetry = sm.avg_symmetry_score ?? NaN;
+  const symmetry = lectura.simetriaPasos ?? NaN;
   const trunkLean = sm.trunk_lean_angle ?? NaN;
 
   const dateFormatted = session.sessionDate

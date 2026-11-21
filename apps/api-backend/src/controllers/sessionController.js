@@ -17,7 +17,11 @@ const dbRepository = require('../db/repository');
 
 const ANALYSIS_KEYS = [
   'ipt_score', 'categoria', 'badge', 'diagnostico', 'desglose_sectores',
-  'sector_prioritario', 'drill_prescrito', 'prescripcion_completa'
+  'sector_prioritario', 'drill_prescrito', 'prescripcion_completa',
+  // IPT v2 referenciado (ADR-023)
+  'version', 'provisional', 'sectores_evaluados', 'sectores_no_evaluados', 'comparacion_referencia', 'ipt_v1_diseno', 'motivo',
+  // IPT v3 (ADR-024): intervalo de confianza, perfil por variable y método
+  'ic95', 'perfil', 'variables_usadas', 'fases_evaluadas', 'interpretacion', 'metodo'
 ];
 const MAX_ANALYSIS_BYTES = 512 * 1024;
 
@@ -57,6 +61,10 @@ function buildAnalysisSummary(raw) {
   }
   if (raw.recomendaciones && typeof raw.recomendaciones === 'object') {
     summary.recomendaciones = raw.recomendaciones;
+  }
+  // Estadística por evento de zancada y comparación con la referencia (ADR-023)
+  if (raw.cinematica_eventos && typeof raw.cinematica_eventos === 'object') {
+    summary.cinematica_eventos = raw.cinematica_eventos;
   }
   if (ipt.inputs_robustos) summary.inputs_robustos = ipt.inputs_robustos;
   if (ipt.estado_validacion) summary.estado_validacion = ipt.estado_validacion;

@@ -74,6 +74,8 @@ function computeProgress(sessions = [], latestAnalysis = null) {
   const latestIpt = analyzed.length ? analyzed[analyzed.length - 1] : null;
   const bestIpt = analyzed.length ? Math.max(...analyzed) : null;
   const deltaIpt = analyzed.length >= 2 ? round1(latestIpt - firstIpt) : null;
+  // Diferencia con el análisis con IPT anterior: la misma que muestra el Inicio del entrenador.
+  const deltaAnterior = analyzed.length >= 2 ? round1(latestIpt - analyzed[analyzed.length - 2]) : null;
 
   let gained = 0;
   for (let i = 1; i < analyzed.length; i++) {
@@ -83,7 +85,11 @@ function computeProgress(sessions = [], latestAnalysis = null) {
   const xp = Math.round(sessionCount * XP_PER_SESSION + gained * XP_PER_IPT_POINT_GAINED);
   const levelInfo = resolveLevel(xp);
 
-  const symmetry = latestAnalysis?.summary_metrics?.avg_symmetry_score;
+  // Simetría entre pasos alternos (IPT v2, ADR-023). La simetría por rótulos izquierda/derecha no se usa:
+  // MediaPipe intercambia las piernas en vista lateral.
+  const sectorSimetria = latestAnalysis?.version ? latestAnalysis?.desglose_sectores?.simetria_bilateral : null;
+  const symmetry = sectorSimetria && Array.isArray(sectorSimetria.variables) && sectorSimetria.variables.length
+    ? sectorSimetria.score : null;
 
   const medals = [
     {
@@ -104,14 +110,14 @@ function computeProgress(sessions = [], latestAnalysis = null) {
       id: 'ipt_75',
       icon: '🚀',
       title: 'Técnica en desarrollo',
-      detail: 'IPT de 75 o más',
-      earned: bestIpt !== null && bestIpt >= 75
+      detail: 'IPT de 80 o más: a menos de 2 DE de la referencia',
+      earned: bestIpt !== null && bestIpt >= 80
     },
     {
       id: 'ipt_90',
       icon: '🏆',
-      title: 'Élite escolar',
-      detail: 'IPT de 90 o más',
+      title: 'Cerca de la referencia',
+      detail: 'IPT de 90 o más: a menos de 1 DE de los velocistas de referencia',
       earned: bestIpt !== null && bestIpt >= 90
     },
     {
@@ -125,8 +131,8 @@ function computeProgress(sessions = [], latestAnalysis = null) {
       id: 'symmetry',
       icon: '🎯',
       title: 'Simetría',
-      detail: 'Simetría bilateral de 92% o más',
-      earned: typeof symmetry === 'number' && symmetry >= 92
+      detail: 'Pasos de ambas piernas parecidos (simetría de 90 pts o más)',
+      earned: typeof symmetry === 'number' && symmetry >= 90
     }
   ];
 
@@ -137,6 +143,7 @@ function computeProgress(sessions = [], latestAnalysis = null) {
     latestIpt: latestIpt === null ? null : round1(latestIpt),
     bestIpt: bestIpt === null ? null : round1(bestIpt),
     deltaIpt,
+    deltaAnterior,
     ...levelInfo,
     medals
   };

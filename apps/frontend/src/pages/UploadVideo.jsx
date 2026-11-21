@@ -17,6 +17,8 @@ export default function UploadVideo(){
  let coach=false;try{coach=JSON.parse(localStorage.getItem('metahub_user')||'{}').role==='entrenador';}catch{}
  const [file,setFile]=useState(null),[preview,setPreview]=useState(''),[duration,setDuration]=useState(null);
  const [uploading,setUploading]=useState(false),[progress,setProgress]=useState(null);
+ // Cámara lenta guardada a 30 cuadros/s: el análisis necesita el factor para medir en tiempo real (ADR-023).
+ const [slowMotion,setSlowMotion]=useState('1');
  const [error,setError]=useState(''),[message,setMessage]=useState(''),[videos,setVideos]=useState([]),[retrying,setRetrying]=useState({});
  const [athletes,setAthletes]=useState([]),[athleteId,setAthleteId]=useState(''),[listError,setListError]=useState('');
  // Solo para mostrar esqueletos mientras llega la primera respuesta (no cambia qué se carga).
@@ -87,7 +89,7 @@ export default function UploadVideo(){
   try{
    if(!uploadId.current)uploadId.current=createRequestId();
    const saved=await uploadVideo({
-    query:'requestId='+uploadId.current+'&filename='+encodeURIComponent(file.name)+(query?'&'+query:''),
+    query:'requestId='+uploadId.current+'&filename='+encodeURIComponent(file.name)+'&slowMotion='+slowMotion+(query?'&'+query:''),
     file,signal:controller.signal,
     onProgress:(sent,total)=>setProgress({sent,total})
    });
@@ -138,6 +140,14 @@ export default function UploadVideo(){
   <h2 className="feature-title"><Video size={21}/>Video de la carrera</h2>
   <p className="device-video-info">Archivos MP4, WebM o MOV (iPhone) de hasta 5 min y {formatBytes(MAX_VIDEO_BYTES)}. Antes de enviar se revisa el formato, el peso y la duración.</p>
   <DeviceVideoInput disabled={uploading||(coach&&!athleteId)} onFile={chooseFile}/>
+  <label className="mh-athlete-picker"><span>Velocidad del video</span>
+   <select value={slowMotion} disabled={uploading} onChange={e=>setSlowMotion(e.target.value)}>
+    <option value="1">Normal (o cámara lenta que el celular guarda a 120/240 cuadros)</option>
+    <option value="2">Cámara lenta ×2 (60 cuadros/s guardada a 30)</option>
+    <option value="4">Cámara lenta ×4 (120 cuadros/s guardada a 30)</option>
+    <option value="8">Cámara lenta ×8 (240 cuadros/s guardada a 30)</option>
+   </select>
+  </label>
   <form onSubmit={submit}>
    {file&&<><h3>Vista previa antes de enviar</h3>
     <p>{file.name} · {formatBytes(file.size)}{duration!=null?' · '+Math.round(duration)+' s':''}</p>

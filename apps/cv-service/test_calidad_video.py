@@ -78,7 +78,7 @@ def test_calidad_insuficiente_bloquea_recomendaciones_y_explica_como_mejorar():
     t, m = _buen_video(width=320, height=240)
     info = {"valid_rate_pct": 95, "valid_frames": 100, "low_confidence": False,
             "calidad_video": cv.evaluar_calidad_video(t, m, 95.0), "calidad_datos": {"chequeos": []}}
-    ipt = {"desglose_sectores": {"sector_1_propulsion": {"score": 40, "angulo_real": 150, "rango_optimo": "165-175"}}}
+    ipt = {"comparacion_referencia": {"rodilla_min_balanceo": {"etiqueta": "Rodilla mínima en el recobro", "estado": "alteracion", "z": 5.1, "valor": 60.0, "unidad": "°", "sentido": "mayor", "referencia": {"media": 31.6, "de": 5.6}}}}
     r = recomendaciones.generar_recomendaciones(ipt, {"articulaciones_evaluadas": 3}, info, 15)
     assert r["disponible"] is False and r["hallazgos"] == []
     assert "Grabar en 720p" in r["motivo_no_disponible"]

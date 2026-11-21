@@ -253,6 +253,86 @@ def resumir_articulaciones(series: Dict[str, List[float]]) -> Dict[str, Any]:
     return out
 
 
+# Planes de trabajo por sector (hipótesis para el entrenador; dosis a revisar por un profesional).
+PLANES_ENTRENAMIENTO = {
+    "Sector 1: Propulsión": {
+        "causa_biomecanica": "Hipótesis a verificar por el entrenador: la rodilla de la pierna de empuje queda fuera de la ventana de diseño (165°-175°), lo que puede indicar una extensión incompleta del empuje. La medición 2D puede alterar este valor.",
+        "cue_verbal": "¡Empuja el suelo hacia atrás como si quisieras deslizar la pista hacia atrás!",
+        "ejercicios": [
+            {
+                "fase": "Fase 1 · Activación",
+                "nombre": "Empuje en pared a 45° con triple extensión",
+                "protocolo": "3 series x 8 reps por pierna (pausa isométrica de 2s en bloqueo)",
+                "foco": "Alinear tobillo, rodilla y cadera sin arquear la zona lumbar."
+            },
+            {
+                "fase": "Fase 2 · Fuerza Reactiva",
+                "nombre": "Bounding unipodal reactivo en pista",
+                "protocolo": "4 series x 15 metros buscando máxima proyección horizontal",
+                "foco": "Aplicar fuerza contra el tartán en lugar de saltar hacia arriba."
+            },
+            {
+                "fase": "Fase 3 · Transferencia",
+                "nombre": "Sprint lanzado con arrastre ligero (5-8% peso corporal)",
+                "protocolo": "3 pasadas x 30m al 95% de intensidad",
+                "foco": "Sentir la extensión completa antes de cambiar de apoyo."
+            }
+        ],
+        "error_evitar": "Evitar inclinar el torso excesivamente hacia adelante, lo que quiebra la línea de transmisión de fuerza lumbo-pélvica."
+    },
+    "Sector 2: Recobro": {
+        "causa_biomecanica": "Hipótesis a verificar por el entrenador: el ángulo interior de rodilla en el recobro supera el valor de diseño (70°), lo que puede indicar que el talón sube poco hacia el glúteo.",
+        "cue_verbal": "¡Talón instantáneo al glúteo, como si pisaras asfalto ardiendo!",
+        "ejercicios": [
+            {
+                "fase": "Fase 1 · Aislamiento",
+                "nombre": "Talón al glúteo dinámico con dorsiflexión activa",
+                "protocolo": "3 series x 20 reps en el lugar con cadencia rápida",
+                "foco": "El talón debe rozar el isquion con el tobillo a 90°."
+            },
+            {
+                "fase": "Fase 2 · Coordinación",
+                "nombre": "Skipping A sobre micro-vallas de 30-40cm",
+                "protocolo": "4 series x 8 vallas espaciadas a 1.2 metros",
+                "foco": "Obligar a la rodilla a subir por encima de la valla con palanca corta."
+            },
+            {
+                "fase": "Fase 3 · Transferencia",
+                "nombre": "Aceleración progresiva con foco 'Rodilla Alta / Talón Rápido'",
+                "protocolo": "3 pasadas x 40m alcanzando 90% de velocidad",
+                "foco": "Mantener la cadencia rápida sin arrastrar los pies hacia atrás."
+            }
+        ],
+        "error_evitar": "Evitar 'patear hacia atrás' antes de recoger la pierna; la trayectoria del talón debe ser circular y hacia adelante."
+    },
+    "Sector 3: Simetría / Contacto": {
+        "causa_biomecanica": "Hipótesis a verificar por el entrenador: una pierna recorre menos rango de movimiento que la otra. La causa no se determina con este análisis y la perspectiva 2D puede generar asimetrías aparentes.",
+        "cue_verbal": "¡Pisa firme justo debajo de tus caderas, rebotando como un resorte rígido!",
+        "ejercicios": [
+            {
+                "fase": "Fase 1 · Estabilidad",
+                "nombre": "Puente glúteo unilateral y plancha lateral con abducción",
+                "protocolo": "3 series x 12 repeticiones por pierna",
+                "foco": "Eliminar la caída pélvica dinámica (signo de Trendelenburg)."
+            },
+            {
+                "fase": "Fase 2 · Pliometría Unilateral",
+                "nombre": "Saltos unipodales sobre cajón bajo (20cm) con caída rígida",
+                "protocolo": "3 series x 6 saltos por pierna con amortiguación breve",
+                "foco": "Nivelar la rigidez articular entre ambas piernas."
+            },
+            {
+                "fase": "Fase 3 · Transferencia",
+                "nombre": "Pasadas de 30m sobre línea recta con metatarso activo",
+                "protocolo": "4 pasadas buscando contacto neutro sin cruzar pies",
+                "foco": "Igualar la longitud de zancada entre pierna izquierda y derecha."
+            }
+        ],
+        "error_evitar": "Evitar el apoyo de talón (taloneo), que frena el avance y absorbe la energía en lugar de devolverla reactivamente."
+    }
+}
+
+
 def calculate_ipt_evaluation(
     peak_knee_ext: float,
     min_knee_rec: float,
@@ -331,91 +411,13 @@ def calculate_ipt_evaluation(
         diagnostico = "Presencia de déficit mecánico o asimetría que compromete la velocidad terminal o eleva fatiga."
 
     # 6. Identificación del Sector Deficitario y Generación de Prescripción Inteligente
-    planes_entrenamiento = {
-        "Sector 1: Propulsión": {
-            "causa_biomecanica": "Hipótesis a verificar por el entrenador: la rodilla de la pierna de empuje queda fuera de la ventana de diseño (165°-175°), lo que puede indicar una extensión incompleta del empuje. La medición 2D puede alterar este valor.",
-            "cue_verbal": "¡Empuja el suelo hacia atrás como si quisieras deslizar la pista hacia atrás!",
-            "ejercicios": [
-                {
-                    "fase": "Fase 1 · Activación",
-                    "nombre": "Empuje en pared a 45° con triple extensión",
-                    "protocolo": "3 series x 8 reps por pierna (pausa isométrica de 2s en bloqueo)",
-                    "foco": "Alinear tobillo, rodilla y cadera sin arquear la zona lumbar."
-                },
-                {
-                    "fase": "Fase 2 · Fuerza Reactiva",
-                    "nombre": "Bounding unipodal reactivo en pista",
-                    "protocolo": "4 series x 15 metros buscando máxima proyección horizontal",
-                    "foco": "Aplicar fuerza contra el tartán en lugar de saltar hacia arriba."
-                },
-                {
-                    "fase": "Fase 3 · Transferencia",
-                    "nombre": "Sprint lanzado con arrastre ligero (5-8% peso corporal)",
-                    "protocolo": "3 pasadas x 30m al 95% de intensidad",
-                    "foco": "Sentir la extensión completa antes de cambiar de apoyo."
-                }
-            ],
-            "error_evitar": "Evitar inclinar el torso excesivamente hacia adelante, lo que quiebra la línea de transmisión de fuerza lumbo-pélvica."
-        },
-        "Sector 2: Recobro": {
-            "causa_biomecanica": "Hipótesis a verificar por el entrenador: el ángulo interior de rodilla en el recobro supera el valor de diseño (70°), lo que puede indicar que el talón sube poco hacia el glúteo.",
-            "cue_verbal": "¡Talón instantáneo al glúteo, como si pisaras asfalto ardiendo!",
-            "ejercicios": [
-                {
-                    "fase": "Fase 1 · Aislamiento",
-                    "nombre": "Talón al glúteo dinámico con dorsiflexión activa",
-                    "protocolo": "3 series x 20 reps en el lugar con cadencia rápida",
-                    "foco": "El talón debe rozar el isquion con el tobillo a 90°."
-                },
-                {
-                    "fase": "Fase 2 · Coordinación",
-                    "nombre": "Skipping A sobre micro-vallas de 30-40cm",
-                    "protocolo": "4 series x 8 vallas espaciadas a 1.2 metros",
-                    "foco": "Obligar a la rodilla a subir por encima de la valla con palanca corta."
-                },
-                {
-                    "fase": "Fase 3 · Transferencia",
-                    "nombre": "Aceleración progresiva con foco 'Rodilla Alta / Talón Rápido'",
-                    "protocolo": "3 pasadas x 40m alcanzando 90% de velocidad",
-                    "foco": "Mantener la cadencia rápida sin arrastrar los pies hacia atrás."
-                }
-            ],
-            "error_evitar": "Evitar 'patear hacia atrás' antes de recoger la pierna; la trayectoria del talón debe ser circular y hacia adelante."
-        },
-        "Sector 3: Simetría / Contacto": {
-            "causa_biomecanica": "Hipótesis a verificar por el entrenador: una pierna recorre menos rango de movimiento que la otra. La causa no se determina con este análisis y la perspectiva 2D puede generar asimetrías aparentes.",
-            "cue_verbal": "¡Pisa firme justo debajo de tus caderas, rebotando como un resorte rígido!",
-            "ejercicios": [
-                {
-                    "fase": "Fase 1 · Estabilidad",
-                    "nombre": "Puente glúteo unilateral y plancha lateral con abducción",
-                    "protocolo": "3 series x 12 repeticiones por pierna",
-                    "foco": "Eliminar la caída pélvica dinámica (signo de Trendelenburg)."
-                },
-                {
-                    "fase": "Fase 2 · Pliometría Unilateral",
-                    "nombre": "Saltos unipodales sobre cajón bajo (20cm) con caída rígida",
-                    "protocolo": "3 series x 6 saltos por pierna con amortiguación breve",
-                    "foco": "Nivelar la rigidez articular entre ambas piernas."
-                },
-                {
-                    "fase": "Fase 3 · Transferencia",
-                    "nombre": "Pasadas de 30m sobre línea recta con metatarso activo",
-                    "protocolo": "4 pasadas buscando contacto neutro sin cruzar pies",
-                    "foco": "Igualar la longitud de zancada entre pierna izquierda y derecha."
-                }
-            ],
-            "error_evitar": "Evitar el apoyo de talón (taloneo), que frena el avance y absorbe la energía en lugar de devolverla reactivamente."
-        }
-    }
-
     scores = [
         {"sector": "Sector 1: Propulsión", "score": score_prop, "drill": "Empuje en Pared a 45° con Triple Extensión (3x8) y Bounding reactivo"},
         {"sector": "Sector 2: Recobro", "score": score_rec, "drill": "Skipping A con vallas bajas de 40cm (4x8 vallas) para acortar péndulo"},
         {"sector": "Sector 3: Simetría / Contacto", "score": score_symm, "drill": "Pliometría unipodal con estabilización pélvica y apoyo de metatarso"}
     ]
     menor = min(scores, key=lambda s: s['score'])
-    plan_activo = planes_entrenamiento.get(menor['sector'], planes_entrenamiento["Sector 2: Recobro"])
+    plan_activo = PLANES_ENTRENAMIENTO.get(menor['sector'], PLANES_ENTRENAMIENTO["Sector 2: Recobro"])
 
     return {
         "ipt_score": ipt,
@@ -471,3 +473,180 @@ def calculate_ipt_evaluation(
         "metodologia": "Modelo Cinemático UCT · Arellano & Henríquez (2026)"
     }
 
+
+
+# =========================================================================================
+# IPT v3 · Índice de Perfeccionamiento Técnico (ADR-024)
+# Autoría: Felipe Arellano Vargas y Sofía Henríquez Soto (2026), UCT.
+#
+# Método, adaptado de los índices cinemáticos validados en análisis de la marcha:
+# - Gait Deviation Index (Schwartz y Rozumalski, Gait & Posture 2008;28(3):351-357): 100 = patrón de la
+#   población de referencia y cada 10 puntos menos = 1 desviación estándar de alejamiento.
+# - Gait Profile Score y Movement Analysis Profile (Baker et al., Gait & Posture 2009;30(3):265-269):
+#   el índice global es la media cuadrática (RMS) de las desviaciones de cada variable, sin ponderaciones,
+#   y se acompaña del perfil de cada variable para saber qué explica la desviación.
+#
+# Adaptación de MetaHub (aporte propio):
+# 1. Variables discretas por paso en sprint 2D (contacto, despegue y recobro), medidas sin depender de los
+#    rótulos izquierda/derecha (ADR-023), y referencia publicada de máxima velocidad (Miyashiro et al., 2019).
+# 2. Desviación de cada variable en unidades de DE de la referencia: z = (media − media_ref) / DE_ref.
+# 3. IPT = 100 − 10 · RMS(z). 100 = igual a la media de la referencia; 90 = alejamiento medio de 1 DE.
+# 4. Incertidumbre propia de cada sesión: IC 95 % por remuestreo (bootstrap) de los pasos medidos.
+# 5. Solo variables cinemáticas (ángulos y distancias relativas). Las temporales (frecuencia y tiempo de
+#    apoyo) dependen de la velocidad y del largo de pierna (Miyashiro et al., 2019) y no entran al índice.
+# =========================================================================================
+IPT_VERSION = "3.0-perfil"
+PUNTOS_POR_DE = 10.0                          # convención del GDI
+MIN_VARIABLES_IPT = 2
+VARIABLES_IPT = ("rodilla_contacto", "rodilla_despegue", "muslo_contacto", "muslo_despegue",
+                 "muslo_contralateral_contacto", "distancia_relativa_contacto", "distancia_relativa_despegue",
+                 "rodilla_min_balanceo", "muslo_max_elevacion")
+FASES_IPT = {
+    "propulsion": ("rodilla_despegue", "muslo_despegue", "distancia_relativa_despegue"),
+    "recobro": ("rodilla_min_balanceo", "muslo_max_elevacion", "muslo_contralateral_contacto"),
+    "contacto": ("distancia_relativa_contacto", "rodilla_contacto", "muslo_contacto"),
+}
+NOMBRE_FASE = {"propulsion": "Despegue (propulsión)", "recobro": "Recobro", "contacto": "Contacto",
+               "simetria": "Simetría entre pasos"}
+PLAN_FASE = {"propulsion": "Sector 1: Propulsión", "recobro": "Sector 2: Recobro",
+             "contacto": "Sector 3: Simetría / Contacto", "simetria": "Sector 3: Simetría / Contacto"}
+ESTADOS_COMPARABLES = ("dentro_de_referencia", "dentro_del_error_del_metodo", "alteracion")
+BOOTSTRAP_REPETICIONES = 1000
+
+
+def ipt_desde_z(zs) -> float:
+    """IPT = 100 − 10 · RMS(z), acotado a [0, 100]."""
+    zs = [float(z) for z in zs]
+    if not zs:
+        return None
+    rms = math.sqrt(sum(z * z for z in zs) / len(zs))
+    return round(max(0.0, 100.0 - PUNTOS_POR_DE * rms), 1)
+
+
+def _ic95_bootstrap(pasos, claves, ref, semilla=23):
+    """IC 95 % del IPT remuestreando los pasos con reemplazo (incertidumbre propia de la sesión)."""
+    if not pasos or len(pasos) < 4:
+        return None
+    rng = np.random.default_rng(semilla)
+    n = len(pasos)
+    valores = []
+    for _ in range(BOOTSTRAP_REPETICIONES):
+        muestra = [pasos[i] for i in rng.integers(0, n, n)]
+        zs = []
+        for k in claves:
+            vals = [p[k] for p in muestra if isinstance(p.get(k), (int, float))]
+            if vals:
+                zs.append((float(np.mean(vals)) - ref[k]["media"]) / ref[k]["de"])
+        if zs:
+            valores.append(ipt_desde_z(zs))
+    if len(valores) < BOOTSTRAP_REPETICIONES * 0.9:
+        return None
+    return [round(float(np.percentile(valores, 2.5)), 1), round(float(np.percentile(valores, 97.5)), 1)]
+
+
+def calculate_ipt_referenciado(comparacion: Dict[str, Any], pasos: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """IPT v3: perfil de desviación respecto de la referencia publicada (ver encabezado del bloque).
+
+    `comparacion`: salida de cinematica_eventos.comparar_con_referencia. `pasos`: valores por paso, para el
+    intervalo de confianza. Si ninguna variable cinemática es comparable, no hay IPT y se informa el motivo.
+    """
+    from referencias import REFERENCIA_MAXIMA_VELOCIDAD
+    ref = REFERENCIA_MAXIMA_VELOCIDAD["variables"]
+    comparacion = dict(comparacion or {})
+    usadas = [k for k in VARIABLES_IPT
+              if isinstance((comparacion.get(k) or {}).get("z"), (int, float))
+              and comparacion[k].get("estado") in ESTADOS_COMPARABLES]
+    perfil = sorted(({"variable": k, "etiqueta": ref[k]["etiqueta"], "valor": comparacion[k]["valor"],
+                      "referencia": f"{ref[k]['media']} ± {ref[k]['de']} {ref[k]['unidad']}",
+                      "z": comparacion[k]["z"], "estado": comparacion[k]["estado"],
+                      "aporte_puntos": round(PUNTOS_POR_DE * abs(comparacion[k]["z"]), 1)} for k in usadas),
+                    key=lambda d: -abs(d["z"]))
+    base = {"version": IPT_VERSION, "comparacion_referencia": comparacion, "perfil": perfil,
+            "variables_usadas": usadas,
+            "metodo": "IPT = 100 − 10 · RMS(z) sobre variables cinemáticas comparables (adaptado de GDI y GPS)"}
+    if len(usadas) < MIN_VARIABLES_IPT:
+        motivos = [v.get("motivo") for v in comparacion.values() if isinstance(v, dict) and v.get("motivo")]
+        principal = max(set(motivos), key=motivos.count) if motivos else (
+            "graba de lado, con el cuerpo completo, cámara fija y al menos 60 cuadros por segundo.")
+        return {**base, "ipt_score": None,
+                "motivo": f"Sin IPT: se necesitan al menos {MIN_VARIABLES_IPT} variables comparables con la "
+                          f"referencia publicada. {principal}"}
+
+    ipt = ipt_desde_z([comparacion[k]["z"] for k in usadas])
+    ic95 = _ic95_bootstrap(pasos, usadas, ref)
+    fases_presentes = [f for f, claves in FASES_IPT.items() if any(k in usadas for k in claves)]
+    provisional = len(fases_presentes) < len(FASES_IPT)
+
+    if ipt >= 90.0:
+        categoria, color, badge = "Cercano a la referencia", "#00f5a0", "DENTRO DE 1 DE"
+        diagnostico = "En promedio, las variables medidas se alejan menos de 1 DE de los velocistas de referencia."
+    elif ipt >= 80.0:
+        categoria, color, badge = "Desviación moderada", "#00c2ff", "ENTRE 1 Y 2 DE"
+        diagnostico = "En promedio, las variables se alejan entre 1 y 2 DE de la referencia; revisar el perfil."
+    else:
+        categoria, color, badge = "Desviación marcada", "#ff3366", "MÁS DE 2 DE"
+        diagnostico = ("En promedio, las variables se alejan más de 2 DE de la referencia; confirmar con el video "
+                       "y considerar la edad del atleta antes de corregir.")
+
+    def fase(clave):
+        claves = [k for k in FASES_IPT[clave] if k in usadas]
+        d = [p for p in perfil if p["variable"] in claves]
+        return {"nombre": NOMBRE_FASE[clave], "score": ipt_desde_z([p["z"] for p in d]) if d else None,
+                "variables": d, "ponderacion": "sin ponderación (RMS)"}
+
+    # Simetría: el mismo índice calculado con la diferencia entre la pierna A y la B (pasos alternos).
+    bil = [{"variable": k, "etiqueta": ref[k]["etiqueta"], "z": comparacion[k]["bilateral"]["z"],
+            "pierna_a": comparacion[k]["bilateral"]["pierna_a"], "pierna_b": comparacion[k]["bilateral"]["pierna_b"]}
+           for k in usadas if comparacion[k].get("bilateral")]
+    simetria = {"nombre": NOMBRE_FASE["simetria"], "score": ipt_desde_z([b["z"] for b in bil]) if bil else None,
+                "variables": bil, "ponderacion": "no entra al IPT",
+                "rango_optimo": "100 = pasos de ambas piernas iguales; cada 10 puntos = 1 DE de diferencia"}
+
+    sectores = {"propulsion": fase("propulsion"), "recobro": fase("recobro"), "contacto": fase("contacto")}
+    evaluados = {k: v for k, v in sectores.items() if v["score"] is not None}
+    menor = min(evaluados, key=lambda k: evaluados[k]["score"])
+    peor = perfil[0]
+    plan = PLANES_ENTRENAMIENTO[PLAN_FASE[menor]]
+    causa = ("Hipótesis a verificar por el entrenador: " +
+             f"{peor['etiqueta'].lower()} ({peor['valor']}) se aleja {abs(peor['z']):.1f} DE de la referencia "
+             f"({peor['referencia']}). La medición 2D, el error del método y la edad del atleta pueden explicar "
+             "parte de la diferencia.")
+    return {
+        **base,
+        "ipt_score": ipt,
+        "ic95": ic95,
+        "provisional": provisional,
+        "fases_evaluadas": fases_presentes,
+        "categoria": categoria, "color": color, "badge": badge, "diagnostico": diagnostico,
+        "desglose_sectores": {
+            "sector_1_propulsion": {**sectores["propulsion"],
+                                    "angulo_real": (comparacion.get("rodilla_despegue") or {}).get("valor")},
+            "sector_2_recobro": {**sectores["recobro"],
+                                 "angulo_real": (comparacion.get("rodilla_min_balanceo") or {}).get("valor")},
+            "sector_contacto": {**sectores["contacto"],
+                                "porcentaje_real": (comparacion.get("distancia_relativa_contacto") or {}).get("valor")},
+            "simetria_bilateral": simetria,
+        },
+        "sector_prioritario": NOMBRE_FASE[menor],
+        "drill_prescrito": plan["ejercicios"][0]["nombre"] if plan.get("ejercicios") else None,
+        "prescripcion_completa": {"sector": NOMBRE_FASE[menor], "causa_biomecanica": causa,
+                                  "cue_verbal": plan["cue_verbal"], "ejercicios": plan["ejercicios"],
+                                  "error_evitar": plan["error_evitar"]},
+        "interpretacion": ("100 = igual a la media de los velocistas de referencia. Cada 10 puntos menos equivalen "
+                           "a 1 DE de alejamiento promedio. Un cambio entre sesiones solo es real si sus "
+                           "intervalos de confianza no se superponen."),
+        "referencias": [
+            {"parametro": "Valores de referencia por variable", "estado": "publicado",
+             "fuente": REFERENCIA_MAXIMA_VELOCIDAD["cita"]},
+            {"parametro": "Escala 100 − 10 por DE", "estado": "publicado",
+             "fuente": "Schwartz MH, Rozumalski A. The Gait Deviation Index. Gait Posture 2008;28(3):351-357."},
+            {"parametro": "Agregación RMS sin ponderaciones y perfil por variable", "estado": "publicado",
+             "fuente": "Baker R, et al. The Gait Profile Score and Movement Analysis Profile. Gait Posture "
+                       "2009;30(3):265-269."},
+            {"parametro": "Intervalo de confianza por remuestreo de pasos", "estado": "metodo_estadistico_estandar",
+             "fuente": "Efron B, Tibshirani RJ. An Introduction to the Bootstrap. Chapman & Hall, 1993."},
+            {"parametro": "Selección de variables y adaptación a sprint 2D", "estado": "aporte_metahub_a_validar",
+             "fuente": "Arellano y Henríquez (2026); validación pendiente contra Kinovea y revisión profesional."},
+        ],
+        "metodologia": "IPT v3 · Índice de Perfeccionamiento Técnico · Arellano & Henríquez (2026)",
+    }

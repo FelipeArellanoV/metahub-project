@@ -48,8 +48,10 @@ function UltimoAnalisis({ficha,resumen}){
   </div>
   <div className="mh-hero-main">
    <div>
-    <span className="mh-hero-score">{fmt1(resumen.ipt)}</span>
+    <span className="mh-hero-score">{resumen.ipt==null?'—':fmt1(resumen.ipt)}</span>
     <span className="mh-hero-label">IPT · {ficha.athlete.name}</span>
+    {resumen.ic95&&<p className="mh-hero-note">IC 95 %: {fmt1(resumen.ic95[0])}–{fmt1(resumen.ic95[1])}</p>}
+    {resumen.motivoSinIpt&&<p className="mh-hero-note">{resumen.motivoSinIpt}</p>}
    </div>
    <div className="mh-hero-tags">
     {resumen.deltaIpt!=null&&<span className={'mh-chip '+(resumen.deltaIpt>=0?'ok':'bad')}>{resumen.deltaIpt>0?'+':''}{fmt1(resumen.deltaIpt)}</span>}
@@ -57,8 +59,8 @@ function UltimoAnalisis({ficha,resumen}){
    </div>
   </div>
   <dl className="mh-hero-metrics">
-   <div><dt>Flexión rodilla</dt><dd>{resumen.flexionRodilla==null?'—':fmt1(resumen.flexionRodilla)+'°'}</dd></div>
-   <div><dt>Simetría</dt><dd className={resumen.simetria!=null&&resumen.simetria<60?'is-bad':''}>{resumen.simetria==null?'—':fmt1(resumen.simetria)+'%'}</dd></div>
+   <div><dt>Rodilla en recobro</dt><dd>{resumen.flexionRodilla==null?'—':fmt1(resumen.flexionRodilla)+'°'}</dd></div>
+   <div><dt>Simetría pasos</dt><dd className={resumen.simetria!=null&&resumen.simetria<60?'is-bad':''}>{resumen.simetria==null?'—':Math.round(resumen.simetria)+' pts'}</dd></div>
    <div><dt>A trabajar</dt><dd className="mh-hero-text">{sector||'—'}</dd></div>
   </dl>
   <Link className="mh-hero-link" to={'/reviews?athleteId='+ficha.athlete.id+'&sessionId='+resumen.session.id}>Ver revisión y ejercicios<ChevronRight size={16}/></Link>
@@ -108,6 +110,16 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
    setB(data.sessions.length?String(data.sessions[0].id):'');
   }).catch(err=>{if(err.name!=='AbortError')setError(err.message);});
   return ()=>abort.abort();
+ },[id]);
+ // Actualización periódica de la ficha (15 s, pestaña visible), como en las vistas del atleta: un análisis
+ // que termina en la cola aparece sin recargar. No cambia las sesiones elegidas para comparar.
+ useEffect(()=>{
+  if(!id)return undefined;
+  const timer=setInterval(()=>{
+   if(document.hidden)return;
+   clubRequest('/roster/'+encodeURIComponent(id),'GET').then(data=>setDetail(d=>d&&d.athlete.id===data.athlete.id?data:d)).catch(()=>{});
+  },15000);
+  return ()=>clearInterval(timer);
  },[id]);
  const current=detail?.athlete.id===Number(id)?detail:null;
  const sessions=current?.sessions||[];

@@ -97,6 +97,9 @@ async function canRead(req, athleteId) {
 }
 
 /** Error que el usuario puede ver; transient indica si conviene reintentar automáticamente. */
+// Cámara lenta habitual de celular guardada a 30 cuadros/s: 60 (x2), 120 (x4) y 240 (x8).
+const FACTORES_CAMARA_LENTA = [1, 2, 4, 8];
+
 function jobError(message, transient) {
   const error = new Error(message);
   error.userMessage = message;
@@ -114,11 +117,13 @@ async function callVisionService(row, athlete) {
   const form = new FormData();
   form.append('file', new Blob([await fsp.readFile(disk(row.stored_name))], { type: row.mime }), row.original_name);
   form.append('use_sample', 'false');
-  form.append('sample_stride', '2');
+  form.append('sample_stride', '1');   // cuadro a cuadro: los eventos de contacto necesitan >= 60 Hz (ADR-023)
   form.append('max_frames', '240');
   form.append('scan_full_video', 'true');
   form.append('include_pose', 'true');
   form.append('max_samples', '4500');
+  const factor = Number(row.slow_motion_factor) || 1;
+  if (factor > 1) form.append('factor_camara_lenta', String(factor));
   const athleteAge = repo.formatAthlete(athlete)?.age;
   if (Number.isInteger(athleteAge) && athleteAge > 0) form.append('athlete_age', String(athleteAge));
 
@@ -167,7 +172,8 @@ async function saveResult(p, row, key, actor, summary, poseTrack) {
     }
 
     await client.query('UPDATE sessions SET trainer_id=$1,ipt_score=$2,analysis=$3 WHERE id=$4 AND athlete_id=$5',
-      [valid.trainer_id, Math.round(summary.ipt_score * 10) / 10, JSON.stringify(summary), row.session_id, row.athlete_id]);
+      [valid.trainer_id, typeof summary.ipt_score === 'number' ? Math.round(summary.ipt_score * 10) / 10 : null,
+        JSON.stringify(summary), row.session_id, row.athlete_id]);
     await client.query("UPDATE athlete_video_uploads SET status='completed',error=NULL,process_key=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND process_key=$2",
       [row.id, key]);
     await client.query('COMMIT');
@@ -196,8 +202,13 @@ async function processJob(row, key) {
     const raw = await callVisionService(row, athlete);
     const summary = buildAnalysisSummary(raw);
     const ipt = summary && summary.ipt_score;
-    if (typeof ipt !== 'number' || !Number.isFinite(ipt) || ipt < 0 || ipt > 100) {
-      throw jobError('El video no produjo un IPT válido. Prueba una captura con el cuerpo completo visible.', false);
+    // IPT v2 (ADR-023): puede no haber IPT cuando ninguna variable es comparable con la referencia (por
+    // ejemplo, un trote o un video con los pies tapados). La sesión se guarda igual con la estadística
+    // medida y el motivo; lo que nunca se acepta es un puntaje fuera de rango.
+    const sinIpt = ipt === null || ipt === undefined;
+    if (!summary || (!sinIpt && (typeof ipt !== 'number' || !Number.isFinite(ipt) || ipt < 0 || ipt > 100))
+        || (sinIpt && !summary.cinematica_eventos)) {
+      throw jobError('El video no produjo un análisis válido. Prueba una captura con el cuerpo completo visible.', false);
     }
     const poseTrack = raw.pose_track;
     if (!poseTrack || poseTrack.landmark_count !== 33 || !Array.isArray(poseTrack.frames) || !poseTrack.frames.length) {
@@ -257,6 +268,9 @@ async function upload(req, res) {
     const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
     if (!EXTENSIONS.includes(ext) || !MIMES.includes(mime)) fail(400, 'Usa un video MP4, WebM o MOV.');
     const originalName = path.basename(original).replace(/[\u0000-\u001F\u007F]/g, '').slice(0, 180);
+    // Cámara lenta (ADR-023): cuadros de captura / cuadros del archivo. Solo valores conocidos de celular.
+    const slowMotion = Number(params.get('slowMotion') || 1);
+    if (!FACTORES_CAMARA_LENTA.includes(slowMotion)) fail(400, 'Factor de cámara lenta no válido.');
 
     // Idempotencia: el mismo requestId devuelve la carga ya registrada (reintentos de red en el celular).
     const previous = (await p.query('SELECT id,athlete_id,session_id,status,error,original_name FROM athlete_video_uploads WHERE user_id=$1 AND request_id=$2',
@@ -304,9 +318,9 @@ async function upload(req, res) {
       const session = (await client.query('INSERT INTO sessions(athlete_id,trainer_id,notes) VALUES($1,$2,$3) RETURNING id',
         [athlete.id, linked.trainer_id, notes])).rows[0];
       await client.query('UPDATE sessions SET video_url=$1 WHERE id=$2', ['/api/videos/' + session.id, session.id]);
-      row = (await client.query(`INSERT INTO athlete_video_uploads(id,user_id,athlete_id,session_id,request_id,stored_name,original_name,mime,status,requested_by)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$2) RETURNING *`,
-        [id, req.user.id, athlete.id, session.id, requestId, stored, originalName, mime])).rows[0];
+      row = (await client.query(`INSERT INTO athlete_video_uploads(id,user_id,athlete_id,session_id,request_id,stored_name,original_name,mime,status,requested_by,slow_motion_factor)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$2,$9) RETURNING *`,
+        [id, req.user.id, athlete.id, session.id, requestId, stored, originalName, mime, slowMotion])).rows[0];
       await client.query('COMMIT');
       committed = true;
     } catch (err) {

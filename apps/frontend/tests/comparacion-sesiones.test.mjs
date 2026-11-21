@@ -3,8 +3,10 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {extraerMetricasSesion, compararSesiones, formatearMetrica} from '../src/services/metricasSesion.js';
 
+// Simetría entre pasos alternos del IPT v2 (ADR-023); la simetría por rótulos (avg_symmetry_score) se ignora.
+const simetria = score => ({version: '2.0-referenciado', desglose_sectores: {simetria_bilateral: {score, variables: [{}]}}});
 const ses = (id, over = {}) => ({id, iptScore: 70, notes: 'Pasada ' + id, sessionDate: '2026-10-10T12:00:00Z',
-  analysis: {summary_metrics: {min_knee_flexion: 55, peak_hip_extension: 170, avg_symmetry_score: 80, cadence_hz: 3, stride_length_m: 1.2, speed_ms: 3.6}}, ...over});
+  analysis: {...simetria(80), summary_metrics: {min_knee_flexion: 55, peak_hip_extension: 170, avg_symmetry_score: 30, cadence_hz: 3, stride_length_m: 1.2, speed_ms: 3.6}}, ...over});
 
 test('sin sesión no inventa mediciones y marca la sesión no disponible', () => {
   const m = extraerMetricasSesion(undefined);
@@ -21,6 +23,11 @@ test('extrae IPT y métricas de una sesión real', () => {
   assert.equal(m.cadencePpm, 180);
 });
 
+test('la simetría por rótulos de análisis antiguos no se compara', () => {
+  const m = extraerMetricasSesion({id: 4, iptScore: 60, analysis: {summary_metrics: {avg_symmetry_score: 42}}});
+  assert.ok(Number.isNaN(m.symmetry));
+});
+
 test('si falta el análisis los valores quedan como NaN y no como cero', () => {
   const m = extraerMetricasSesion({id: 3, analysis: null});
   assert.ok(Number.isNaN(m.symmetry));
@@ -30,7 +37,7 @@ test('si falta el análisis los valores quedan como NaN y no como cero', () => {
 
 test('la diferencia se calcula como B menos A', () => {
   const a = extraerMetricasSesion(ses(1, {iptScore: 70}));
-  const b = extraerMetricasSesion(ses(2, {iptScore: 78.5, analysis: {summary_metrics: {min_knee_flexion: 50, avg_symmetry_score: 90, cadence_hz: 3.3, stride_length_m: 1.3, speed_ms: 4.29}}}));
+  const b = extraerMetricasSesion(ses(2, {iptScore: 78.5, analysis: {...simetria(90), summary_metrics: {min_knee_flexion: 50, avg_symmetry_score: 10, cadence_hz: 3.3, stride_length_m: 1.3, speed_ms: 4.29}}}));
   const c = compararSesiones(a, b);
   assert.equal(c.ipt.diff, 8.5);
   assert.equal(c.symmetry.diff, 10);

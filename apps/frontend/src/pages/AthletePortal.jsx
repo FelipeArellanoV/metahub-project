@@ -16,6 +16,8 @@ import { Link } from 'react-router-dom';
 import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 import { Skeleton, cardVariants, motion } from '../components/Motion.jsx';
+import { resumenDeAnalisis } from '../services/analisisSesion.js';
+import { bandaDeEdad, dosisPara, ejerciciosParaHallazgos } from '../services/catalogoEjercicios.js';
 
 /** Ícono de cada medalla que entrega la API (progress.medals[].id). */
 const MEDAL_ICONS = {
@@ -58,8 +60,12 @@ export default function AthletePortal() {
   const sessions = portalData?.sessions || [];
   const latestAnalysis = portalData?.latestAnalysis;
 
-  // Ejercicios dinámicos derivados de la última prescripción biomecánica real
-  const dynamicDrills = latestAnalysis?.prescripcion_completa?.ejercicios || [];
+  // Misma lectura que el Inicio y Ejercicios del entrenador: último análisis, sus hallazgos y los
+  // ejercicios del catálogo que corresponden a esos hallazgos (services/catalogoEjercicios.js).
+  const ultimo = latestAnalysis ? resumenDeAnalisis({ analysis: latestAnalysis }) : null;
+  const hallazgos = ultimo ? ultimo.hallazgos : [];
+  const ejercicios = ejerciciosParaHallazgos(hallazgos);
+  const banda = bandaDeEdad(athlete?.age);
 
   if (loading) {
     return (
@@ -94,8 +100,11 @@ export default function AthletePortal() {
   const earnedMedals = progress?.medals?.filter(m => m.earned) || [];
   const allMedals = progress?.medals || [];
   const firstName = (athlete?.name || '').split(' ')[0] || 'atleta';
-  const latestIpt = Number.isFinite(progress?.latestIpt) ? progress.latestIpt : null;
-  const deltaIpt = Number.isFinite(progress?.deltaIpt) && (progress?.analyzedCount || 0) > 1 ? progress.deltaIpt : null;
+  // El indicador muestra el último análisis (igual que el Inicio del entrenador). Si ese análisis no tuvo
+  // IPT, se dice por qué y se recuerda el último IPT obtenido.
+  const ultimoIptValido = Number.isFinite(progress?.latestIpt) ? progress.latestIpt : null;
+  const latestIpt = ultimo ? ultimo.ipt : ultimoIptValido;
+  const deltaIpt = latestIpt != null && Number.isFinite(progress?.deltaAnterior) ? progress.deltaAnterior : null;
   // Arco del indicador: semicírculo de radio 84 centrado en (100,104); el IPT va de 0 a 100.
   const arc = latestIpt == null ? null : (() => {
     const t = Math.max(0, Math.min(100, latestIpt)) / 100 * Math.PI;
@@ -123,8 +132,13 @@ export default function AthletePortal() {
             <span className="mh-gauge-score">{latestIpt}</span>
             <span className="mh-gauge-label">
               Índice de técnica (IPT)
-              {deltaIpt != null && <> · <b className={deltaIpt >= 0 ? 'is-up' : 'is-down'}>{deltaIpt > 0 ? '+' : ''}{deltaIpt}</b> desde tu sesión anterior</>}
+              {deltaIpt != null && <> · <b className={deltaIpt >= 0 ? 'is-up' : 'is-down'}>{deltaIpt > 0 ? '+' : ''}{deltaIpt}</b> desde tu análisis anterior</>}
             </span>
+            {ultimo?.ic95 && <span className="mh-gauge-label">IC 95 %: {ultimo.ic95[0]}–{ultimo.ic95[1]}</span>}
+          </> : ultimo ? <>
+            <span className="mh-kicker">Tu último video no tuvo IPT</span>
+            <p className="mh-gauge-empty">{ultimo.motivoSinIpt || 'El video no permitió comparar tu técnica con la referencia.'}</p>
+            {ultimoIptValido != null && <p className="mh-block-note">Tu último IPT fue {ultimoIptValido}.</p>}
           </> : <>
             <span className="mh-kicker">Tu primer análisis</span>
             <p className="mh-gauge-empty">Sube un video de tu carrera y aquí verás tu índice de técnica.</p>
@@ -150,7 +164,9 @@ export default function AthletePortal() {
                   <Link to={'/reviews?sessionId=' + s.id}>
                     <span className="mh-list-text">
                       <strong>{fecha(s.sessionDate)}</strong>
-                      <small>{s.sectorPrioritario ? 'A trabajar: ' + s.sectorPrioritario.replace(/^Sector \d+:\s*/, '') : 'Sesión #' + (sessions.length - idx)}</small>
+                      <small>{s.sectorPrioritario ? 'A trabajar: ' + s.sectorPrioritario.replace(/^Sector \d+:\s*/, '')
+                        : s.analizada && s.iptScore == null ? 'Sin IPT: revisa el motivo'
+                        : s.analizada ? 'Sesión #' + (sessions.length - idx) : 'En análisis o sin video'}</small>
                     </span>
                     <span className={'mh-list-score' + (idx > 0 ? ' is-past' : '')}>{s.iptScore != null ? s.iptScore : '—'}</span>
                   </Link>
@@ -165,19 +181,27 @@ export default function AthletePortal() {
             <h2 id="mh-plan" className="mh-block-title">Tu plan sugerido</h2>
             <Link to="/collaboration" className="mh-link">Seguimiento</Link>
           </div>
-          <p className="mh-block-note">Sale de tu último análisis. Confirma con tu entrenador qué ejercicios hacer.</p>
-          {dynamicDrills.length ? (
+          <p className="mh-block-note">Sale de tu último análisis, igual que lo ve tu entrenador. Él te asigna los ejercicios en Seguimiento.</p>
+          {hallazgos.length > 0 && (
+            <ul className="mh-findings">
+              {hallazgos.map(h => <li key={h.id}><strong>{h.titulo}</strong>{h.interpretacion && <small>{h.interpretacion}</small>}</li>)}
+            </ul>
+          )}
+          {ejercicios.length ? (
             <ol className="mh-drills">
-              {dynamicDrills.map((drill, idx) => (
-                <li key={idx}>
-                  {drill.fase && <span className="mh-drill-phase">{drill.fase}</span>}
-                  <strong>{drill.nombre}</strong>
-                  {drill.protocolo && <span className="mh-drill-dose">{drill.protocolo}</span>}
-                  {drill.foco && <small>{drill.foco}</small>}
+              {ejercicios.map(drill => (
+                <li key={drill.id}>
+                  <span className="mh-drill-phase">{drill.category}</span>
+                  <strong>{drill.name}</strong>
+                  <span className="mh-drill-dose">{dosisPara(drill, banda)}</span>
+                  {drill.cues && <small>{drill.cues}</small>}
                 </li>
               ))}
             </ol>
-          ) : <p className="mh-empty-line">Tu último análisis no trae ejercicios sugeridos.</p>}
+          ) : <p className="mh-empty-line">{!ultimo ? 'Aún no tienes un análisis.'
+            : ultimo.recomendaciones && !ultimo.recomendaciones.disponible
+              ? (ultimo.recomendaciones.motivo_no_disponible || 'Tu último análisis no permite sugerir ejercicios.')
+              : (ultimo.recomendaciones?.mensaje || 'Tu último análisis no encontró variables fuera de la referencia.')}</p>}
         </motion.section>
 
         {allMedals.length > 0 && (
@@ -209,9 +233,12 @@ export default function AthletePortal() {
         )}
 
         <div className="mh-note">
-          <strong>Fórmula IPT MetaHub UCT</strong>
+          <strong>Cómo se calcula tu IPT</strong>
           <p>
-            Evaluación matemática longitudinal basada en triple extensión, compresión de recobro y simetría bilateral (Henríquez & Arellano, 2026).
+            Cada paso de tu video se compara con velocistas de referencia (Miyashiro et al., 2019) en el contacto, el
+            despegue y el recobro. 100 es igual a la referencia y cada 10 puntos menos equivalen a 1 desviación
+            estándar de diferencia (la misma escala que el Gait Deviation Index). Si eres escolar, es normal estar
+            por debajo: lo importante es tu avance. Tu entrenador decide qué trabajar.
           </p>
         </div>
       </div>

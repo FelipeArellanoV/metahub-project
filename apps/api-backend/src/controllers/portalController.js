@@ -50,7 +50,8 @@ async function getMyPortal(req, res) {
         id: s.id,
         sessionDate: s.sessionDate,
         iptScore: s.iptScore,
-        sectorPrioritario: s.analysis ? s.analysis.sector_prioritario || null : null,
+        sectorPrioritario: s.analysis && s.iptScore != null ? s.analysis.sector_prioritario || null : null,
+        analizada: Boolean(s.analysis),
         badge: s.analysis ? s.analysis.badge || null : null
       })),
       latestAnalysis

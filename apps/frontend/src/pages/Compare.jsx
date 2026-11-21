@@ -179,14 +179,14 @@ export default function Compare() {
         icon: <Activity size={16} />
       },
       {
-        metric: 'Simetría',
-        unit: '%',
-        before: `${formatearMetrica(sA.symmetry,1)}%`,
-        after: `${formatearMetrica(sB.symmetry,1)}%`,
-        diff: `${diffSym >= 0 ? '+' : ''}${diffSym.toFixed(1)}%`,
-        percent: 'Equilibrio bilateral de apoyos',
+        metric: 'Simetría entre pasos',
+        unit: 'pts',
+        before: `${formatearMetrica(sA.symmetry,0)} pts`,
+        after: `${formatearMetrica(sB.symmetry,0)} pts`,
+        diff: `${diffSym >= 0 ? '+' : ''}${diffSym.toFixed(0)} pts`,
+        percent: diffSym >= 0 ? 'Pasos de ambas piernas más parecidos' : 'Pasos de ambas piernas menos parecidos',
         positive: diffSym >= 0,
-        interpretation: 'Prevención activa de lesiones por sobrecarga asimétrica',
+        interpretation: 'Compara los pasos alternos (pierna A y B) con la variabilidad de la referencia',
         icon: <GitCompare size={16} />
       }
     ].filter((_,i)=>[['ipt','ipt'],['cadenceHz','cadenceHz'],['strideLengthM','strideLengthM'],['speedMs','speedMs'],['kneeAngle','kneeAngle'],['symmetry','symmetry']][i].every((key,j)=>Number.isFinite((j?sB:sA)[key])));

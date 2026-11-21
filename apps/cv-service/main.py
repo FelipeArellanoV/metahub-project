@@ -34,7 +34,8 @@ from mediapipe.tasks import python
 from eventos_zancada import analizar_zancadas
 from recomendaciones import generar_recomendaciones
 from calidad_video import medidas_cuadro, evaluar_calidad_video, evaluar_datos_obtenidos
-from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, classify_kinematic_sector, calcular_simetria_sesion, resumir_articulaciones
+from metrics_engine import compute_biomechanical_metrics, calculate_angle, calculate_ipt_evaluation, calculate_ipt_referenciado, classify_kinematic_sector, calcular_simetria_sesion, resumir_articulaciones
+from cinematica_eventos import analizar_cinematica_eventos
 
 # Inicialización de la aplicación FastAPI
 app = FastAPI(
@@ -142,9 +143,12 @@ SKELETON_CONNECTIONS = [
 
 MIN_LANDMARK_CONFIDENCE = 0.4
 MIN_VALID_RATE_PCT = 80.0
-# Ángulo interno de rodilla mínimo plausible (talón al glúteo ~35-45°); valores menores son artefactos
-# de detección (propuesta inicial, a calibrar con las sesiones de validación de la Etapa 4).
-MIN_PLAUSIBLE_KNEE_DEG = 30.0
+# Ángulo interno de rodilla mínimo plausible. Velocistas adultos llegan a 22,1° en el recobro (rango de
+# Miyashiro et al., 2019); por debajo de 20° se considera un artefacto de detección (a calibrar).
+MIN_PLAUSIBLE_KNEE_DEG = 20.0
+# Frecuencia máxima de análisis en el recorrido completo (cuadros/s). Los eventos de contacto y despegue
+# necesitan al menos 60 (ADR-023); antes se submuestreaba a 15.
+MAX_HZ_ANALISIS = float(os.getenv("MAX_HZ_ANALISIS", "240"))
 
 
 def reliable_keypoints(lm) -> Dict[str, List[float]]:
@@ -155,7 +159,8 @@ def reliable_keypoints(lm) -> Dict[str, List[float]]:
     """
     indices = {'left_hip': 23, 'right_hip': 24, 'left_knee': 25, 'right_knee': 26,
                'left_ankle': 27, 'right_ankle': 28, 'left_shoulder': 11, 'right_shoulder': 12,
-               'left_foot_index': 31, 'right_foot_index': 32}
+               'left_foot_index': 31, 'right_foot_index': 32, 'left_heel': 29, 'right_heel': 30,
+               'nose': 0, 'left_ear': 7, 'right_ear': 8}
     out = {}
     for name, i in indices.items():
         p = lm[i]
@@ -207,6 +212,32 @@ def draw_skeleton_on_frame(frame: np.ndarray, landmarks, metrics: Dict[str, Any]
     return annotated
 
 
+COLOR_ESTADO = {"alteracion": "#ff3366", "dentro_del_error_del_metodo": "#ffaa00",
+                "dentro_de_referencia": "#00f5a0"}
+
+
+def evaluaciones_por_referencia(comparacion: Dict[str, Any]):
+    """Avisos breves para la pantalla, derivados SOLO de la comparación con la referencia (ADR-023)."""
+    anomalias, fortalezas = [], []
+    for item in (comparacion or {}).values():
+        estado, valor = item.get("estado"), item.get("valor")
+        if valor is None or estado not in COLOR_ESTADO:
+            continue
+        ref = item.get("referencia") or {}
+        texto = (f"{item['etiqueta']}: {valor:.1f} {item['unidad']} frente a {ref.get('media')} ± {ref.get('de')} "
+                 f"{item['unidad']} en velocistas de referencia (z = {item.get('z', 0):+.1f}).")
+        if estado == "dentro_de_referencia":
+            fortalezas.append({"type": "good", "badge": item["etiqueta"].upper(), "message": texto,
+                               "color": COLOR_ESTADO[estado]})
+        else:
+            badge = {"alteracion": "ALTERACIÓN", "dentro_del_error_del_metodo": "DIFERENCIA DENTRO DEL ERROR"}[estado]
+            consejo = ("Confirmar en el video y con un segundo registro antes de corregir." if estado == "alteracion"
+                       else "La diferencia no supera el error del método: no se atribuye al atleta.")
+            anomalias.append({"type": "anomaly", "badge": f"{badge} · {item['etiqueta'].upper()}", "message": texto,
+                              "advice": consejo, "color": COLOR_ESTADO[estado]})
+    return anomalias, fortalezas
+
+
 @app.post("/api/cv/process-video", summary="Extraer frames de video y procesar con MediaPipe real")
 async def process_video(
     file: Optional[UploadFile] = File(None),
@@ -216,7 +247,8 @@ async def process_video(
     scan_full_video: bool = Form(False),
     include_pose: bool = Form(False),
     max_samples: int = Form(4500),
-    athlete_age: Optional[int] = Form(None)
+    athlete_age: Optional[int] = Form(None),
+    factor_camara_lenta: float = Form(1.0)
 ):
     """
     Recibe un archivo de video (.mp4, .webm, .mov) o usa el video de muestra de velocista.
@@ -224,7 +256,10 @@ async def process_video(
     calcula ángulos vectoriales y simetría bilateral, y retorna la telemetría completa.
     """
     temp_path = None
-    if not 1 <= sample_stride <= 60 or not 1 <= max_frames <= 3600 or not 30 <= max_samples <= 6000:
+    # Cámara lenta (ADR-023): el celular guarda el video a 25-30 cuadros/s aunque lo captó a 120-240. Con el
+    # factor (captura / reproducción) los tiempos de la cinemática se llevan a tiempo real; el video y la
+    # trayectoria del esqueleto conservan el tiempo del archivo para sincronizarse con la reproducción.
+    if not 1 <= sample_stride <= 60 or not 1 <= max_frames <= 3600 or not 30 <= max_samples <= 6000             or not 1.0 <= factor_camara_lenta <= 16.0:
         raise HTTPException(status_code=422, detail="Parámetros de muestreo fuera de rango.")
     try:
         # Determinar fuente del video
@@ -271,7 +306,8 @@ async def process_video(
             raise HTTPException(status_code=413, detail="Usa un clip de hasta cinco minutos para analizar el recorrido completo.")
         effective_stride = sample_stride
         if scan_full_video:
-            effective_stride = max(sample_stride, int(math.ceil(fps / 15)), int(math.ceil(max(1,total_frames) / max_samples)))
+            effective_stride = max(sample_stride, int(math.ceil(fps * factor_camara_lenta / MAX_HZ_ANALISIS)),
+                                   int(math.ceil(max(1, total_frames) / max_samples)))
         processing_limit = total_frames if scan_full_video and total_frames > 0 else (int(fps * 300) if scan_full_video else max_frames)
         pose_frames = []
         processed_frames = []
@@ -292,6 +328,7 @@ async def process_video(
         vis_izq = []   # visibilidad media por cuadro de cadera, rodilla y tobillo izquierdos
         vis_der = []
         medidas_calidad = []   # nitidez, luz, encuadre y plano por cuadro muestreado (ADR-019)
+        cuadros_evento = []    # puntos en píxeles de cada cuadro muestreado, para la cinemática por evento (ADR-023)
 
         # Procesar cuadros
         while cap.isOpened() and frame_idx < processing_limit:
@@ -317,6 +354,8 @@ async def process_video(
                 }
 
                 sample_landmarks = None
+                if not (detection.pose_landmarks and len(detection.pose_landmarks) > 0):
+                    cuadros_evento.append({"t": time_sec / factor_camara_lenta, "kp": {}})
                 if detection.pose_landmarks and len(detection.pose_landmarks) > 0:
                     frames_with_pose += 1
                     lm = detection.pose_landmarks[0]
@@ -340,7 +379,9 @@ async def process_video(
                     # Cálculo cinemático real con metrics_engine
                     metrics = compute_biomechanical_metrics(kp_px)
                     frame_data["metrics"] = metrics
-                    for _n in ('left_foot_index', 'right_foot_index'):   # solo para el cálculo; no se exportan
+                    cuadros_evento.append({"t": time_sec / factor_camara_lenta, "kp": dict(kp_px)})
+                    for _n in ('left_foot_index', 'right_foot_index', 'left_heel', 'right_heel',
+                               'nose', 'left_ear', 'right_ear'):   # solo para el cálculo; no se exportan
                         kp_dict.pop(_n, None)
                     frame_data["keypoints"] = kp_dict
                     for _clave, _met in (('rodilla_izq','left_knee_angle'),('rodilla_der','right_knee_angle'),
@@ -416,50 +457,6 @@ async def process_video(
         min_symmetry = avg_symmetry
         instant_symmetry_mean = round(float(np.mean(symmetries)), 2) if symmetries else None
 
-        # Detección de anomalías y fortalezas reales
-        anomalies = []
-        praises = []
-
-        if peak_knee > 165.0:
-            praises.append({
-                "type": "good",
-                "badge": "TRIPLE EXTENSIÓN REAL",
-                "message": f"Pico de extensión alcanzado de {peak_knee:.1f}°. Excelente transferencia propulsiva.",
-                "color": "#00f5a0"
-            })
-        elif peak_knee < 152.0:
-            anomalies.append({
-                "type": "anomaly",
-                "badge": "EXTENSIÓN INCOMPLETA",
-                "message": f"Pico de rodilla limitado a {peak_knee:.1f}° (esperado >160°). Impulso truncado.",
-                "advice": "Prescribir dril de empuje en pared o saltos de tobillo.",
-                "color": "#ff3366"
-            })
-
-        if not sym["valid"]:
-            anomalies.append({
-                "type": "anomaly",
-                "badge": "SIMETRÍA NO EVALUABLE",
-                "message": "No hay suficientes zancadas válidas por pierna para estimar la simetría (se excluye del IPT).",
-                "advice": "Grabar una carrera más larga con ambas piernas visibles.",
-                "color": "#8899aa"
-            })
-        elif avg_symmetry >= 92.0:
-            praises.append({
-                "type": "good",
-                "badge": "SIMETRÍA EXCELENTE",
-                "message": f"Simetría bilateral media del {avg_symmetry}%. Valor preliminar, aún no validado.",
-                "color": "#00f5a0"
-            })
-        else:
-            anomalies.append({
-                "type": "anomaly",
-                "badge": "ASIMETRÍA DETECTADA",
-                "message": f"Simetría bilateral promedio de {avg_symmetry}% (caída mínima {min_symmetry}%).",
-                "advice": "Revisar apoyo unipodal y prescribir Skipping unilateral.",
-                "color": "#ffaa00"
-            })
-
         # Cálculo de Índice Propietario de Perfeccionamiento Técnico (IPT MetaHub UCT)
         # Autoría: Felipe Arellano Vargas & Sofía Henríquez Soto (2026)
         # Entradas robustas (ADR-014): el máximo y el mínimo de toda la sesión dependen de un solo
@@ -473,8 +470,19 @@ async def process_video(
         _multi = analisis_articular["simetria_multiarticular"]
         _sim_ipt = _multi if _multi is not None else avg_symmetry
         _sim_disponible = _multi is not None
-        ipt_eval = calculate_ipt_evaluation(rob_peak_knee, rob_min_knee, _sim_ipt, rob_hip_flexion,
-                                            symmetry_available=_sim_disponible)
+        # IPT v1 (ventanas de diseño): se conserva solo para comparar con sesiones antiguas.
+        ipt_v1 = calculate_ipt_evaluation(rob_peak_knee, rob_min_knee, _sim_ipt, rob_hip_flexion,
+                                          symmetry_available=_sim_disponible)
+        # IPT v2 (ADR-023): variables medidas en el contacto, el despegue y el balanceo de cada zancada,
+        # comparadas con la referencia publicada de máxima velocidad.
+        fs_muestreo = fps * factor_camara_lenta / max(1, effective_stride)
+        cinematica = analizar_cinematica_eventos(cuadros_evento, fs_muestreo, athlete_age)
+        # La simetría por rango de movimiento usa los rótulos izquierda/derecha de MediaPipe, que no son fiables
+        # en vista lateral; el IPT v2 solo usa la simetría por pasos alternos (ADR-023).
+        ipt_eval = calculate_ipt_referenciado(cinematica["comparacion"], cinematica.get("pasos"))
+        ipt_eval["ipt_v1_diseno"] = ipt_v1["ipt_score"]
+        ipt_eval["flexion_cadera_max"] = round(rob_hip_flexion, 1)
+        anomalies, praises = evaluaciones_por_referencia(ipt_eval["comparacion_referencia"])
         ipt_eval["simetria_metodo"] = "promedio_multiarticular_rodilla_cadera_tobillo"
         ipt_eval["inputs_robustos"] = {"rodilla_p95": round(rob_peak_knee, 1),
                                        "rodilla_p5": round(rob_min_knee, 1),
@@ -488,11 +496,16 @@ async def process_video(
             "visibilidad_media_derecha": round(float(np.mean(vis_der)), 3) if vis_der else None,
             "nota": "Una diferencia grande de visibilidad entre piernas sugiere oclusión de la pierna lejana."}
         _v = ipt_eval["ipt_score"]
-        ipt_eval["cerca_de_umbral"] = min(abs(_v - 75.0), abs(_v - 90.0)) < 5.0
+        # Cerca de un corte de categoría (80 o 90) o con un intervalo de confianza que lo cruza.
+        _ic = ipt_eval.get("ic95")
+        ipt_eval["cerca_de_umbral"] = _v is not None and (
+            min(abs(_v - 80.0), abs(_v - 90.0)) < 3.0 or bool(_ic and any(_ic[0] < c < _ic[1] for c in (80.0, 90.0))))
         ipt_eval["estado_validacion"] = "experimental_no_validado"
-        ipt_eval["advertencia"] = ("Índice experimental sin validación externa. Úselo como seguimiento relativo; "
+        ipt_eval["advertencia"] = ("Índice con método publicado (GDI/GPS) y referencia publicada, pero su adaptación a "
+                                   "sprint 2D aún no está validada contra Kinovea. Úselo para seguir al mismo atleta; "
                                    "la categoría no es concluyente" +
-                                   (" porque el puntaje está a menos de 5 puntos de un umbral." if ipt_eval["cerca_de_umbral"] else "."))
+                                   (" porque el puntaje o su intervalo de confianza toca un corte (80 o 90)."
+                                    if ipt_eval["cerca_de_umbral"] else "."))
 
         _zancadas = analizar_zancadas(processed_frames)
         _tasa_pose = (frames_with_pose / max(1, len(processed_frames))) * 100
@@ -536,12 +549,16 @@ async def process_video(
                 "peak_knee_extension": peak_knee,
                 "min_knee_flexion": min_knee,
                 "peak_hip_extension": peak_hip,
-                "avg_symmetry_score": avg_symmetry,
-                "symmetry_multiarticular": analisis_articular["simetria_multiarticular"],
+                # Simetría por rango de movimiento con los rótulos izquierda/derecha de MediaPipe: no es fiable
+                # en vista lateral (el modelo intercambia las piernas). Se conserva el dato crudo, marcado como
+                # no válido; la simetría válida es la de pasos alternos en cinematica_eventos (ADR-023).
+                "avg_symmetry_score": None,
+                "symmetry_rom_rotulos_crudo": avg_symmetry,
+                "symmetry_multiarticular": None,
                 "min_symmetry_score": min_symmetry,
                 "symmetry_method": sym["method"],
-                "symmetry_valid": sym["valid"],
-                "symmetry_reason": sym.get("reason"),
+                "symmetry_valid": False,
+                "symmetry_reason": "rotulos_izquierda_derecha_no_fiables_en_vista_lateral",
                 "left_knee_rom": sym["left_rom"],
                 "right_knee_rom": sym["right_rom"],
                 "instant_symmetry_mean": instant_symmetry_mean,
@@ -549,9 +566,12 @@ async def process_video(
                 "total_praises": len(praises)
             },
             "ipt_evaluation": ipt_eval,
-            "analisis_articular": analisis_articular,
+            "analisis_articular": {**analisis_articular, "simetria_fiable": False,
+                                   "nota_simetria": "Rangos por pierna según los rótulos de MediaPipe, que intercambia "
+                                                    "las piernas en vista lateral: la simetría no es fiable."},
             "recomendaciones": generar_recomendaciones(ipt_eval, analisis_articular, video_info_resp, athlete_age),
             "analisis_zancadas": _zancadas,
+            "cinematica_eventos": cinematica,
             "ai_evaluations": {
                 "praises": praises,
                 "anomalies": anomalies

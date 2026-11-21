@@ -450,13 +450,20 @@ async function runTests() {
       { id: 2, sessionDate: '2026-01-08T10:00:00Z', iptScore: 78 },
       { id: 3, sessionDate: '2026-01-15T10:00:00Z', iptScore: 75 } // baja: no resta XP
     ];
-    const p = computeProgress(sessions, { summary_metrics: { avg_symmetry_score: 93 } });
+    // Medalla de simetría: sector de simetría por pasos alternos del IPT v2 (ADR-023), no la simetría por rótulos.
+    const v2 = { version: '2.0-referenciado', summary_metrics: { avg_symmetry_score: 30 },
+      desglose_sectores: { simetria_bilateral: { score: 93, variables: [{ variable: 'rodilla_min_balanceo' }] } } };
+    const p = computeProgress(sessions, v2);
     assert.strictEqual(p.sessionCount, 3);
     assert.strictEqual(p.xp, 3 * 100 + 8 * 20);
     assert.strictEqual(p.deltaIpt, 5);
+    assert.strictEqual(p.deltaAnterior, -3);   // contra el análisis anterior, igual que el Inicio del entrenador
+    const soloRotulos = computeProgress(sessions, { summary_metrics: { avg_symmetry_score: 99 } });
+    assert.ok(!soloRotulos.medals.find(m => m.id === 'symmetry').earned, 'La simetría por rótulos no otorga medalla');
     const earned = p.medals.filter(m => m.earned).map(m => m.id);
-    assert.ok(earned.includes('first_session') && earned.includes('ipt_75') && earned.includes('improvement') && earned.includes('symmetry'));
-    assert.ok(!earned.includes('ipt_90') && !earned.includes('consistency'));
+    assert.ok(earned.includes('first_session') && earned.includes('improvement') && earned.includes('symmetry'));
+    // IPT v3 (ADR-024): la medalla de desarrollo exige 80 (menos de 2 DE de la referencia); el mejor fue 78.
+    assert.ok(!earned.includes('ipt_75') && !earned.includes('ipt_90') && !earned.includes('consistency'));
   });
 
   await test('Prueba 19: Registro de atleta con birthDate y cálculo dinámico de age', async () => {

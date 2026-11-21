@@ -18,8 +18,6 @@ NOTA_2D = (
     "La medición es 2D: la perspectiva y la oclusión de la pierna lejana pueden generar "
     "asimetrías aparentes. Confirmar con un segundo video o con observación directa."
 )
-SEVERIDAD_MEDIA = 75.0   # puntaje de sector bajo el cual se informa un hallazgo (a calibrar)
-SEVERIDAD_ALTA = 50.0
 
 
 def banda_edad(edad):
@@ -89,8 +87,92 @@ def evaluar_confianza(video_info, analisis_articular):
     return out
 
 
-def _severidad(score):
-    return "alta" if score < SEVERIDAD_ALTA else "media"
+# Variable medida -> tipo de hallazgo (el frontend asocia cada tipo a sus ejercicios).
+TIPO_POR_VARIABLE = {
+    "rodilla_despegue": "propulsion", "muslo_despegue": "propulsion", "distancia_relativa_despegue": "propulsion",
+    "rodilla_min_balanceo": "recobro", "muslo_max_elevacion": "recobro",
+    "distancia_relativa_contacto": "contacto", "rodilla_contacto": "contacto", "muslo_contacto": "contacto",
+    "muslo_contralateral_contacto": "recobro", "tiempo_apoyo_s": "contacto", "frecuencia_paso_hz": "cadencia",
+}
+# Lectura de la diferencia según su sentido. Son hipótesis para el entrenador, no causas.
+LECTURA = {
+    ("rodilla_despegue", "mayor"): "La rodilla despega más extendida que en la referencia.",
+    ("rodilla_despegue", "menor"): "La rodilla despega más flexionada que en la referencia.",
+    ("muslo_despegue", "mayor"): "El muslo queda menos atrás al despegar: el empuje termina antes.",
+    ("muslo_despegue", "menor"): "El muslo queda más atrás al despegar que en la referencia.",
+    ("distancia_relativa_despegue", "mayor"): "El pie despega más atrás de la cadera que en la referencia.",
+    ("distancia_relativa_despegue", "menor"): "El pie despega más cerca de la cadera que en la referencia.",
+    ("rodilla_min_balanceo", "mayor"): "En el recobro el talón sube menos hacia el glúteo que en la referencia.",
+    ("rodilla_min_balanceo", "menor"): "En el recobro la rodilla se cierra más que en la referencia.",
+    ("muslo_max_elevacion", "mayor"): "El muslo sube más en el balanceo que en la referencia.",
+    ("muslo_max_elevacion", "menor"): "El muslo sube menos en el balanceo que en la referencia.",
+    ("distancia_relativa_contacto", "mayor"): "El pie toca el suelo más adelante de la cadera que en la referencia "
+                                              "(posible sobrezancada).",
+    ("distancia_relativa_contacto", "menor"): "El pie toca el suelo más cerca bajo la cadera que en la referencia.",
+    ("rodilla_contacto", "mayor"): "La rodilla llega al suelo más extendida que en la referencia.",
+    ("rodilla_contacto", "menor"): "La rodilla llega al suelo más flexionada que en la referencia.",
+    ("muslo_contacto", "mayor"): "El muslo está más adelantado al contacto que en la referencia.",
+    ("muslo_contacto", "menor"): "El muslo está menos adelantado al contacto que en la referencia.",
+    ("muslo_contralateral_contacto", "mayor"): "La pierna libre va más adelantada cuando la otra apoya.",
+    ("muslo_contralateral_contacto", "menor"): "La pierna libre va más atrasada cuando la otra apoya.",
+    ("tiempo_apoyo_s", "mayor"): "El pie pasa más tiempo en el suelo que en la referencia.",
+    ("tiempo_apoyo_s", "menor"): "El pie pasa menos tiempo en el suelo que en la referencia.",
+    ("frecuencia_paso_hz", "mayor"): "Más pasos por segundo que en la referencia.",
+    ("frecuencia_paso_hz", "menor"): "Menos pasos por segundo que en la referencia (depende de la velocidad).",
+}
+Z_SEVERIDAD_ALTA = 3.0
+
+
+def hallazgos_por_referencia(comparacion):
+    """Un hallazgo por cada variable en estado "alteracion" y por cada asimetría que cumple el mismo criterio:
+    más de 2 DE de la referencia y una diferencia mayor que el error del método (ADR-023)."""
+    from cinematica_eventos import Z_ALTERACION
+    hallazgos = []
+    for clave, v in (comparacion or {}).items():
+        if not isinstance(v, dict):
+            continue
+        ref = v.get("referencia") or {}
+        umbral = f"{ref.get('media')} ± {ref.get('de')} {v.get('unidad', '')} (media ± DE de la referencia)"
+        if v.get("estado") == "alteracion":
+            hallazgos.append({
+                "id": clave, "tipo": TIPO_POR_VARIABLE.get(clave, "otro"),
+                "titulo": f"{v['etiqueta']} fuera del rango de referencia",
+                "severidad": "alta" if abs(v["z"]) >= Z_SEVERIDAD_ALTA else "media",
+                "valor": v["valor"], "unidad": v.get("unidad"), "umbral": umbral, "z": v["z"],
+                "n_eventos": v.get("n"), "metrica": clave, "estado_respaldo": "referencia_publicada",
+                "fuente": "Miyashiro et al. (2019), velocistas adultos varones, 2D, máxima velocidad.",
+                "interpretacion": LECTURA.get((clave, v.get("sentido")), "") + " " +
+                                  (v.get("nota_poblacion") or "") + " Hipótesis a verificar por el entrenador."})
+        bil = v.get("bilateral")
+        err = v.get("error_metodo")
+        if (bil and v.get("estado") in ("dentro_de_referencia", "dentro_del_error_del_metodo", "alteracion")
+                and abs(bil["z"]) > Z_ALTERACION and (err is None or abs(bil["diferencia"]) > err)):
+            hallazgos.append({
+                "id": f"simetria_{clave}", "tipo": "simetria",
+                "titulo": f"Diferencia entre piernas en {v['etiqueta'].lower()}",
+                "severidad": "alta" if abs(bil["z"]) >= Z_SEVERIDAD_ALTA else "media",
+                "valor": bil["diferencia"], "unidad": v.get("unidad"),
+                "umbral": f"±{round(Z_ALTERACION * ref.get('de', 0), 1)} {v.get('unidad', '')} (2 DE de la referencia)",
+                "z": bil["z"], "metrica": f"{clave}: pasos de la pierna A − pasos de la pierna B",
+                "estado_respaldo": "diseno_a_calibrar",
+                "fuente": "Sin umbral publicado de asimetría; se expresa en DE de Miyashiro et al. (2019).",
+                "interpretacion": (f"Pasos de una pierna {bil['pierna_a']} y de la otra {bil['pierna_b']} "
+                                   "(con una cámara no se sabe cuál es la izquierda: confirmar en el video). ")
+                                  + NOTA_2D})
+    hallazgos.sort(key=lambda h: -abs(h.get("z") or 0))
+    return hallazgos
+
+
+def _no_evaluado(comparacion):
+    """Variables no comparadas, agrupadas por motivo (suele ser uno solo para varias variables)."""
+    por_motivo = {}
+    for v in (comparacion or {}).values():
+        if isinstance(v, dict) and v.get("estado") in ("no_comparable", "insuficiente") and v.get("motivo"):
+            por_motivo.setdefault(v["motivo"], []).append(v["etiqueta"])
+    out = [f"{', '.join(etiquetas)}: {motivo}" for motivo, etiquetas in por_motivo.items()]
+    out.append("Inclinación del tronco y tobillo: se informan, pero la referencia de máxima velocidad no las "
+               "incluye y no generan recomendaciones.")
+    return out
 
 
 def generar_recomendaciones(ipt_eval, analisis_articular, video_info, edad):
@@ -103,16 +185,14 @@ def generar_recomendaciones(ipt_eval, analisis_articular, video_info, edad):
         "confianza": confianza,
         "banda_edad": banda,
         "hallazgos": [],
-        "no_evaluado": [
-            "Cadencia: el detector de zancadas es experimental y no se usa para recomendar.",
-            "Inclinación del tronco, tobillo, muslo y pierna: se informan, pero no tienen "
-            "referencia absoluta verificada y no generan recomendaciones.",
-        ],
+        "no_evaluado": _no_evaluado((ipt_eval or {}).get("comparacion_referencia") if isinstance(ipt_eval, dict) else None),
         "advertencia": ADVERTENCIA_GENERAL,
         "estado_validacion": "experimental_no_validado",
         "referencias": contexto_referencias(banda.get("edad")),
     }
-    if not isinstance(ipt_eval, dict) or "desglose_sectores" not in ipt_eval:
+    # Los hallazgos dependen de la comparación por variable, no del IPT: una variable fuera de la referencia
+    # se informa aunque el video no tenga variables suficientes para calcular el índice.
+    if not isinstance(ipt_eval, dict) or not ipt_eval.get("comparacion_referencia"):
         base["motivo_no_disponible"] = "El análisis no entregó métricas suficientes."
         return base
     if confianza["nivel"] == "baja":
@@ -122,70 +202,14 @@ def generar_recomendaciones(ipt_eval, analisis_articular, video_info, edad):
             (" Cómo mejorarlo: " + " ".join(confianza.get("como_mejorar_el_video", [])) if confianza.get("como_mejorar_el_video") else ""))
         return base
 
-    ds = ipt_eval["desglose_sectores"]
-    inputs = ipt_eval.get("inputs_robustos") or {}
-    hallazgos = []
-
-    s1 = ds.get("sector_1_propulsion") or {}
-    if isinstance(s1.get("score"), (int, float)) and s1["score"] < SEVERIDAD_MEDIA:
-        ang = s1.get("angulo_real")
-        if isinstance(ang, (int, float)) and ang > 175:
-            titulo = "Extensión de rodilla en el empuje por sobre la ventana de diseño"
-            interp = "Puede ser real o un artefacto de la medición 2D; verificar en el video."
-        else:
-            titulo = "Extensión incompleta de rodilla en el empuje"
-            interp = "La pierna de empuje no alcanza la extensión de la ventana de diseño."
-        hallazgos.append({
-            "id": "propulsion", "tipo": "propulsion", "titulo": titulo,
-            "severidad": _severidad(s1["score"]),
-            "valor": ang, "unidad": "°", "umbral": s1.get("rango_optimo"),
-            "metrica": "rodilla_p95 (extensión máxima robusta)",
-            "estado_respaldo": "diseno_a_calibrar",
-            "fuente": "Ventana 165°–175° sin fuente verificada; se calibra con la validación.",
-            "interpretacion": interp})
-
-    s2 = ds.get("sector_2_recobro") or {}
-    if isinstance(s2.get("score"), (int, float)) and s2["score"] < SEVERIDAD_MEDIA:
-        hallazgos.append({
-            "id": "recobro", "tipo": "recobro",
-            "titulo": "Flexión de rodilla limitada durante el recobro",
-            "severidad": _severidad(s2["score"]),
-            "valor": s2.get("angulo_real"), "unidad": "°", "umbral": s2.get("rango_optimo"),
-            "metrica": "rodilla_p5 (ángulo interior mínimo robusto)",
-            "estado_respaldo": "respaldo_parcial",
-            "fuente": "Novacheck (1998): flexión de balanceo ~90° al correr y ~105° al esprintar.",
-            "interpretacion": "El talón sube menos hacia el glúteo que en la referencia de diseño."})
-
-    s3 = ds.get("simetria_bilateral") or {}
-    simetria_excluida = bool(ipt_eval.get("symmetry_excluded"))
-    if simetria_excluida:
-        base["no_evaluado"].append(
-            "Simetría: no evaluable en este video (datos insuficientes de una de las piernas).")
-    elif isinstance(s3.get("score"), (int, float)) and s3["score"] < SEVERIDAD_MEDIA:
-        articulaciones = (analisis_articular or {}).get("articulaciones") or {}
-        peor, peor_valor = None, None
-        for nombre in ("rodilla", "cadera", "tobillo"):
-            j = articulaciones.get(nombre) or {}
-            if j.get("evaluable") and isinstance(j.get("simetria"), (int, float)):
-                if peor_valor is None or j["simetria"] < peor_valor:
-                    peor, peor_valor = nombre, j["simetria"]
-        detalle = (f" La articulación con menor simetría fue {peor} ({peor_valor:.1f} %)."
-                   if peor else "")
-        hallazgos.append({
-            "id": "simetria", "tipo": "simetria",
-            "titulo": "Diferencia entre ambas piernas en el rango de movimiento",
-            "severidad": _severidad(s3["score"]),
-            "valor": s3.get("porcentaje_real"), "unidad": "%", "umbral": s3.get("rango_optimo"),
-            "metrica": "simetría multiarticular (rodilla, cadera y tobillo evaluables)",
-            "estado_respaldo": "diseno_a_calibrar",
-            "fuente": "Sin umbral universal; Exell et al. (2012): considerar la variabilidad.",
-            "interpretacion": "Una pierna recorre menos rango que la otra." + detalle + " " + NOTA_2D})
+    comparacion = ipt_eval.get("comparacion_referencia") or {}
+    hallazgos = hallazgos_por_referencia(comparacion)
 
     base["hallazgos"] = hallazgos
     base["disponible"] = True
     if not hallazgos:
-        base["mensaje"] = ("Ningún sector quedó bajo el umbral de seguimiento. Mantener el trabajo "
-                           "técnico y repetir la medición para observar la tendencia.")
+        base["mensaje"] = ("Ninguna variable comparable se alejó de la referencia más de 2 DE y del error del "
+                           "método. Mantener el trabajo técnico y repetir la medición para observar la tendencia.")
     if banda["etiqueta"] is None:
         base["advertencia"] += " " + banda["nota"]
     return base
