@@ -58,6 +58,13 @@ function resolveLevel(xp) {
  * @param {Array<{sessionDate: string, iptScore: number|null}>} sessions - sesiones en cualquier orden
  * @param {object|null} latestAnalysis - resumen del análisis de la sesión más reciente (si existe)
  */
+/** Versión principal del IPT de un análisis ("3.0-perfil" → 3). Sin análisis se asume la misma escala (null). */
+function versionIpt(analysis) {
+  if (!analysis || typeof analysis !== 'object') return null;
+  const m = /^(\d+)/.exec(String(analysis.version || ''));
+  return m ? Number(m[1]) : 1;
+}
+
 function computeProgress(sessions = [], latestAnalysis = null) {
   const ordered = [...sessions].sort((a, b) => {
     const da = new Date(a.sessionDate).getTime();
@@ -65,21 +72,23 @@ function computeProgress(sessions = [], latestAnalysis = null) {
     return da - db || (a.id || 0) - (b.id || 0);
   });
 
-  const analyzed = ordered
-    .filter(s => typeof s.iptScore === 'number' && Number.isFinite(s.iptScore))
-    .map(s => s.iptScore);
+  const conIpt = ordered.filter(s => typeof s.iptScore === 'number' && Number.isFinite(s.iptScore));
+  const analyzed = conIpt.map(s => s.iptScore);
+  // Versión del IPT de cada sesión: v1, v2 y v3 usan escalas distintas y no se restan entre sí (ADR-024, ADR-026).
+  const versiones = conIpt.map(s => versionIpt(s.analysis));
+  const mismaEscala = versiones.length ? conIpt.filter((_, i) => versiones[i] === versiones[versiones.length - 1]).map(s => s.iptScore) : [];
 
   const sessionCount = ordered.length;
   const firstIpt = analyzed.length ? analyzed[0] : null;
   const latestIpt = analyzed.length ? analyzed[analyzed.length - 1] : null;
   const bestIpt = analyzed.length ? Math.max(...analyzed) : null;
-  const deltaIpt = analyzed.length >= 2 ? round1(latestIpt - firstIpt) : null;
-  // Diferencia con el análisis con IPT anterior: la misma que muestra el Inicio del entrenador.
-  const deltaAnterior = analyzed.length >= 2 ? round1(latestIpt - analyzed[analyzed.length - 2]) : null;
+  const deltaIpt = mismaEscala.length >= 2 ? round1(latestIpt - mismaEscala[0]) : null;
+  // Diferencia con el análisis con IPT anterior de la misma versión: la misma que muestra el Inicio del entrenador.
+  const deltaAnterior = mismaEscala.length >= 2 ? round1(latestIpt - mismaEscala[mismaEscala.length - 2]) : null;
 
   let gained = 0;
   for (let i = 1; i < analyzed.length; i++) {
-    if (analyzed[i] > analyzed[i - 1]) gained += analyzed[i] - analyzed[i - 1];
+    if (versiones[i] === versiones[i - 1] && analyzed[i] > analyzed[i - 1]) gained += analyzed[i] - analyzed[i - 1];
   }
 
   const xp = Math.round(sessionCount * XP_PER_SESSION + gained * XP_PER_IPT_POINT_GAINED);

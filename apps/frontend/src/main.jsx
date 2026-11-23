@@ -20,6 +20,8 @@ import './professional-theme.css';
 import './motion.css';
 import './motion-ui.css';
 import './sport-theme.css';
+import './ipt-report.css';
+import './analisis-detalle.css';
 
 import {ThemeProvider} from './components/Theme.jsx';
 import {MotionProvider} from './components/Motion.jsx';

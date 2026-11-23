@@ -18,6 +18,11 @@ import api from '../services/api.js';
 import { Skeleton, cardVariants, motion } from '../components/Motion.jsx';
 import { resumenDeAnalisis } from '../services/analisisSesion.js';
 import { bandaDeEdad, dosisPara, ejerciciosParaHallazgos } from '../services/catalogoEjercicios.js';
+import { EvolucionIpt, PerfilIpt } from '../components/GraficosIpt.jsx';
+import { DatosSprint, FocoAtleta } from '../components/DetalleAnalisis.jsx';
+import { resumenPerfil } from '../components/PerfilDeportivo.jsx';
+import { datosSprint, focoDelAtleta } from '../services/detalleAnalisis.js';
+import { perfilDeAnalisis, serieEvolucion } from '../services/informeIpt.js';
 
 /** Ícono de cada medalla que entrega la API (progress.medals[].id). */
 const MEDAL_ICONS = {
@@ -119,7 +124,7 @@ export default function AthletePortal() {
       <PageHeader
         eyebrow={'Hola, ' + firstName}
         title="Tu progreso"
-        description={athlete?.trainerName ? 'Entrenador: ' + athlete.trainerName : undefined}
+        description={[athlete?.trainerName && 'Entrenador: ' + athlete.trainerName, resumenPerfil(athlete?.sportProfile)].filter(Boolean).join(' · ') || undefined}
       />
 
       <div className="mh-portal">
@@ -151,6 +156,40 @@ export default function AthletePortal() {
           <li><Activity size={16} aria-hidden="true" />{progress?.sessionCount ?? sessions.length} {(progress?.sessionCount ?? sessions.length) === 1 ? 'sesión' : 'sesiones'}</li>
           {progress?.label && <li><Flame size={16} aria-hidden="true" />{progress.label} · {progress.xp || 0} XP</li>}
         </motion.ul>
+
+        {focoDelAtleta(latestAnalysis) && (
+          <motion.section variants={cardVariants} aria-label="Tu foco">
+            <FocoAtleta analysis={latestAnalysis} />
+          </motion.section>
+        )}
+
+        {datosSprint(latestAnalysis) && (
+          <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-ritmo">
+            <div className="mh-block-head"><h2 id="mh-ritmo" className="mh-block-title">Tu ritmo en el último video</h2></div>
+            <DatosSprint analysis={latestAnalysis} />
+          </motion.section>
+        )}
+
+        {perfilDeAnalisis(latestAnalysis).length > 0 && (
+          <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-perfil">
+            <div className="mh-block-head">
+              <h2 id="mh-perfil" className="mh-block-title">Qué explica tu IPT</h2>
+              <Link to="/informe" className="mh-link">Informe PDF</Link>
+            </div>
+            <p className="mh-block-note">Cuánto se aleja cada variable de los velocistas de referencia. Arriba, la que más pesa.</p>
+            <PerfilIpt perfil={perfilDeAnalisis(latestAnalysis)} compacto />
+          </motion.section>
+        )}
+
+        {serieEvolucion(sessions).puntos.length > 1 && (
+          <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-evo">
+            <div className="mh-block-head">
+              <h2 id="mh-evo" className="mh-block-title">Tu evolución</h2>
+              <Link to="/evolution" className="mh-link">Ver más</Link>
+            </div>
+            <EvolucionIpt {...serieEvolucion(sessions)} />
+          </motion.section>
+        )}
 
         <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-sesiones">
           <div className="mh-block-head">

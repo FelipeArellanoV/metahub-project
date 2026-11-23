@@ -2,11 +2,16 @@ import {useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Layout,PageHeader,StatCard} from './UI.jsx';
 import {AlertTriangle,CalendarDays,ChevronDown,ChevronRight,FileText,GitCompare,RefreshCw,ShieldCheck,TrendingUp,User,Users,Video} from 'lucide-react';
-import {avisosEquipo,ultimoAnalisis} from '../services/resumenEquipo.js';
+import {avisosEquipo,totalesEquipo,ultimoAnalisis} from '../services/resumenEquipo.js';
 import SessionVideo from './SessionVideo.jsx';
 import {clubRequest} from '../services/roster.js';
 import {AnimatePresence} from 'framer-motion';
 import {Skeleton,cardVariants,listItemVariants,motion,staggerVariants} from './Motion.jsx';
+import {EvolucionIpt,PerfilIpt} from './GraficosIpt.jsx';
+import {CalidadToma,DatosSprint,DetalleSesion,PerfilComparado,ResumenAtleta,TablaDiferencias} from './DetalleAnalisis.jsx';
+import {calidadToma,datosSprint} from '../services/detalleAnalisis.js';
+import PerfilDeportivo from './PerfilDeportivo.jsx';
+import {perfilDeAnalisis,serieEvolucion} from '../services/informeIpt.js';
 
 const titles={home:'Inicio',compare:'Comparación de sesiones',priority:'Prioridad de apoyo',reports:'Ficha de progreso',sessions:'Sesiones',club:'Atletas del club'};
 const date=v=>new Date(v).toLocaleString('es-CL');
@@ -63,7 +68,10 @@ function UltimoAnalisis({ficha,resumen}){
    <div><dt>Simetría pasos</dt><dd className={resumen.simetria!=null&&resumen.simetria<60?'is-bad':''}>{resumen.simetria==null?'—':Math.round(resumen.simetria)+' pts'}</dd></div>
    <div><dt>A trabajar</dt><dd className="mh-hero-text">{sector||'—'}</dd></div>
   </dl>
-  <Link className="mh-hero-link" to={'/reviews?athleteId='+ficha.athlete.id+'&sessionId='+resumen.session.id}>Ver revisión y ejercicios<ChevronRight size={16}/></Link>
+  <div className="mh-hero-links">
+   <Link className="mh-hero-link" to={'/reviews?athleteId='+ficha.athlete.id+'&sessionId='+resumen.session.id}>Ver revisión y ejercicios<ChevronRight size={16}/></Link>
+   <Link className="mh-hero-link" to={informeUrl(ficha.athlete.id,resumen.session.id)}><FileText size={15}/>Informe PDF</Link>
+  </div>
  </motion.section>;
 }
 /** Lista "Requiere atención": solo avisos calculados con datos guardados. */
@@ -73,13 +81,45 @@ function RequiereAtencion({avisos}){
   {avisos.length===0?<p className="mh-empty-line">Nada pendiente en tu equipo.</p>:
   <ul className="mh-list">
    {avisos.map(aviso=><li key={aviso.tipo+aviso.athleteId}>
-    <Link to={aviso.tipo==='consentimiento'?'/athletes':'/reviews?athleteId='+aviso.athleteId}>
+    <Link to={aviso.tipo==='consentimiento'?'/athletes':aviso.tipo==='vencidos'?'/collaboration':'/reviews?athleteId='+aviso.athleteId}>
      <span className={'mh-dot '+aviso.tono} aria-hidden="true"/>
      <span className="mh-list-text"><strong>{aviso.nombre}</strong><small>{aviso.texto}</small></span>
      <ChevronRight size={18} aria-hidden="true" className="mh-list-chevron"/>
     </Link>
    </li>)}
   </ul>}
+ </motion.section>;
+}
+const informeUrl=(athleteId,sessionId)=>'/informe?athleteId='+athleteId+(sessionId?'&sessionId='+sessionId:'');
+/** Evolución del IPT v3 del atleta elegido (todas las sesiones con IPT v3). */
+function PanelEvolucion({ficha}){
+ const serie=serieEvolucion(ficha.sessions);
+ return <motion.section variants={cardVariants} className="panel-card ipt-panel" aria-labelledby="mh-evolucion">
+  <div className="ipt-panel-head"><div><span className="eyebrow">EVOLUCIÓN</span><h2 id="mh-evolucion">IPT en el tiempo</h2>
+   <p>Cada punto es una sesión; la línea vertical, su intervalo de confianza 95 %.</p></div><TrendingUp size={22} className="panel-icon"/></div>
+  <EvolucionIpt puntos={serie.puntos} otrasVersiones={serie.otrasVersiones}/>
+ </motion.section>;
+}
+/** Perfil por variable del último análisis con IPT v3. */
+function PanelPerfil({ficha,resumen}){
+ const perfil=resumen?perfilDeAnalisis(resumen.session.analysis):[];
+ if(!perfil.length)return null;
+ return <motion.section variants={cardVariants} className="panel-card ipt-panel" aria-labelledby="mh-perfil">
+  <div className="ipt-panel-head"><div><span className="eyebrow">ÚLTIMO ANÁLISIS</span><h2 id="mh-perfil">Qué explica el IPT</h2>
+   <p>Distancia de cada variable a la referencia, en DE. Arriba, la que más se aleja.</p></div>
+   <Link className="secondary-button ipt-report-link" to={informeUrl(ficha.athlete.id,resumen.session.id)}><FileText size={15}/>Informe</Link></div>
+  <PerfilIpt perfil={perfil} compacto/>
+ </motion.section>;
+}
+/** Ritmo del sprint y calidad de la toma del último análisis. */
+function PanelSprint({resumen}){
+ const a=resumen?.session.analysis;
+ if(!a||(!datosSprint(a)&&!calidadToma(a)))return null;
+ return <motion.section variants={cardVariants} className="panel-card ipt-panel" aria-labelledby="mh-sprint">
+  <div className="ipt-panel-head"><div><span className="eyebrow">ÚLTIMO ANÁLISIS</span><h2 id="mh-sprint">Ritmo y calidad de la toma</h2>
+   <p>Lo que se midió en el video y cuánto se puede confiar en él.</p></div><Video size={22} className="panel-icon"/></div>
+  <DatosSprint analysis={a}/>
+  <div className="da-section"><h3>Calidad de la toma</h3><CalidadToma analysis={a} compacto/></div>
  </motion.section>;
 }
 function readable(value){return typeof value==='string'?value:JSON.stringify(value,null,2);}
@@ -167,11 +207,19 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
       <UltimoAnalisis ficha={current} resumen={resumen}/>
       <RequiereAtencion avisos={avisos}/>
      </motion.div>
-     <section className="mh-mini-stats" aria-label="Resumen del equipo">
+     {current&&<motion.div className="mh-home-charts" variants={staggerVariants(0.06)} initial="initial" animate="animate">
+      <PanelPerfil ficha={current} resumen={resumen}/>
+      <PanelEvolucion ficha={current}/>
+      <PanelSprint resumen={resumen}/>
+     </motion.div>}
+     {(()=>{const t=totalesEquipo(athletes);return <section className="mh-mini-stats mh-team-stats" aria-label="Resumen del equipo">
       <div><strong>{ownCount}</strong><span>A mi cargo</span></div>
+      <div><strong>{t.activos30d}</strong><span>Analizados en 30 días</span></div>
       <div><strong>{totalSessions}</strong><span>Sesiones</span></div>
-      <div><strong>{clubCount}</strong><span>Del club</span></div>
-     </section>
+      <Link to="/reviews" className={t.revisiones?'is-due':''}><strong>{t.revisiones}</strong><span>Por revisar</span></Link>
+      <Link to="/collaboration" className={t.vencidos?'is-late':''}><strong>{t.vencidos}</strong><span>Ejercicios vencidos</span></Link>
+      <Link to="/upload"><strong>{t.enCola}</strong><span>Videos en cola</span></Link>
+     </section>;})()}
     </>}
     {!embedded && mode!=='home' && <motion.section className="stats-grid" variants={staggerVariants(0.05)} initial="initial" animate="animate">
      <motion.div variants={cardVariants} className="mh-grid-item"><StatCard icon={Users} label="A mi cargo" value={ownCount} detail="atletas propios"/></motion.div>
@@ -226,10 +274,14 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
        <div><small>Consentimiento</small><strong>{current.athlete.consent?'Registrado':'Pendiente'}</strong></div>
        <div><small>Evaluaciones</small><strong>{sessions.length} sesiones</strong></div>
       </div>
+      <PerfilDeportivo athleteId={current.athlete.id} perfil={current.athlete.sportProfile} canEdit={current.athlete.canEdit}
+       onSaved={sp=>setDetail(d=>d&&d.athlete.id===current.athlete.id?{...d,athlete:{...d.athlete,sportProfile:sp}}:d)}/>
+      {sessions.some(s=>s.analysis)&&<ResumenAtleta sessions={sessions}/>}
       <div className="roster-actions">
        {current.athlete.canEdit && <Link className="primary-button" to="/capture"><Video size={16}/>Registrar captura</Link>}
        <Link className="secondary-button" to="/collaboration">Seguimiento compartido</Link>
        {mode==='reports' && <button className="secondary-button btn-print" type="button" onClick={()=>window.print()}><FileText size={16}/>Imprimir ficha</button>}
+       {sessions.some(s=>s.analysis) && <Link className="secondary-button" to={informeUrl(current.athlete.id)}><FileText size={16}/>Informe PDF</Link>}
       </div>
      </motion.section>
      {mode==='compare' && <motion.section variants={cardVariants} className="panel-card">
@@ -263,8 +315,13 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
         </> : <span>Ambas sesiones deben tener análisis para calcular la diferencia.</span>}
        </div>
        {first&&last&&new Date(last.sessionDate)<new Date(first.sessionDate)&&<p>La sesión de control es anterior a la inicial. Revisa el orden elegido.</p>}
+       {sessionA!==sessionB&&first?.analysis&&last?.analysis&&<>
+        <div className="da-section"><h3>Perfil antes y después</h3><PerfilComparado antes={first.analysis} despues={last.analysis}/></div>
+        <div className="da-section"><h3>Cambio por variable</h3><TablaDiferencias antes={first.analysis} despues={last.analysis}/></div>
+       </>}
       </>}
      </motion.section>}
+     {(mode==='reports'||mode==='sessions')&&<PanelEvolucion ficha={current}/>}
      <motion.section variants={cardVariants} className="panel-card">
       <div className="panel-heading"><div><span className="eyebrow">EVOLUCIÓN REGISTRADA</span><h2>{mode==='sessions'?'Sesiones de pista':'Historial de evaluaciones'}</h2></div><CalendarDays size={24} className="panel-icon"/></div>
       {!sessions.length && <div className="empty-card"><p>Este atleta aún no tiene sesiones registradas.</p></div>}
@@ -280,10 +337,11 @@ export default function ScopedRoster({mode='home',embedded=false,clubOnly=false}
         <div className="roster-history-detail">
          {session.videoUrl?.startsWith('/api/videos/') && <SessionVideo sessionId={session.id}/>}
          <Link className="secondary-button" to={'/reviews?athleteId='+current.athlete.id+'&sessionId='+session.id}>Ver revisión y ejercicios</Link>
+         {session.analysis && <Link className="secondary-button" to={informeUrl(current.athlete.id,session.id)}><FileText size={16}/>Informe PDF</Link>}
          {session.notes && <p>{session.notes}</p>}
          {session.analysis?.diagnostico && <p>{readable(session.analysis.diagnostico)}</p>}
-         {session.analysis?.sector_prioritario && <p>Sector prioritario: {readable(session.analysis.sector_prioritario)}</p>}
-         {session.analysis && <details><summary>Desglose del análisis registrado</summary><pre>{JSON.stringify(session.analysis,null,2)}</pre></details>}
+         {session.analysis?.motivo && session.iptScore==null && <p>{readable(session.analysis.motivo)}</p>}
+         {session.analysis && <DetalleSesion analysis={session.analysis} idBase={'ses-'+session.id}/>}
         </div>
        </motion.details>
       ))}

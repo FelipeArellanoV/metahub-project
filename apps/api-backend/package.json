@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node tests/run_tests.js && node --test tests/club-access.test.js tests/collaboration.test.js tests/review-validation.test.js tests/video-capture-access.test.js tests/video-pipeline.test.js tests/panel-entrenador.test.js tests/security.test.js && jest tests/auth.test.js",
+    "test": "node tests/run_tests.js && node --test tests/club-access.test.js tests/collaboration.test.js tests/review-validation.test.js tests/video-capture-access.test.js tests/video-pipeline.test.js tests/panel-entrenador.test.js tests/security.test.js tests/perfil-deportivo.test.js && jest tests/auth.test.js",
     "test:pg": "node --test tests/panel-entrenador-pg.test.js && node --test tests/retencion-pg.test.js && node --test tests/video-queue-pg.test.js"
   },
   "dependencies": {

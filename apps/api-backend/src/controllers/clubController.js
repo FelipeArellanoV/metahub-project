@@ -13,6 +13,13 @@ async function handle(req,res) {
    return res.json({athletes:await access.list(req.user)});
   const roster=url.pathname.match(/^\/api\/roster\/(\d+)$/);
   if(req.method==='GET' && roster) return res.json(await access.detail(req.user,roster[1]));
+  // Perfil deportivo (ADR-026): solo el entrenador responsable lo edita.
+  const perfil=url.pathname.match(/^\/api\/roster\/(\d+)\/perfil$/);
+  if(req.method==='PUT' && perfil) {
+   const athlete=await access.readable(req.user,perfil[1]);
+   if(!athlete.canEdit) access.reject(403,'Solo el entrenador responsable puede editar el perfil deportivo.');
+   return res.json({sportProfile:await require('../services/perfilDeportivo').guardar(athlete.id,body)});
+  }
   const pool=requiredPool();
   if(req.method==='GET' && url.pathname==='/api/clubs') {
    const clubs=(await pool.query(`

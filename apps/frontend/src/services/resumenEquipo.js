@@ -16,7 +16,10 @@ export function ultimoAnalisis(sessions) {
   if (!ultima) return null;
   const r = resumenDeAnalisis(ultima);
   const lista = sessions || [];
-  const anterior = lista.slice(lista.indexOf(ultima) + 1).find(s => iptDeSesion(s) != null) || null;
+  // Solo se compara con un análisis de la misma versión del IPT: v1, v2 y v3 tienen escalas distintas.
+  const version = s => { const m = /^(\d+)/.exec(String(s?.analysis?.version || '')); return s?.analysis ? (m ? Number(m[1]) : 1) : null; };
+  const anterior = lista.slice(lista.indexOf(ultima) + 1)
+    .find(s => iptDeSesion(s) != null && version(s) === version(ultima)) || null;
   const rAnt = anterior ? resumenDeAnalisis(anterior) : null;
   const dif = (x, y) => (Number.isFinite(x) && Number.isFinite(y) ? Math.round((x - y) * 10) / 10 : null);
   return {
@@ -64,6 +67,30 @@ export function avisosEquipo(athletes, ficha) {
     if (a.canEdit && !a.consent) {
       avisos.push({ athleteId: a.id, nombre: a.name, tono: 'medio', tipo: 'consentimiento', texto: 'Falta el consentimiento del apoderado' });
     }
+    if (!a.canEdit) continue;
+    const n = num => (Number.isInteger(num) && num > 0 ? num : 0);
+    if (n(a.overdueTasks)) {
+      avisos.push({ athleteId: a.id, nombre: a.name, tono: 'alto', tipo: 'vencidos',
+        texto: n(a.overdueTasks) === 1 ? '1 ejercicio asignado venció sin completarse' : `${a.overdueTasks} ejercicios asignados vencieron sin completarse` });
+    }
+    if (n(a.pendingReviews)) {
+      avisos.push({ athleteId: a.id, nombre: a.name, tono: 'medio', tipo: 'revision',
+        texto: n(a.pendingReviews) === 1 ? '1 sesión analizada espera tu revisión' : `${a.pendingReviews} sesiones analizadas esperan tu revisión` });
+    }
   }
   return avisos.sort((x, y) => (x.tono === y.tono ? 0 : x.tono === 'alto' ? -1 : 1));
+}
+
+/** Totales del equipo a cargo para el resumen del Inicio. Solo cuenta atletas propios. */
+export function totalesEquipo(athletes) {
+  const propios = (athletes || []).filter(a => a.canEdit);
+  const suma = k => propios.reduce((t, a) => t + (Number.isInteger(a[k]) ? a[k] : 0), 0);
+  const hace30 = Date.now() - 30 * 24 * 3600 * 1000;
+  return {
+    atletas: propios.length,
+    revisiones: suma('pendingReviews'),
+    vencidos: suma('overdueTasks'),
+    enCola: suma('queuedVideos'),
+    activos30d: propios.filter(a => a.lastAnalysisAt && new Date(a.lastAnalysisAt).getTime() >= hace30).length
+  };
 }

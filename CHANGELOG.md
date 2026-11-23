@@ -2,6 +2,42 @@
 
 Reconstruido el 2026-10-30 a partir del historial de git (rama `main`). Los mensajes originales se conservan entre paréntesis.
 
+## [Sin publicar] 2026-11-23: detalle del análisis en cada sección (ADR-026)
+### Agregado
+- **Inicio**: ritmo del sprint y calidad de la toma del último análisis.
+  - Indicadores del equipo: analizados en 30 días, por revisar, ejercicios vencidos y videos en cola.
+  - Avisos de ejercicios vencidos y de revisiones pendientes.
+- **Ficha del atleta**: perfil deportivo editable (migración 009) y resumen técnico (último y mejor IPT, tendencia y variable recurrente).
+- **Historial y Revisiones**: por qué, indicación y error a evitar, con pestañas de variables por fase, paso a paso, ritmo y calidad. Reemplaza el JSON crudo.
+- **Comparar**: perfil antes y después y cambio por variable con criterio de IC.
+- **Ejercicios**: a qué hallazgo responde cada sugerencia.
+- **Subir video**: guía de grabación con esquema.
+- **Portal**: foco del atleta en lenguaje simple, ritmo y perfil deportivo.
+- **Informe**: ritmo, interpretación, variables por fase y calidad de la toma.
+- API:
+  - `GET /api/roster` agrega `pendingReviews`, `overdueTasks`, `queuedVideos` y `lastAnalysisAt`.
+  - `PUT /api/roster/:id/perfil` (nuevo).
+  - `sportProfile` en la ficha y en el portal.
+### Cambiado
+- Laboratorio, Comparar e Informe se cargan en diferido: bundle principal de unos 422 kB.
+### Corregido
+- Desborde horizontal en Subir video a 390 px, causado por el selector de atleta.
+- La diferencia con el análisis anterior (Inicio, Portal, XP) restaba IPT de versiones distintas (por ejemplo, v3 − v2). Ahora solo compara análisis de la misma versión.
+### Pruebas
+- Frontend: 55 (`detalle-analisis.test.mjs` y pendientes del equipo).
+- Backend: 58 + 7 (`perfil-deportivo.test.js`).
+
+## [Sin publicar] 2026-11-23: gráficos del IPT e informe de sesión en PDF (ADR-025)
+### Agregado
+- **Perfil por variable**: barras con el z de cada variable frente a la referencia, en el Inicio del entrenador, el Portal del atleta y el informe.
+- **Evolución del IPT** con el IC 95 % de cada sesión y las bandas de 1 y 2 DE.
+  - Aparece en el Inicio, en Ficha de progreso, en Sesiones, en Evolución y en el Portal.
+  - Solo grafica sesiones con IPT v3 e indica si un cambio es real (IC sin superposición).
+- **Informe de sesión** en `/informe`, que se descarga como PDF desde el navegador.
+  - Incluye datos del atleta, IPT, fases, perfil, evolución, hallazgos, observación del entrenador, ejercicios y referencias.
+- API del portal: `iptVersion`, `ic95` y `provisional` por sesión.
+- Pruebas del frontend: de 38 a 47 (`tests/informe-ipt.test.mjs`).
+
 ## [Sin publicar] 2026-11-19: IPT v3, índice de perfil técnico (ADR-024)
 ### Cambiado
 - **IPT v3 = 100 − 10 · RMS(z)** sobre las variables cinemáticas comparables con la referencia de Miyashiro et al. (2019).

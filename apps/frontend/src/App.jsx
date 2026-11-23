@@ -13,24 +13,27 @@
  * =========================================================================================
  */
 
+import { lazy, Suspense } from 'react';
 import { HashRouter as BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Dashboard from './pages/Dashboard.jsx';
 import Athletes from './pages/Athletes.jsx';
 import Sessions from './pages/Sessions.jsx';
 import Planning from './pages/Planning.jsx';
 import SupportPriority from './pages/SupportPriority.jsx';
-import Compare from './pages/Compare.jsx';
+// Páginas pesadas y de uso puntual: se cargan al entrar (ADR-026).
+const Compare = lazy(() => import('./pages/Compare.jsx'));
 import Drills from './pages/Drills.jsx';
 import Reports from './pages/Reports.jsx';
 import AthletePortal from './pages/AthletePortal.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
-import LiveCapture from './pages/LiveCapture.jsx';
+const LiveCapture = lazy(() => import('./pages/LiveCapture.jsx'));
 import UploadVideo from './pages/UploadVideo.jsx';
 import MyEvolution from './pages/MyEvolution.jsx';
 import SessionReviews from './pages/SessionReviews.jsx';
 import Collaboration from './pages/Collaboration.jsx';
 import Clubs from './pages/Clubs.jsx';
+const InformeSesion = lazy(() => import('./pages/InformeSesion.jsx'));
 
 /**
  * Componente de orden superior que restringe el acceso a usuarios autenticados y con rol autorizado
@@ -85,11 +88,13 @@ function HomeRoute() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<div className="mh-route-loading" role="status" aria-busy="true"><span className="mh-spinner" aria-hidden="true"/><span className="mh-visually-hidden">Cargando…</span></div>}>
       <Routes>
         <Route path="/capture-lab" element={<ProtectedRoute allowedRoles={['entrenador']}><LiveCapture /></ProtectedRoute>} />
         <Route path="/reviews" element={<ProtectedRoute allowedRoles={['atleta','entrenador']}><SessionReviews /></ProtectedRoute>} />
         <Route path="/upload" element={<ProtectedRoute allowedRoles={['atleta','entrenador']}><UploadVideo /></ProtectedRoute>} />
         <Route path="/evolution" element={<ProtectedRoute allowedRoles={['atleta']}><MyEvolution /></ProtectedRoute>} />
+        <Route path="/informe" element={<ProtectedRoute allowedRoles={['atleta','entrenador']}><InformeSesion /></ProtectedRoute>} />
         <Route path="/clubs" element={<ProtectedRoute allowedRoles={['entrenador']}><Clubs /></ProtectedRoute>} />
         <Route path="/collaboration" element={<ProtectedRoute allowedRoles={['atleta', 'entrenador']}><Collaboration /></ProtectedRoute>} />
         <Route
@@ -190,6 +195,7 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

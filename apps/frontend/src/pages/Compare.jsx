@@ -32,6 +32,8 @@ import { Layout, PageHeader } from '../components/UI.jsx';
 import api from '../services/api.js';
 import { SkeletonList, cardVariants, motion } from '../components/Motion.jsx';
 import PoseComparison from '../components/PoseComparison.jsx';
+import { PerfilComparado, TablaDiferencias } from '../components/DetalleAnalisis.jsx';
+import { perfilComparado, diferenciasEntre } from '../services/detalleAnalisis.js';
 import { extraerMetricasSesion, formatearMetrica, compararSesiones } from '../services/metricasSesion.js';
 const poseRequest=async path=>{const r=await fetch((import.meta.env.VITE_API_BASE||'')+path,{headers:{Authorization:'Bearer '+localStorage.getItem('metahub_token')}});const data=await r.json();if(!r.ok)throw new Error(data.error||'No se pudieron cargar los datos');return data;};
 
@@ -285,6 +287,19 @@ export default function Compare() {
                   </li>
                 ))}
               </ul>
+            </motion.section>
+          )}
+          {rawSessionA?.analysis && rawSessionB?.analysis && perfilComparado(rawSessionA.analysis, rawSessionB.analysis).length > 0 && (
+            <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-perfil-cmp">
+              <h2 id="mh-perfil-cmp" className="mh-block-title">Perfil antes y después</h2>
+              <p className="mh-block-note">Distancia de cada variable a la referencia, en DE. Hueco: sesión inicial; lleno: sesión de control.</p>
+              <PerfilComparado antes={rawSessionA.analysis} despues={rawSessionB.analysis} />
+            </motion.section>
+          )}
+          {rawSessionA?.analysis && rawSessionB?.analysis && diferenciasEntre(rawSessionA.analysis, rawSessionB.analysis).length > 0 && (
+            <motion.section variants={cardVariants} className="mh-block" aria-labelledby="mh-dif-cmp">
+              <h2 id="mh-dif-cmp" className="mh-block-title">Cambio por variable</h2>
+              <TablaDiferencias antes={rawSessionA.analysis} despues={rawSessionB.analysis} />
             </motion.section>
           )}
           {sinMedicion.length > 0 && (

@@ -5,9 +5,11 @@ import {ClipboardCheck} from 'lucide-react';
 import {SkeletonList,cardVariants,listItemVariants,motion} from '../components/Motion.jsx';
 import FeatureBanner from '../components/FeatureBanner.jsx';
 import {clubRequest} from '../services/roster.js';
+import {Link} from 'react-router-dom';
+import {DetalleSesion,PorQue} from '../components/DetalleAnalisis.jsx';
 const labels={pending:'Pendiente de revisión',reviewed:'Revisada',requires_new_video:'Solicita nueva captura'};
 const date=v=>new Date(v).toLocaleString('es-CL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-function ReviewCard({session,tasks,canEdit,onReload}){
+function ReviewCard({session,tasks,canEdit,onReload,athleteId,coach}){
  const [status,setStatus]=useState(session.reviewStatus),[notes,setNotes]=useState(session.observations);
  const [title,setTitle]=useState(''),[details,setDetails]=useState(''),[due,setDue]=useState('');
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
@@ -37,6 +39,13 @@ function ReviewCard({session,tasks,canEdit,onReload}){
   <h2>Sesión #{session.id} · {date(session.sessionDate)}</h2>
   <div className="feature-session-meta"><span className="feature-pill">IPT: {session.iptScore==null?'Sin análisis':session.iptScore+' puntos'}</span><span className={'feature-pill '+session.reviewStatus}>{labels[session.reviewStatus]}</span></div>
   {session.reviewedAt&&<p>Última revisión: {date(session.reviewedAt)}</p>}
+  {session.analysis&&<>
+   <PorQue analysis={session.analysis}/>
+   <details className="mh-collapsible"><summary>Detalle técnico del análisis</summary>
+    <DetalleSesion analysis={session.analysis} idBase={'rev-'+session.id} porQue={false}/>
+   </details>
+   <Link className="secondary-button" to={'/informe?'+(coach?'athleteId='+athleteId+'&':'')+'sessionId='+session.id}>Informe PDF</Link>
+  </>}
   {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
   {canEdit?<form onSubmit={e=>{e.preventDefault();save(false);}}>
    <label className="form-field"><span>Estado de revisión</span><select disabled={busy} value={status} onChange={e=>{dirty.current=true;setStatus(e.target.value);}}>
@@ -112,7 +121,7 @@ export default function SessionReviews(){
  <label className="form-field"><span>Filtrar revisión</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Todas</option>{Object.entries(labels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
  </motion.section><div style={{display:'grid',gap:20}}>
  {!visible.length&&<p>No hay sesiones para este filtro.</p>}
- {visible.map(s=><ReviewCard key={s.id} session={s} tasks={data.tasks.filter(t=>t.sessionId===s.id)} canEdit={data.athlete.canEdit} onReload={reload}/>)}
+ {visible.map(s=><ReviewCard key={s.id} session={s} tasks={data.tasks.filter(t=>t.sessionId===s.id)} canEdit={data.athlete.canEdit} onReload={reload} athleteId={data.athlete.id} coach={coach}/>)}
  </div></>}
  </div></Layout>;
 }

@@ -29,7 +29,13 @@ async function list(user) {
  (a.trainer_id=$1) AS "canEdit",
  CASE WHEN a.trainer_id=$1 THEN 'own' ELSE 'club' END AS access,
  (SELECT count(*)::int FROM sessions s WHERE s.athlete_id=a.id) AS "sessionCount",
- (SELECT s.ipt_score FROM sessions s WHERE s.athlete_id=a.id AND s.ipt_score IS NOT NULL ORDER BY s.session_date DESC,s.id DESC LIMIT 1) AS "lastIptScore"
+ (SELECT s.ipt_score FROM sessions s WHERE s.athlete_id=a.id AND s.ipt_score IS NOT NULL ORDER BY s.session_date DESC,s.id DESC LIMIT 1) AS "lastIptScore",
+ (SELECT max(s.session_date) FROM sessions s WHERE s.athlete_id=a.id AND s.analysis IS NOT NULL) AS "lastAnalysisAt",
+ -- Pendientes del Inicio (ADR-026): sesiones analizadas sin revisar, ejercicios vencidos y videos en cola.
+ (SELECT count(*)::int FROM sessions s LEFT JOIN session_reviews r ON r.session_id=s.id
+   WHERE s.athlete_id=a.id AND s.analysis IS NOT NULL AND coalesce(r.status,'pending')='pending') AS "pendingReviews",
+ (SELECT count(*)::int FROM collaboration_tasks t WHERE t.athlete_id=a.id AND NOT t.done AND t.due_at < now()) AS "overdueTasks",
+ (SELECT count(*)::int FROM athlete_video_uploads v WHERE v.athlete_id=a.id AND v.status IN ('uploaded','queued','processing')) AS "queuedVideos"
  FROM athletes a JOIN users u ON u.id=a.trainer_id
  WHERE `+scope+` ORDER BY a.name,a.id`,[user.id]);
  return result.rows.map(a=>({...a,age:repo.formatAthlete(a).age}));
@@ -64,6 +70,7 @@ async function detail(user,id) {
    FROM sessions s JOIN athletes a ON a.id=s.athlete_id
    WHERE a.id=$2 AND `+scope+` ORDER BY s.session_date DESC,s.id DESC`,[user.id,athlete.id])).rows;
  } else sessions=await repo.getSessionsForAthlete(athlete.id);
- return {athlete,sessions,progress:computeProgress(sessions,sessions.find(s=>s.analysis)?.analysis || null)};
+ const sportProfile=await require('./perfilDeportivo').obtener(athlete.id);
+ return {athlete:{...athlete,sportProfile},sessions,progress:computeProgress(sessions,sessions.find(s=>s.analysis)?.analysis || null)};
 }
 module.exports={list,readable,detail,positiveId,reject,coach};

@@ -1,0 +1,160 @@
+/* Detalle del análisis (ADR-026). Usa los tokens de sport-theme.css. */
+.da-empty{margin:0;padding:14px 16px;border-radius:14px;background:var(--mh-surface-2);color:var(--mh-text-2);font-size:13.5px}
+.da-note{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--mh-muted)!important}
+
+/* Datos del sprint */
+.da-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px}
+.da-tile{padding:12px 14px;border-radius:14px;background:var(--mh-surface-2);display:flex;flex-direction:column;gap:2px;min-width:0}
+.da-tile-label{font-size:11.5px;font-weight:600;letter-spacing:.3px;color:var(--mh-muted)}
+.da-tile-value{font:700 24px/1.1 var(--mh-display);color:var(--mh-text);font-variant-numeric:tabular-nums}
+.da-tile small{font-size:11.5px;line-height:1.35;color:var(--mh-faint)}
+
+/* Calidad de la toma */
+.da-quality-meta{margin:0 0 10px;font-size:12.5px;color:var(--mh-muted)!important}
+.da-checks{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.da-checks li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:var(--mh-text-2)}
+.da-checks li svg{flex:none;margin-top:1px}
+.da-checks li.ok svg{color:var(--mh-ok)}
+.da-checks li.warn svg{color:var(--mh-warn)}
+.da-checks strong{display:block;color:var(--mh-text);font-weight:600}
+.da-checks small{display:block;font-size:12px;color:var(--mh-muted);line-height:1.4}
+
+/* Tabla de variables */
+.da-table{display:grid;gap:18px}
+.da-phase h4{margin:0 0 8px;font:700 11.5px var(--mh-sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--mh-accent-text)}
+.da-phase ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.da-var{padding:12px 14px;border-radius:14px;background:var(--mh-surface-2);break-inside:avoid}
+.da-var-head{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.da-var-name{font-size:14px;font-weight:600;color:var(--mh-text);display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.da-var-value{font:700 20px var(--mh-display);color:var(--mh-text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.da-badge{font:700 10px var(--mh-sans);letter-spacing:.8px;padding:2px 6px;border-radius:6px;background:var(--mh-data-soft);color:var(--mh-data)}
+.da-var-meta,.da-var-ref{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:12px;color:var(--mh-muted);font-variant-numeric:tabular-nums}
+.da-var-ref{align-items:center}
+.da-z{font-weight:700}
+.da-z.ok{color:var(--mh-ok)} .da-z.warn{color:var(--mh-warn)} .da-z.bad{color:var(--mh-bad)}
+.da-state{padding:2px 8px;border-radius:999px;font-weight:600;font-size:11.5px}
+.da-state.ok{background:var(--mh-ok-bg);color:var(--mh-ok)}
+.da-state.warn{background:var(--mh-warn-bg);color:var(--mh-warn)}
+.da-state.bad{background:var(--mh-bad-bg);color:var(--mh-bad)}
+.da-state.muted{background:var(--mh-line);color:var(--mh-muted)}
+.da-var-legs{margin-top:4px;font-size:12px;color:var(--mh-muted)}
+.da-var-more{margin-top:6px;font-size:12.5px;color:var(--mh-text-2)}
+.da-var-more summary{cursor:pointer;color:var(--mh-data);font-weight:600;font-size:12px;min-height:28px;display:inline-flex;align-items:center}
+.da-var-more p{margin:4px 0 0;line-height:1.45}
+
+/* Por qué */
+.da-why{display:grid;gap:10px}
+.da-why>div{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:var(--mh-surface-2);font-size:13.5px;line-height:1.5;color:var(--mh-text-2)}
+.da-why svg{flex:none;margin-top:2px;color:var(--mh-accent-text)}
+.da-why strong{display:block;color:var(--mh-text);margin-bottom:2px}
+
+/* Gráfico por paso */
+.da-steps-select{max-width:360px;margin-bottom:8px}
+.da-ref-band{fill:var(--mh-ok);opacity:.12}
+.da-ref-line{stroke:var(--mh-ok);stroke-width:1.5;stroke-dasharray:4 4;opacity:.8}
+.da-mean-line{stroke:var(--mh-text);stroke-width:1.25;opacity:.45}
+.da-step{stroke:var(--mh-surface);stroke-width:1.5}
+.da-step.a{fill:var(--mh-data)}
+.da-step.b{fill:var(--mh-accent)}
+.ipt-key.da-a{background:var(--mh-data)}
+.ipt-key.da-b{background:var(--mh-accent)}
+.da-key-mean{display:inline-block;width:14px;height:0;border-top:1.5px solid var(--mh-text);opacity:.5}
+.da-key-band{display:inline-block;width:14px;height:9px;background:var(--mh-ok);opacity:.25;border-radius:2px}
+
+/* Perfil comparado */
+.da-compare-profile>ul:first-child{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.da-compare-z{font:600 13px var(--mh-display);letter-spacing:.3px;color:var(--mh-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.da-compare-z b.ok{color:var(--mh-ok)} .da-compare-z b.warn{color:var(--mh-warn)} .da-compare-z b.bad{color:var(--mh-bad)}
+.da-compare-profile .ipt-track{overflow:visible}
+.da-compare-link{position:absolute;top:5px;height:2px;background:var(--mh-muted);opacity:.6}
+.da-mark{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%}
+.da-mark.antes{border:2px solid var(--mh-muted);background:var(--mh-surface)}
+.da-mark.despues{background:var(--mh-data)}
+.da-mark.despues.ok{background:var(--mh-ok)} .da-mark.despues.warn{background:var(--mh-warn)} .da-mark.despues.bad{background:var(--mh-bad)}
+
+/* Diferencias */
+.da-diff>ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.da-diff li{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 12px;border-radius:12px;background:var(--mh-surface-2);align-items:center}
+.da-diff-name{font-size:13.5px;font-weight:600;color:var(--mh-text)}
+.da-diff-name small{display:block;font-weight:500;font-size:11.5px;color:var(--mh-muted)}
+.da-diff-values{font-size:13px;color:var(--mh-text-2);text-align:right;font-variant-numeric:tabular-nums}
+.da-diff-tag{grid-column:1/-1;justify-self:start;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+.da-diff-tag.ok{background:var(--mh-ok-bg);color:var(--mh-ok)}
+.da-diff-tag.warn{background:var(--mh-warn-bg);color:var(--mh-warn)}
+.da-diff-tag.muted{background:var(--mh-line);color:var(--mh-muted)}
+
+/* Resumen del atleta */
+.da-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:10px;margin-top:16px}
+.da-summary>div{padding:12px 14px;border-radius:14px;background:var(--mh-surface-2);display:flex;flex-direction:column;gap:2px;min-width:0}
+.da-summary small{font-size:11.5px;font-weight:600;color:var(--mh-muted)}
+.da-summary strong{font:700 24px/1.1 var(--mh-display);color:var(--mh-text)}
+.da-summary strong.da-summary-text{font:600 15px/1.3 var(--mh-sans)}
+.da-summary em{font-style:normal;font-size:11.5px;color:var(--mh-faint)}
+.da-trend{display:inline-flex;align-items:center;gap:6px;font-size:19px!important}
+.da-trend.ok{color:var(--mh-ok)!important}
+.da-trend.bad{color:var(--mh-bad)!important}
+
+/* Foco del atleta */
+.da-focus{padding:16px 18px;border-radius:18px;background:var(--mh-surface);border:1px solid var(--mh-card-line);border-left:4px solid var(--mh-warn)}
+.da-focus.bad{border-left-color:var(--mh-bad)}
+.da-focus.ok{border-left-color:var(--mh-ok)}
+.da-focus strong{display:block;margin-top:4px;font:700 22px/1.15 var(--mh-display);color:var(--mh-text)}
+.da-focus p{margin:6px 0 0;font-size:14px;line-height:1.5;color:var(--mh-text-2)}
+.da-focus .da-focus-z{font-size:12.5px;color:var(--mh-muted)}
+
+/* Pestañas del detalle de una sesión */
+.da-tabs{display:flex;gap:6px;overflow-x:auto;margin:4px 0 14px;padding-bottom:2px;scrollbar-width:none}
+.da-tabs button{flex:none;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--mh-line);background:transparent;color:var(--mh-text-2);font:600 13px var(--mh-sans);cursor:pointer}
+.da-tabs button[aria-selected="true"]{background:var(--mh-text);color:var(--mh-bg);border-color:var(--mh-text)}
+.da-section{margin-top:18px}
+.da-section>h3{margin:0 0 10px;font:700 12px var(--mh-sans);letter-spacing:1.3px;text-transform:uppercase;color:var(--mh-text)}
+
+/* Guía de grabación */
+.gg{margin:0 0 20px;border-radius:18px;background:var(--mh-surface);border:1px solid var(--mh-card-line)}
+.gg>summary{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 16px;cursor:pointer;font-weight:600;color:var(--mh-text);list-style:none}
+.gg>summary::-webkit-details-marker{display:none}
+.gg>summary svg{color:var(--mh-accent-text)}
+.gg>summary::after{content:'+';margin-left:auto;font-size:20px;color:var(--mh-muted)}
+.gg[open]>summary::after{content:'−'}
+.gg-body{padding:0 16px 16px}
+.gg-svg{display:block;width:100%;max-width:440px;height:auto;margin:0 auto 12px}
+.gg-lane{fill:var(--mh-surface-2);stroke:var(--mh-line)}
+.gg-lane-mid{stroke:var(--mh-line);stroke-dasharray:6 6}
+.gg-run{stroke:var(--mh-accent);stroke-width:2.5;fill:none}
+.gg-arrow{fill:var(--mh-accent)}
+.gg-fov{fill:var(--mh-data);opacity:.12;stroke:var(--mh-data);stroke-opacity:.5}
+.gg-dim{stroke:var(--mh-muted);stroke-width:1;stroke-dasharray:3 3}
+.gg-phone{fill:var(--mh-text)}
+.gg-t{fill:var(--mh-muted);font:500 11px var(--mh-sans)}
+.gg-t.b{fill:var(--mh-text);font-weight:600}
+.gg-list{margin:0;padding-left:20px;display:grid;gap:8px;font-size:13.5px;line-height:1.5;color:var(--mh-text-2)}
+.gg-list b{color:var(--mh-text)}
+
+/* Carga diferida de páginas */
+.mh-route-loading{min-height:60vh;display:grid;place-items:center}
+.mh-drill-origin{color:var(--mh-accent-text)!important}
+.mh-route-loading .mh-spinner{width:28px;height:28px;border-color:var(--mh-line);border-top-color:var(--mh-accent)}
+
+/* Resumen del equipo en el Inicio: 6 indicadores, los pendientes son enlaces */
+.mh-team-stats a{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:16px;background:var(--mh-surface);border:1px solid var(--mh-card-line);text-decoration:none}
+.mh-team-stats a.is-due strong{color:var(--mh-warn)}
+.mh-team-stats a.is-late strong{color:var(--mh-bad)}
+.mh-team-stats span{line-height:1.25}
+
+/* Perfil deportivo */
+.pd-view{margin-top:14px}
+.pd-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:8px 14px;margin:0}
+.pd-facts div{min-width:0}
+.pd-facts dt{font-size:11.5px;color:var(--mh-muted)}
+.pd-facts dd{margin:2px 0 0;font-weight:600;color:var(--mh-text)}
+.pd-edit{display:inline-flex;align-items:center;gap:6px;margin-top:8px;min-height:36px;color:var(--mh-data);font-weight:600;background:none;border:0;padding:0;cursor:pointer}
+.pd-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;margin-top:14px}
+.pd-actions{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}
+.pd-error{grid-column:1/-1;margin:0;color:var(--mh-bad)}
+.gg-wrap{min-width:0;max-width:100%}
+.gg{min-width:0;max-width:100%;overflow:hidden}
+.gg-svg{width:100%;min-width:0}
+
+/* Selector de atleta: la opción más larga no debe ensanchar la página en el celular (bug previo a ADR-026). */
+.mh-athlete-picker{min-width:0;max-width:100%}
+.mh-athlete-picker select{min-width:0;width:100%;flex:1 1 0}

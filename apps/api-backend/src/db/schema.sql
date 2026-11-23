@@ -245,3 +245,13 @@ ALTER TABLE athlete_video_uploads DROP CONSTRAINT IF EXISTS athlete_video_upload
 ALTER TABLE athlete_video_uploads ADD CONSTRAINT athlete_video_uploads_slow_motion_check
   CHECK (slow_motion_factor >= 1 AND slow_motion_factor <= 16);
 COMMIT;
+
+-- 009: perfil deportivo del atleta (ADR-026). No entra al IPT.
+CREATE TABLE IF NOT EXISTS athlete_sport_profiles (
+  athlete_id INTEGER PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
+  main_event VARCHAR(20) CHECK (main_event IN ('60m','80m','100m','150m','200m','400m','vallas','relevos','otra')),
+  dominant_leg VARCHAR(10) CHECK (dominant_leg IN ('derecha','izquierda')),
+  height_cm SMALLINT CHECK (height_cm BETWEEN 100 AND 230),
+  best_mark VARCHAR(60),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

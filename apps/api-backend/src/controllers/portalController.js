@@ -16,6 +16,14 @@
 
 const dbRepository = require('../db/repository');
 const { computeProgress } = require('../services/progress');
+const { obtener: obtenerPerfil } = require('../services/perfilDeportivo');
+
+/** Versión principal del IPT de un análisis ("3.0-perfil" → 3); los análisis sin versión son la 1. */
+function versionIpt(analysis) {
+  if (!analysis || typeof analysis !== 'object') return null;
+  const m = /^(\d+)/.exec(String(analysis.version || ''));
+  return m ? Number(m[1]) : 1;
+}
 
 /**
  * Datos completos del portal del atleta autenticado
@@ -43,7 +51,8 @@ async function getMyPortal(req, res) {
         name: athlete.name,
         age: athlete.age,
         consent: athlete.consent,
-        trainerName: athlete.trainerName || null
+        trainerName: athlete.trainerName || null,
+        sportProfile: await obtenerPerfil(athlete.id)
       },
       progress,
       sessions: sessions.map(s => ({
@@ -52,7 +61,11 @@ async function getMyPortal(req, res) {
         iptScore: s.iptScore,
         sectorPrioritario: s.analysis && s.iptScore != null ? s.analysis.sector_prioritario || null : null,
         analizada: Boolean(s.analysis),
-        badge: s.analysis ? s.analysis.badge || null : null
+        badge: s.analysis ? s.analysis.badge || null : null,
+        // Para el gráfico de evolución (ADR-025): solo el IPT v3 es comparable entre sesiones.
+        iptVersion: versionIpt(s.analysis),
+        ic95: s.analysis && Array.isArray(s.analysis.ic95) && s.analysis.ic95.length === 2 ? s.analysis.ic95 : null,
+        provisional: Boolean(s.analysis && s.analysis.provisional)
       })),
       latestAnalysis
     });

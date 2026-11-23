@@ -3,6 +3,8 @@ import {Link} from 'react-router-dom';
 import {Layout,PageHeader} from '../components/UI.jsx';
 import api from '../services/api.js';
 import {SkeletonList,cardVariants,listItemVariants,motion} from '../components/Motion.jsx';
+import {EvolucionIpt} from '../components/GraficosIpt.jsx';
+import {serieEvolucion} from '../services/informeIpt.js';
 const date=v=>new Date(v).toLocaleString('es-CL');
 const score=v=>v==null?'Sin análisis':v+' pts';
 export default function MyEvolution(){
@@ -26,7 +28,13 @@ export default function MyEvolution(){
  action={<Link className="primary-button" to="/upload">Subir video de una nueva sesión</Link>}/>
  {error&&<p role="alert">{error}</p>}
  {!portal&&!error&&<div className="panel-card"><SkeletonList rows={3} label="Cargando tus sesiones…"/></div>}
- {portal&&<><motion.section variants={cardVariants} className="panel-card"><h2>{portal.athlete.name}</h2>
+ {portal&&<><motion.section variants={cardVariants} className="panel-card ipt-panel" style={{marginTop:0,marginBottom:20}} aria-labelledby="mh-evo-chart">
+ <div className="ipt-panel-head"><div><span className="eyebrow">TU IPT EN EL TIEMPO</span><h2 id="mh-evo-chart">Evolución</h2>
+ <p>Cada punto es una sesión; la línea vertical muestra cuánto varió entre tus pasos (IC 95 %).</p></div>
+ {sessions.some(s=>s.analizada)&&<Link className="secondary-button ipt-report-link" to="/informe">Informe PDF</Link>}</div>
+ <EvolucionIpt {...serieEvolucion(sessions)}/>
+ </motion.section>
+ <motion.section variants={cardVariants} className="panel-card"><h2>{portal.athlete.name}</h2>
  <p>{sessions.length} sesiones registradas · Entrenador: {portal.athlete.trainerName||'Asignado en tu ficha'}</p>
  {sessions.length<2?<p>Necesitas al menos dos sesiones para comparar tu evolución.</p>:<>
  <label className="form-field"><span>Sesión inicial</span><select value={a} onChange={e=>setA(e.target.value)}>
@@ -43,6 +51,7 @@ export default function MyEvolution(){
  {sessions.map((s,i)=><motion.article key={s.id} custom={i} variants={listItemVariants} initial="initial" animate="animate" style={{padding:12,borderBottom:'1px solid var(--border)'}}>
  <strong>{date(s.sessionDate)}</strong><p>Sesión #{s.id} · IPT: {score(s.iptScore)}</p>
  <Link to={'/reviews?sessionId='+s.id}>Ver observación del entrenador y ejercicios</Link>
+ {s.analizada&&<> · <Link to={'/informe?sessionId='+s.id}>Informe PDF</Link></>}
  {s.sectorPrioritario&&<p>Sector prioritario: {typeof s.sectorPrioritario==='string'?s.sectorPrioritario:JSON.stringify(s.sectorPrioritario)}</p>}
  </motion.article>)}
  <p>Los resultados reflejan los análisis registrados. Revísalos con tu entrenador.</p></motion.section></>}

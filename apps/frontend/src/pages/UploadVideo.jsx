@@ -2,6 +2,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Video,RefreshCw,ShieldCheck,X,UploadCloud} from 'lucide-react';
 import {Layout,PageHeader} from '../components/UI.jsx';
+import GuiaGrabacion from '../components/GuiaGrabacion.jsx';
 import DeviceVideoInput from '../components/DeviceVideoInput.jsx';
 import {createRequestId} from '../services/requestId.js';
 import {uploadVideo,videoRequest} from '../services/videoUpload.js';
@@ -136,6 +137,7 @@ export default function UploadVideo(){
   <li><b>2 · Cámara fija</b><span>Horizonte recto, sin seguir al atleta</span></li>
   <li><b>3 · Graba</b><span>Hasta 120 s en el navegador</span></li>
  </motion.ol>
+ <motion.div variants={cardVariants} className="gg-wrap"><GuiaGrabacion/></motion.div>
  <motion.section className="panel-card" variants={cardVariants}>
   <h2 className="feature-title"><Video size={21}/>Video de la carrera</h2>
   <p className="device-video-info">Archivos MP4, WebM o MOV (iPhone) de hasta 5 min y {formatBytes(MAX_VIDEO_BYTES)}. Antes de enviar se revisa el formato, el peso y la duración.</p>

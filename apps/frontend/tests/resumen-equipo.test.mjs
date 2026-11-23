@@ -88,3 +88,23 @@ test('el atleta y el entrenador ven los mismos hallazgos y los mismos ejercicios
   assert.match(dosisPara({ dosingByCat: { 'Sub-16': '3x8' } }, bandaDeEdad(15)), /3x8/);
   assert.match(dosisPara({ dosingByCat: {} }, bandaDeEdad(30)), /entrenador/);
 });
+
+test('pendientes del equipo: vencidos y revisiones como avisos, y totales solo de atletas propios', async () => {
+  const { totalesEquipo } = await import('../src/services/resumenEquipo.js');
+  const atletas = [
+    { id: 1, name: 'A', canEdit: true, consent: true, pendingReviews: 2, overdueTasks: 1, queuedVideos: 1, lastAnalysisAt: new Date().toISOString() },
+    { id: 2, name: 'B', canEdit: false, consent: true, pendingReviews: 5, overdueTasks: 3, queuedVideos: 2 }
+  ];
+  const avisos = avisosEquipo(atletas, null);
+  assert.deepEqual(avisos.map(a => a.tipo), ['vencidos', 'revision']);
+  assert.equal(avisos[0].tono, 'alto');
+  assert.match(avisos[1].texto, /2 sesiones analizadas/);
+  assert.deepEqual(totalesEquipo(atletas), { atletas: 1, revisiones: 2, vencidos: 1, enCola: 1, activos30d: 1 });
+});
+
+test('la diferencia con el análisis anterior solo usa la misma versión del IPT', () => {
+  const v3 = ipt => ({ ipt_score: ipt, version: '3.0-perfil', recomendaciones: { disponible: true, hallazgos: [] } });
+  const r = ultimoAnalisis([sesion(9, 89.8, v3(89.8)), sesion(8, 60.8, v2(60.8)), sesion(7, 85.6, v3(85.6))]);
+  assert.equal(r.deltaIpt, 4.2);
+  assert.equal(ultimoAnalisis([sesion(9, 89.8, v3(89.8)), sesion(8, 60.8, v2(60.8))]).deltaIpt, null);
+});

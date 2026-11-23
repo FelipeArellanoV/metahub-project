@@ -374,6 +374,10 @@ export default function Drills() {
                   <span className="mh-drill-dose">{dosisPara(drill)}</span>
                   <small>{drill.goal}</small>
                   {drill.cues && <small><b>Consigna:</b> {drill.cues}</small>}
+                  {(() => {
+                    const origen = (athleteEval.rec?.hallazgos || []).filter(h => (TIPO_A_DEFICIT[h.tipo] || h.tipo) === drill.targetDeficit);
+                    return origen.length > 0 && <small className="mh-drill-origin"><b>Responde a:</b> {origen.map(h => h.titulo).join(' · ')}</small>;
+                  })()}
                 </li>
               ))}
             </ol>
