@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/pose-geometry.test.mjs tests/comparacion-sesiones.test.mjs tests/video-validation.test.mjs tests/progress-state.test.mjs tests/resumen-equipo.test.mjs tests/categoria.test.mjs tests/informe-ipt.test.mjs tests/detalle-analisis.test.mjs"
+    "test": "node --test tests/pose-geometry.test.mjs tests/comparacion-sesiones.test.mjs tests/video-validation.test.mjs tests/progress-state.test.mjs tests/resumen-equipo.test.mjs tests/categoria.test.mjs tests/informe-ipt.test.mjs tests/detalle-analisis.test.mjs tests/progreso-personal.test.mjs"
   },
   "dependencies": {
     "framer-motion": "11.18.2",
