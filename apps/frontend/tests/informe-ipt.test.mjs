@@ -49,6 +49,16 @@ test('la serie acepta el formato del portal (ic95 e iptVersion en la sesión)', 
   assert.deepEqual(puntos.map(p => p.id), [9]);
 });
 
+test('intervalos inválidos no generan conclusiones de cambio ni se grafican', () => {
+  const anterior = { ipt: 80, ic95: [79, 81] };
+  for (const intervalo of [[90, 85], [NaN, 90], ['85', 90]]) {
+    const actual = { ipt: 87, ic95: intervalo };
+    assert.equal(cambioEntre(anterior, actual).criterio, 'sin_ic');
+    const { puntos } = serieEvolucion([{ id: 1, sessionDate: '2026-11-20', analysis: v3(87, intervalo) }]);
+    assert.equal(puntos[0].ic95, null);
+  }
+});
+
 test('un cambio solo es real si los IC no se superponen', () => {
   const a = { ipt: 82, ic95: [81, 83] };
   assert.equal(cambioEntre(a, { ipt: 86, ic95: [85, 87] }).criterio, 'mejora_real');

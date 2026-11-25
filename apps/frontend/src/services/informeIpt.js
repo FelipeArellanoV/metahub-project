@@ -30,7 +30,7 @@ export function versionIpt(analysis) {
   return m ? Number(m[1]) : 1;
 }
 
-const ic = v => (Array.isArray(v) && v.length === 2 && num(v[0]) != null && num(v[1]) != null ? [v[0], v[1]] : null);
+const ic = v => (Array.isArray(v) && v.length === 2 && num(v[0]) != null && num(v[1]) != null && v[0] <= v[1] ? [v[0], v[1]] : null);
 
 /**
  * Serie para el gráfico de evolución, de la sesión más antigua a la más reciente.
@@ -64,8 +64,9 @@ export function serieEvolucion(sessions) {
 export function cambioEntre(anterior, actual) {
   if (!anterior || !actual) return null;
   const delta = Math.round((actual.ipt - anterior.ipt) * 10) / 10;
-  if (!anterior.ic95 || !actual.ic95) return { delta, criterio: 'sin_ic' };
-  const separados = actual.ic95[0] > anterior.ic95[1] || actual.ic95[1] < anterior.ic95[0];
+  const icAnterior = ic(anterior.ic95), icActual = ic(actual.ic95);
+  if (!icAnterior || !icActual) return { delta, criterio: 'sin_ic' };
+  const separados = icActual[0] > icAnterior[1] || icActual[1] < icAnterior[0];
   return { delta, criterio: separados ? (delta > 0 ? 'mejora_real' : 'baja_real') : 'dentro_de_la_variabilidad' };
 }
 
